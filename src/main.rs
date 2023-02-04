@@ -4,10 +4,11 @@ mod utils;
 mod dao;
 
 use canyon_sql;
-
+use color_eyre::{eyre::Context, Result};
 
 #[canyon_sql::main]
-fn main() {
+fn main() -> Result<()> {
+    color_eyre::install()?;
     let mut data_pull = service::DataPull::new().await;
     data_pull.fetch_leagues().await;
     // data_pull.fetch_tournaments().await;
@@ -17,5 +18,7 @@ fn main() {
         println!("{}", t)
     );
 
-    dao::bulk_leagues_in_database(data_pull.leagues).await;
+    dao::bulk_leagues_in_database(data_pull.leagues)
+        .await
+        .with_context(|| "Failed the insert Leagues operation")
 }

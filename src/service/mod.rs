@@ -1,5 +1,6 @@
 pub mod caller;
 use crate::{utils::constants::lolesports, data_pull::serde_models::{Wrapper, Leagues, LeagueForTournaments, Tournaments, TeamsPlayers, Team, Player, LolesportsId}};
+use color_eyre::{eyre::Context, Result};
 
 /**
  * This type alias are just a communist joke. They are the Lolesports tournaments only?
@@ -36,49 +37,54 @@ impl DataPull {
         }
     }
 
-    pub async fn fetch_leagues(&mut self) {
-        let response = caller::make_get_request::<&[()]>(lolesports::LEAGUES_ENDPOINT, None).await.expect("Cant unwrap the result");
+    pub async fn fetch_leagues(&mut self) -> Result<()> {
+        let response = caller::make_get_request::<&[()]>(lolesports::LEAGUES_ENDPOINT, None)
+            .await
+            .with_context(|| "A failure happened retrieving the Leagues from Lolesports");
 
-        match serde_json::from_str::<Wrapper<Leagues>>(&response.text().await.unwrap()) {
-            Ok(parsed) => self.leagues = parsed.data,
-            Err(e) => println!("{:?}",e),
-        };
+        serde_json::from_str::<Wrapper<Leagues>>(&response?.text().await.unwrap())
+            .map(|parsed| self.leagues = parsed.data)
+            .with_context(|| "A failure happened parsing the Leagues from Lolesports")
     }
 
-    pub async fn fetch_tournaments(&mut self) {
+    pub async fn fetch_tournaments(&mut self) -> Result<()> {
         for league in &self.leagues.leagues {
 
-            let response = caller::make_get_request(lolesports::TOURNAMENTS_ENDPOINT, Some(&[("leagueId", &league.id)])).await.expect("Couldn't unwrap the result");
+            let response = caller::make_get_request(lolesports::TOURNAMENTS_ENDPOINT, Some(&[("leagueId", &league.id)]))
+            .await
+            .with_context(|| "A failure happened retrieving the Tournaments from Lolesports");
 
-            match serde_json::from_str::<Wrapper<LeagueForTournaments>>(&response.text().await.unwrap()) {
-                Ok(parsed) => {
+            serde_json::from_str::<Wrapper<LeagueForTournaments>>(&response?.text().await.unwrap())
+                .map(|parsed| {
                     let mut tournaments_in_league = parsed.data.leagues[0].clone();
                     tournaments_in_league.league_id = league.id.clone();
                     self.tournaments.push(tournaments_in_league)
-                },
-                Err(e) => println!("{:?}", e),
-            };
+                })
+                .with_context(|| "A failure happened parsing the Tournaments from Lolesports")?;
         }
+
+        Ok(())
     }
 
-    pub async fn fetch_teams_and_players(&mut self) {
+    pub async fn fetch_teams_and_players(&mut self) -> Result<()> {
         let response = caller::make_get_request::<&[()]>(
             lolesports::TEAMS_AND_LEAGUES_ENDPOINT,
                 None
-            ).await.expect("Couldn't unwrap the result");
+            ).await
+            .with_context(|| "A failure happened retrieving the Teams and players from Lolesports");
 
-        match serde_json::from_str::<Wrapper<TeamsPlayers>>(&response.text().await.unwrap()) {
-            Ok(parsed) => {
-                for mut team in parsed.data.teams {
-                    if let Some(home_league) = &mut team.home_league {
-                        home_league.league_id = self.search_league_by_name(&home_league.name);
-                    }
-                    self.teams.push(team.clone());
-                    self.players.extend(team.players.into_iter())
+        serde_json::from_str::<Wrapper<TeamsPlayers>>(&response?.text().await.unwrap())
+        .map(|parsed| {
+            for mut team in parsed.data.teams {
+                if let Some(home_league) = &mut team.home_league {
+                    home_league.league_id = self.search_league_by_name(&home_league.name);
                 }
-            },
-            Err(e) => println!("{:?}", e),
-        };
+                self.teams.push(team.clone());
+                self.players.extend(team.players.into_iter())
+            }
+        })
+        .with_context(|| "A failure happened parsing the Tournaments from Lolesports")
+              
     }
 
     fn search_league_by_name(&self, name: &str) -> LolesportsId {

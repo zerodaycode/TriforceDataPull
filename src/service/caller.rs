@@ -1,11 +1,11 @@
-use reqwest::IntoUrl;
+use reqwest::Response;
 use serde::Serialize;
 
 use crate::utils::constants::lolesports;
-use crate::data_pull::serde_models::LolesportsId;
+use color_eyre::{eyre::Context, Result};
 
 pub async fn make_get_request<T>(endpoint: &str, args: Option<&T>) 
-    -> Result<reqwest::Response, reqwest::Error>
+-> Result<Response> 
     where T: Serialize
 {
     let client = reqwest::Client::new();
@@ -19,4 +19,5 @@ pub async fn make_get_request<T>(endpoint: &str, args: Option<&T>)
     }
     
     b.send().await
+        .with_context(|| format!("Failed to request data from the LoLEsports API:{endpoint:?}"))
 }
