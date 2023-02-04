@@ -10,15 +10,19 @@ use color_eyre::{eyre::Context, Result};
 fn main() -> Result<()> {
     color_eyre::install()?;
     let mut data_pull = service::DataPull::new().await;
-    data_pull.fetch_leagues().await;
+    // data_pull.fetch_leagues().await;
     // data_pull.fetch_tournaments().await;
-    data_pull.fetch_teams_and_players().await;
-    // println!("Datapull: {data_pull:?}");
-    data_pull.teams.iter().for_each(|t|
-        println!("{}", t)
-    );
+    // data_pull.fetch_teams_and_players().await;
 
-    dao::bulk_leagues_in_database(data_pull.leagues)
-        .await
-        .with_context(|| "Failed the insert Leagues operation")
+    data_pull.fetch_schedule().await?;
+    println!("Datapull: {data_pull:?}");
+    Ok(())
+
+    // data_pull.teams.iter().for_each(|t|
+    //     println!("{}", t)
+    // );
+
+    // dao::bulk_leagues_in_database(data_pull.leagues)
+    //     .await
+    //     .with_context(|| "Failed the insert Leagues operation")
 }

@@ -1,5 +1,5 @@
 pub mod caller;
-use crate::{utils::constants::lolesports, data_pull::serde_models::{Wrapper, Leagues, LeagueForTournaments, Tournaments, TeamsPlayers, Team, Player, LolesportsId}};
+use crate::{utils::constants::lolesports, data_pull::serde_models::{Wrapper, Leagues, LeagueForTournaments, Tournaments, TeamsPlayers, Team, Player, LolesportsId, Schedule, ScheduleOutter}};
 use color_eyre::{eyre::Context, Result};
 
 /**
@@ -17,8 +17,8 @@ pub struct DataPull {
     pub leagues: Leagues,
     pub tournaments: OurTournaments,
     pub teams: Vec<Team>,
-    pub players: Vec<Player>
-    // schedule: Vec<serde_models::Event>,
+    pub players: Vec<Player>,
+    pub schedule: ScheduleOutter
 }
 
 /// TODO Docs
@@ -33,7 +33,8 @@ impl DataPull {
             leagues: Leagues::default(),
             tournaments: OurTournaments::default(),
             teams: Vec::default(),
-            players: Vec::default()
+            players: Vec::default(),
+            schedule: ScheduleOutter::default(),
         }
     }
 
@@ -87,11 +88,22 @@ impl DataPull {
               
     }
 
+    pub async fn fetch_schedule(&mut self) -> Result<()> {
+        let response = caller::make_get_request::<&[()]>(
+            lolesports::SCHEDULE_ENDPOINT,
+                None
+            ).await
+            .with_context(|| "A failure happened retrieving the schedule from Lolesports");
+
+        serde_json::from_str::<Wrapper<ScheduleOutter>>(&response?.text().await.unwrap())
+            .map(|parsed| self.schedule = parsed.data)
+            .with_context(|| "A failure happened parsing the Schedule from Lolesports")
+        }
+
     fn search_league_by_name(&self, name: &str) -> LolesportsId {
         self.leagues.leagues.iter()
             .find(|league| (*league.name).eq(name))
             .map(|league| league.id)
-            .unwrap_or_default()
+            .unwrap_or_default() 
     } 
-    
 }

@@ -20,7 +20,7 @@
 pub mod serde_models {
     use std::{collections::HashMap, fmt::Display};
 
-    use canyon_sql::db_clients::tiberius::time::chrono;
+    use canyon_sql::{db_clients::tiberius::time::chrono, date_time::NaiveDateTime};
     use reqwest::IntoUrl;
     use serde::{Deserialize, Deserializer, Serialize};
 
@@ -89,6 +89,23 @@ pub mod serde_models {
         }
     }
 
+    #[derive(Debug, Default, Serialize, Clone, Copy)]
+    pub struct LolesportsDateTime(pub NaiveDateTime);
+    impl<'de> Deserialize<'de> for LolesportsDateTime {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let s: &str = Deserialize::deserialize(deserializer)?;
+            Ok(LolesportsDateTime(
+                NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.3fZ")
+                .expect(
+                    &format!("Failed to deserialize the Lolesports DateTime: {s:?}")
+                )
+            ))
+        }
+    }
+
     #[derive(Deserialize, Debug, Clone)]
     pub struct Player {
         pub id: LolesportsId,
@@ -139,37 +156,71 @@ pub mod serde_models {
         pub region: String
     }
 
+    #[derive(Deserialize, Default, Debug)]
+    pub struct ScheduleOutter{
+        pub schedule: Schedule
+    }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Default, Debug)]
+    pub struct Schedule{
+        pub pages: Pages,
+        pub events: Vec<Event>
+    }
+
+    #[derive(Deserialize, Default, Debug)]
+    pub struct Pages {
+        pub older: String,
+        pub newer: String
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct ScheduleLeague {
+        #[serde(skip)]
+        pub league_id: LolesportsId,
+        pub name: String,
+        pub slug: String
+    }
+
+    #[derive(Deserialize, Debug)]
     pub struct Event {
         #[serde(alias = "startTime")]
-        start_time: chrono::NaiveDateTime,
-        state: String,
-        r#type: String,
+        pub start_time: LolesportsDateTime,
+        pub state: String,
+        pub r#type: String,
         #[serde(alias = "blockName")]
-        block_name: String,
-        league: League,
-        teams: Vec<TeamEvent>,
-        strategy: Strategy
+        pub block_name: Option<String>,
+        pub league: ScheduleLeague,
+        #[serde(default)]
+        pub r#match: Option<Match>
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
+    pub struct Match {
+        pub id: LolesportsId,
+        pub teams: Vec<TeamEvent>,
+        pub strategy: Strategy
+    }
+
+
+    #[derive(Deserialize, Debug)]
     pub struct TeamEvent {
-        team: Team,
-        result: MatchTeamResult
+        pub name: String,
+        pub code: String,
+        pub image: String,
+        pub result: MatchTeamResult
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     pub struct MatchTeamResult {
-        outcome: String,
+        pub outcome: Option<String>,
         #[serde(alias = "gameWins")]
-        game_wins: String
+        pub game_wins: i8
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug)]
     pub struct Strategy {
-        r#type: String,
-        count: i8
+        pub r#type: String,
+        pub count: i8
     }
 
 }
