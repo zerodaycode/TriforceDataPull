@@ -83,6 +83,12 @@ pub mod serde_models {
         }
     }
 
+    impl From<LolesportsId> for i64 {
+        fn from(value: LolesportsId) -> Self {
+            value.0
+        }
+    }
+
     #[derive(Deserialize, Debug, Clone)]
     pub struct Player {
         pub id: LolesportsId,

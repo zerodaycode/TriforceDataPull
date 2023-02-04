@@ -1,7 +1,7 @@
 mod data_pull;
 mod service;
 mod utils;
-
+mod dao;
 
 use canyon_sql;
 
@@ -16,4 +16,6 @@ fn main() {
     data_pull.teams.iter().for_each(|t|
         println!("{}", t)
     );
+
+    dao::bulk_leagues_in_database(data_pull.leagues).await;
 }
