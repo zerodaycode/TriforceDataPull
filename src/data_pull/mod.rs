@@ -18,9 +18,10 @@
 /// 
 
 pub mod serde_models {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, fmt::Display};
 
     use canyon_sql::db_clients::tiberius::time::chrono;
+    use reqwest::IntoUrl;
     use serde::{Deserialize, Deserializer, Serialize};
 
 
@@ -66,8 +67,8 @@ pub mod serde_models {
         end_date: chrono::NaiveDate,
     }
 
-    #[derive(Debug, Default, Serialize, Clone)]
-    pub struct LolesportsId(i64);
+    #[derive(Debug, Default, Serialize, Clone, Copy)]
+    pub struct LolesportsId(pub i64);
     impl<'de> Deserialize<'de> for LolesportsId {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
@@ -82,35 +83,56 @@ pub mod serde_models {
         }
     }
 
-    #[derive(Deserialize)]
+    #[derive(Deserialize, Debug, Clone)]
     pub struct Player {
-        id: i64,
+        pub id: LolesportsId,
         #[serde(alias = "firstName")]
-        first_name: String,
+        pub first_name: String,
         #[serde(alias = "lastName")]
-        last_name: String,
+        pub last_name: String,
         #[serde(alias = "summonerName")]
-        summoner_name: String,
-        image: Option<String>,
-        role: String
+        pub summoner_name: String,
+        pub image: Option<String>,
+        pub role: String
     }
 
-    #[derive(Deserialize)]
-    pub struct Team {
-        id: i64,
-        name: String,
-        slug: String,
-        code: String,
-        image: String,
-        #[serde(alias = "alternativeImage")]
-        alternative_image: Option<String>,
-        #[serde(alias = "backgroundImage")]
-        background_image: Option<String>,
-        status: String,
-        players: Vec<Player>,
-        #[serde(alias = "homeLeague")]
-        home_league: League
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct TeamsPlayers {
+        pub teams: Vec<Team>
     }
+
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct Team {
+        pub id: LolesportsId,
+        pub name: String,
+        pub slug: String,
+        pub code: String,
+        pub image: String,
+        #[serde(alias = "alternativeImage")]
+        pub alternative_image: Option<String>,
+        #[serde(alias = "backgroundImage")]
+        pub background_image: Option<String>,
+        pub status: String,
+        pub players: Vec<Player>,
+        #[serde(alias = "homeLeague")]
+        pub home_league: Option<HomeLeague>
+    }
+
+    impl Display for Team {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{:?} {} {} {:#?}", self.id, self.name, self.status, self.home_league)
+        }
+    }
+
+    
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct HomeLeague {
+        #[serde(skip)]
+        pub league_id: LolesportsId,
+        pub name: String,
+        pub region: String
+    }
+
 
     #[derive(Deserialize)]
     pub struct Event {
