@@ -1,5 +1,5 @@
-use serde::Serialize;
 use canyon_sql::macros::*;
+use serde::Serialize;
 
 #[derive(Debug, Clone, CanyonCrud, CanyonMapper, Serialize)]
 #[canyon_entity]
@@ -11,5 +11,5 @@ pub struct Player {
     last_name: String,
     summoner_name: String,
     image_url: Option<String>,
-    role: String
+    role: String,
 }

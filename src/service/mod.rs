@@ -1,45 +1,33 @@
 pub mod caller;
-use crate::{utils::constants::lolesports, data_pull::serde_models::{Wrapper, Leagues, LeagueForTournaments, Tournaments, TeamsPlayers, Team, Player, LolesportsId, Schedule, ScheduleOutter, Event}};
+use crate::{
+    data_pull::serde_models::{
+        Event, LeagueForTournaments, Leagues, LolesportsId, Player, ScheduleOutter, Team,
+        TeamsPlayers, Tournament, Wrapper,
+    },
+    utils::constants::lolesports,
+};
 use color_eyre::{eyre::Context, Result};
 
 /**
  * This type alias are just a communist joke. They are the Lolesports tournaments only?
  * Nope. They are OUR tournaments.
  */
-type OurTournaments = Vec<Tournaments>;
-
+pub type OurTournaments = Vec<Tournament>;
 
 /// Contains the operations against the `LolEsports` API to
 /// fetch the content via REST request that `Triforce` needs
 /// to pull, parse, handle and store.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DataPull {
     pub leagues: Leagues,
     pub tournaments: OurTournaments,
     pub teams: Vec<Team>,
     pub players: Vec<Player>,
     pub schedule: Vec<Event>,
-    pub live: Vec<Event>
+    pub live: Vec<Event>,
 }
 
-/// TODO Docs
-// #[derive(Default, Debug)]
-// pub struct NewTournaments(Vec<Tournaments>);
-
-
 impl DataPull {
-    
-    pub async fn new() -> Self {
-        Self {
-            leagues: Leagues::default(),
-            tournaments: OurTournaments::default(),
-            teams: Vec::default(),
-            players: Vec::default(),
-            schedule: Vec::default(),
-            live: Vec::default()
-        }
-    }
-
     pub async fn fetch_leagues(&mut self) -> Result<()> {
         let response = caller::make_get_request::<&[()]>(lolesports::LEAGUES_ENDPOINT, None)
             .await
@@ -52,16 +40,21 @@ impl DataPull {
 
     pub async fn fetch_tournaments(&mut self) -> Result<()> {
         for league in &self.leagues.leagues {
-
-            let response = caller::make_get_request(lolesports::TOURNAMENTS_ENDPOINT, Some(&[("leagueId", &league.id)]))
+            let response = caller::make_get_request(
+                lolesports::TOURNAMENTS_ENDPOINT,
+                Some(&[("leagueId", &league.id)]),
+            )
             .await
             .with_context(|| "A failure happened retrieving the Tournaments from Lolesports");
 
             serde_json::from_str::<Wrapper<LeagueForTournaments>>(&response?.text().await.unwrap())
                 .map(|parsed| {
                     let mut tournaments_in_league = parsed.data.leagues[0].clone();
-                    tournaments_in_league.league_id = league.id.clone();
-                    self.tournaments.push(tournaments_in_league)
+                    tournaments_in_league
+                        .tournaments
+                        .iter_mut()
+                        .for_each(|e| e.league_id = league.id);
+                    self.tournaments.extend(tournaments_in_league.tournaments)
                 })
                 .with_context(|| "A failure happened parsing the Tournaments from Lolesports")?;
         }
@@ -70,23 +63,24 @@ impl DataPull {
     }
 
     pub async fn fetch_teams_and_players(&mut self) -> Result<()> {
-        let response = caller::make_get_request::<&[()]>(
-            lolesports::TEAMS_AND_LEAGUES_ENDPOINT,
-                None
-            ).await
-            .with_context(|| "A failure happened retrieving the Teams and players from Lolesports");
+        let response =
+            caller::make_get_request::<&[()]>(lolesports::TEAMS_AND_LEAGUES_ENDPOINT, None)
+                .await
+                .with_context(|| {
+                    "A failure happened retrieving the Teams and players from Lolesports"
+                });
 
         serde_json::from_str::<Wrapper<TeamsPlayers>>(&response?.text().await.unwrap())
-        .map(|parsed| {
-            for mut team in parsed.data.teams {
-                if let Some(home_league) = &mut team.home_league {
-                    home_league.league_id = self.search_league_by_name(&home_league.name);
+            .map(|parsed| {
+                for mut team in parsed.data.teams {
+                    if let Some(home_league) = &mut team.home_league {
+                        home_league.league_id = self.search_league_by_name(&home_league.name);
+                    }
+                    self.teams.push(team.clone());
+                    self.players.extend(team.players.into_iter())
                 }
-                self.teams.push(team.clone());
-                self.players.extend(team.players.into_iter())
-            }
-        })
-        .with_context(|| "A failure happened parsing the Tournaments from Lolesports")
+            })
+            .with_context(|| "A failure happened parsing the Tournaments from Lolesports")
     }
 
     // pub async fn fetch_schedule(&mut self) -> Result<()> {
@@ -105,7 +99,10 @@ impl DataPull {
         self.fetch_full_schedule().await?;
         // process
         for event in self.schedule.iter_mut() {
-            event.league.league_id = self.leagues.leagues.iter()
+            event.league.league_id = self
+                .leagues
+                .leagues
+                .iter()
                 .find(|league| (*league.slug).eq(&event.league.slug))
                 .map(|league| league.id)
                 .unwrap_or_default();
@@ -114,28 +111,28 @@ impl DataPull {
     }
 
     async fn fetch_full_schedule(&mut self) -> Result<()> {
-        let first_response = caller::make_get_request::<&[()]>(
-            lolesports::SCHEDULE_ENDPOINT,
-                None
-            ).await
+        let first_response = caller::make_get_request::<&[()]>(lolesports::SCHEDULE_ENDPOINT, None)
+            .await
             .with_context(|| "A failure happened retrieving the schedule from Lolesports");
 
-        let schedule_first_page = serde_json
-            ::from_str::<Wrapper<ScheduleOutter>>(&first_response?.text().await.unwrap())
-            .with_context(|| "Error retrieving the first page of the schedule")?;
+        let schedule_first_page =
+            serde_json::from_str::<Wrapper<ScheduleOutter>>(&first_response?.text().await.unwrap())
+                .with_context(|| "Error retrieving the first page of the schedule")?;
         // Appending the already downloaded first paginated resource of the schedule
-        self.schedule.extend(schedule_first_page.data.schedule.events);
-        
+        self.schedule
+            .extend(schedule_first_page.data.schedule.events);
 
         let mut newer_entry_sentinel = schedule_first_page.data.schedule.pages.newer;
         let mut total_new_entries = 1;
         // While the API returns a key with newer entries, we will continue fetching the calendar
         while let Some(newer_events) = &newer_entry_sentinel {
             let r = caller::make_get_request(
-                lolesports::SCHEDULE_ENDPOINT, Some(&[("pageToken", newer_events)])
-            ).await
+                lolesports::SCHEDULE_ENDPOINT,
+                Some(&[("pageToken", newer_events)]),
+            )
+            .await
             .with_context(|| "A failure happened retrieving the schedule from Lolesports");
-            
+
             serde_json::from_str::<Wrapper<ScheduleOutter>>(&r?.text().await.unwrap())
                 .map(|parsed| {
                     total_new_entries += 1;
@@ -151,14 +148,15 @@ impl DataPull {
     }
 
     fn search_league_by_name(&self, name: &str) -> LolesportsId {
-        self.leagues.leagues.iter()
+        self.leagues
+            .leagues
+            .iter()
             .find(|league| (*league.name).eq(name))
             .map(|league| league.id)
-            .unwrap_or_default() 
+            .unwrap_or_default()
     }
 
-
-    pub async fn fetch_live(& mut self) -> Result<()> {
+    pub async fn fetch_live(&mut self) -> Result<()> {
         let response = caller::make_get_request::<&[()]>(lolesports::LIVE_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the Live Events from Lolesports");

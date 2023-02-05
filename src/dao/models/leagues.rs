@@ -1,5 +1,5 @@
-use serde::Serialize;
 use canyon_sql::macros::*;
+use serde::Serialize;
 
 use crate::data_pull;
 
@@ -23,7 +23,20 @@ impl From<data_pull::serde_models::League> for League {
             slug: value.slug,
             name: value.name,
             region: value.region,
-            image_url: value.image
+            image_url: value.image,
+        }
+    }
+}
+
+impl From<&data_pull::serde_models::League> for League {
+    fn from(value: &data_pull::serde_models::League) -> Self {
+        Self {
+            id: Default::default(),
+            ext_id: value.id.into(),
+            slug: value.slug.clone(),
+            name: value.name.clone(),
+            region: value.region.clone(),
+            image_url: value.image.clone(),
         }
     }
 }

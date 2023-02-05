@@ -1,29 +1,28 @@
 ///! Flow of requests for the LoLEsport API and data manipulation
 /// For more information about the API (endpoints, parameters, etc) visit https://vickz84259.github.io/lolesports-api-docs/#tag/match-details
-/// 
+///
 /// First request -> Ask for leagues
-/// 
+///
 /// Second request -> Ask for tournaments
 /// This request must be done by league ID, so we can identify the tournaments for each league
-/// 
+///
 /// Third request -> Ask for teams
-/// 
+///
 /// Fourth request -> Ask for players
-/// 
+///
 /// It is important to note that both teams and players are obtained from the same endpoint
-/// 
+///
 /// Fifth request -> Ask for schedule
-/// 
+///
 /// We will insert data with the upsert method, and deleting deprecated data if needed
-/// 
+///
 
 pub mod serde_models {
-    use std::{collections::HashMap, fmt::Display};
+    use std::fmt::Display;
 
-    use canyon_sql::{db_clients::tiberius::time::chrono, date_time::NaiveDateTime};
-    use reqwest::IntoUrl;
+    use canyon_sql::{date_time::NaiveDateTime, db_clients::tiberius::time::chrono};
+
     use serde::{Deserialize, Deserializer, Serialize};
-
 
     #[derive(Deserialize, Debug)]
     pub struct Wrapper<T> {
@@ -32,9 +31,8 @@ pub mod serde_models {
 
     #[derive(Deserialize, Debug, Default)]
     pub struct Leagues {
-        pub leagues: Vec<League>
+        pub leagues: Vec<League>,
     }
-
 
     #[derive(Deserialize, Debug)]
     pub struct League {
@@ -47,24 +45,24 @@ pub mod serde_models {
 
     #[derive(Deserialize, Default, Debug, Clone)]
     pub struct LeagueForTournaments {
-        pub leagues: Vec<Tournaments>
+        pub leagues: Vec<Tournaments>,
     }
 
     #[derive(Deserialize, Debug, Default, Clone)]
     pub struct Tournaments {
-        #[serde(skip)]
-        pub league_id: LolesportsId,
-        pub tournaments: Vec<Tournament>
+        pub tournaments: Vec<Tournament>,
     }
 
     #[derive(Deserialize, Debug, Clone)]
     pub struct Tournament {
-        id: LolesportsId,
-        slug: String,
+        pub id: LolesportsId,
+        pub slug: String,
         #[serde(alias = "startDate")]
-        start_date: chrono::NaiveDate,
+        pub start_date: chrono::NaiveDate,
         #[serde(alias = "endDate")]
-        end_date: chrono::NaiveDate,
+        pub end_date: chrono::NaiveDate,
+        #[serde(skip)]
+        pub league_id: LolesportsId,
     }
 
     #[derive(Debug, Default, Serialize, Clone, Copy)]
@@ -75,11 +73,9 @@ pub mod serde_models {
             D: Deserializer<'de>,
         {
             let s: &str = Deserialize::deserialize(deserializer)?;
-            Ok(LolesportsId(
-                s.parse::<i64>().expect(
-                    &format!("Failed to deserialize the Lolesports id: {s:?}")
-                )
-            ))
+            Ok(LolesportsId(s.parse::<i64>().unwrap_or_else(|_| {
+                panic!("Failed to deserialize the Lolesports id: {s:?}")
+            })))
         }
     }
 
@@ -98,10 +94,9 @@ pub mod serde_models {
         {
             let s: &str = Deserialize::deserialize(deserializer)?;
             Ok(LolesportsDateTime(
-                NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.3fZ")
-                .expect(
-                    &format!("Failed to deserialize the Lolesports DateTime: {s:?}")
-                )
+                NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.3fZ").unwrap_or_else(|_| {
+                    panic!("Failed to deserialize the Lolesports DateTime: {s:?}")
+                }),
             ))
         }
     }
@@ -116,12 +111,12 @@ pub mod serde_models {
         #[serde(alias = "summonerName")]
         pub summoner_name: String,
         pub image: Option<String>,
-        pub role: String
+        pub role: String,
     }
 
     #[derive(Deserialize, Debug, Clone)]
     pub struct TeamsPlayers {
-        pub teams: Vec<Team>
+        pub teams: Vec<Team>,
     }
 
     #[derive(Deserialize, Debug, Clone)]
@@ -138,40 +133,43 @@ pub mod serde_models {
         pub status: String,
         pub players: Vec<Player>,
         #[serde(alias = "homeLeague")]
-        pub home_league: Option<HomeLeague>
+        pub home_league: Option<HomeLeague>,
     }
 
     impl Display for Team {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{:?} {} {} {:#?}", self.id, self.name, self.status, self.home_league)
+            write!(
+                f,
+                "{:?} {} {} {:#?}",
+                self.id, self.name, self.status, self.home_league
+            )
         }
     }
 
-    
     #[derive(Deserialize, Debug, Clone)]
     pub struct HomeLeague {
         #[serde(skip)]
         pub league_id: LolesportsId,
         pub name: String,
-        pub region: String
+        pub region: String,
     }
 
     #[derive(Deserialize, Default, Debug)]
     pub struct ScheduleOutter {
-        pub schedule: Schedule
+        pub schedule: Schedule,
     }
 
     #[derive(Deserialize, Default, Debug)]
     pub struct Schedule {
         #[serde(default)]
         pub pages: Pages,
-        pub events: Vec<Event>
+        pub events: Vec<Event>,
     }
 
     #[derive(Deserialize, Default, Debug)]
     pub struct Pages {
         pub older: Option<String>,
-        pub newer: Option<String>
+        pub newer: Option<String>,
     }
 
     #[derive(Deserialize, Debug, Clone)]
@@ -179,7 +177,7 @@ pub mod serde_models {
         #[serde(default)]
         pub league_id: LolesportsId,
         pub name: String,
-        pub slug: String
+        pub slug: String,
     }
 
     #[derive(Deserialize, Debug)]
@@ -192,68 +190,34 @@ pub mod serde_models {
         pub block_name: Option<String>,
         pub league: ScheduleLeague,
         #[serde(default)]
-        pub r#match: Option<Match>
+        pub r#match: Option<Match>,
     }
 
     #[derive(Deserialize, Debug)]
     pub struct Match {
         pub id: LolesportsId,
         pub teams: Vec<TeamEvent>,
-        pub strategy: Strategy
+        pub strategy: Strategy,
     }
-
 
     #[derive(Deserialize, Debug)]
     pub struct TeamEvent {
         pub name: String,
         pub code: String,
         pub image: String,
-        pub result: Option<MatchTeamResult>
+        pub result: Option<MatchTeamResult>,
     }
 
     #[derive(Deserialize, Debug)]
     pub struct MatchTeamResult {
         pub outcome: Option<String>,
         #[serde(alias = "gameWins")]
-        pub game_wins: i8
+        pub game_wins: i8,
     }
 
     #[derive(Deserialize, Debug)]
     pub struct Strategy {
         pub r#type: String,
-        pub count: i8
+        pub count: i8,
     }
-
 }
-
-
-
-/// Autonomous process triggered every (X config data [replace this])
-/// that queries the lolesports API to fetch data and sync the received
-/// data with the one stored in our PostgreSQL
-fn scheduled_data_pull_process() {
-
-}
-
-/// Manages the operations needed to query lolespors
-fn retrieve_lolesports_data() {
-    // Stack of function calls to actually retrieve the data
-}
-
-/// Responsable for retrieving the [`crate::`]
-fn get_lolesport_leagues() {
-
-}
-
-fn get_lolesport_tournaments() {
-
-}
-
-fn get_lolesport_teams() {
-
-}
-
-fn get_lolesport_schedule() {
-
-}
-

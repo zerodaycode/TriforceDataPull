@@ -1,22 +1,36 @@
+mod dao;
 mod data_pull;
 mod service;
 mod utils;
-mod dao;
 
-use canyon_sql;
-use color_eyre::{eyre::Context, Result};
+use color_eyre::Result;
 
 #[canyon_sql::main]
 fn main() -> Result<()> {
     color_eyre::install()?;
-    let mut data_pull = service::DataPull::new().await;
-    data_pull.fetch_leagues().await;
-    // data_pull.fetch_tournaments().await;
-    // data_pull.fetch_teams_and_players().await;
+    let mut data_pull = service::DataPull::default();
+    let mut database_ops = dao::DatabaseOps::default();
 
-    data_pull.process_full_schedule().await?;
+    // Processing the leagues
+    data_pull.fetch_leagues().await?;
+    database_ops
+        .bulk_leagues_in_database(&data_pull.leagues)
+        .await?;
 
-    data_pull.fetch_live().await?;
+    // Processing the tournaments
+    data_pull.fetch_tournaments().await?;
+    database_ops
+        .bulk_tournaments_in_database(&data_pull.tournaments)
+        .await?;
+
+    // Processing the teams and players
+    // data_pull.fetch_teams_and_players().await?;
+
+    // Processing the complete schedule
+    // data_pull.process_full_schedule().await?;
+
+    // For testing purposes right now
+    // data_pull.fetch_live().await?;
     println!("Datapull: {data_pull:?}");
     Ok(())
 
