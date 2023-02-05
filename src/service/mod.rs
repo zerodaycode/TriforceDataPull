@@ -1,5 +1,5 @@
 pub mod caller;
-use crate::{utils::constants::lolesports, data_pull::serde_models::{Wrapper, Leagues, LeagueForTournaments, Tournaments, TeamsPlayers, Team, Player, LolesportsId, Schedule, ScheduleOutter}};
+use crate::{utils::constants::lolesports, data_pull::serde_models::{Wrapper, Leagues, LeagueForTournaments, Tournaments, TeamsPlayers, Team, Player, LolesportsId, Schedule, ScheduleOutter, Event}};
 use color_eyre::{eyre::Context, Result};
 
 /**
@@ -18,7 +18,7 @@ pub struct DataPull {
     pub tournaments: OurTournaments,
     pub teams: Vec<Team>,
     pub players: Vec<Player>,
-    pub schedule: ScheduleOutter
+    pub schedule: Vec<Event>
 }
 
 /// TODO Docs
@@ -34,7 +34,7 @@ impl DataPull {
             tournaments: OurTournaments::default(),
             teams: Vec::default(),
             players: Vec::default(),
-            schedule: ScheduleOutter::default(),
+            schedule: Vec::default(),
         }
     }
 
@@ -85,22 +85,77 @@ impl DataPull {
             }
         })
         .with_context(|| "A failure happened parsing the Tournaments from Lolesports")
-              
     }
 
-    pub async fn fetch_schedule(&mut self) -> Result<()> {
-        let response = caller::make_get_request::<&[()]>(
+    // pub async fn fetch_schedule(&mut self) -> Result<()> {
+    //     let response = caller::make_get_request::<&[()]>(
+    //         lolesports::SCHEDULE_ENDPOINT,
+    //             None
+    //         ).await
+    //         .with_context(|| "A failure happened retrieving the schedule from Lolesports");
+
+    //     serde_json::from_str::<Wrapper<ScheduleOutter>>(&response?.text().await.unwrap())
+    //         .map(|parsed| self.schedule = parsed.data)
+    //         .with_context(|| "A failure happened parsing the Schedule from Lolesports")
+    // }
+
+    pub async fn process_full_schedule(&mut self) -> Result<()> {
+        self.fetch_full_schedule().await?;
+        // process
+        for event in self.schedule.iter_mut() {
+            event.league.league_id = self.leagues.leagues.iter()
+                .find(|league| (*league.slug).eq(&event.league.slug))
+                .map(|league| league.id)
+                .unwrap_or_default();
+        }
+        Ok(())
+    }
+
+    async fn fetch_full_schedule(&mut self) -> Result<()> {
+        let first_response = caller::make_get_request::<&[()]>(
             lolesports::SCHEDULE_ENDPOINT,
                 None
             ).await
             .with_context(|| "A failure happened retrieving the schedule from Lolesports");
 
-        serde_json::from_str::<Wrapper<ScheduleOutter>>(&response?.text().await.unwrap())
-            .map(|parsed| self.schedule = parsed.data)
-            .with_context(|| "A failure happened parsing the Schedule from Lolesports")
+        let schedule_first_page = serde_json
+            ::from_str::<Wrapper<ScheduleOutter>>(&first_response?.text().await.unwrap())
+            .with_context(|| "Error retrieving the first page of the schedule")?;
+        // Appending the already downloaded first paginated resource of the schedule
+        self.schedule.extend(schedule_first_page.data.schedule.events);
+        
+
+        let mut newer_entry_sentinel = schedule_first_page.data.schedule.pages.newer;
+        let mut total_new_entries = 1;
+        // While the API returns a key with newer entries, we will continue fetching the calendar
+        while let Some(newer_events) = &newer_entry_sentinel {
+            let r = caller::make_get_request(
+                lolesports::SCHEDULE_ENDPOINT, Some(&[("pageToken", newer_events)])
+            ).await
+            .with_context(|| "A failure happened retrieving the schedule from Lolesports");
+            
+            serde_json::from_str::<Wrapper<ScheduleOutter>>(&r?.text().await.unwrap())
+                .map(|parsed| {
+                    total_new_entries += 1;
+                    println!("Requesting pages: {:?}", &parsed.data.schedule.pages);
+                    println!("Total new entries fetched: {:?}", &total_new_entries);
+                    newer_entry_sentinel = parsed.data.schedule.pages.newer;
+                    self.schedule.extend(parsed.data.schedule.events)
+                })
+                .with_context(|| "A failure happened parsing the Schedule from Lolesports")?;
         }
 
+        Ok(())
+    }
+
     fn search_league_by_name(&self, name: &str) -> LolesportsId {
+        self.leagues.leagues.iter()
+            .find(|league| (*league.name).eq(name))
+            .map(|league| league.id)
+            .unwrap_or_default() 
+    }
+
+    fn search_league_by_name_mut(&mut self, name: &str) -> LolesportsId {
         self.leagues.leagues.iter()
             .find(|league| (*league.name).eq(name))
             .map(|league| league.id)

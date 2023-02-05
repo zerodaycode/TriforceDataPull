@@ -157,20 +157,20 @@ pub mod serde_models {
     }
 
     #[derive(Deserialize, Default, Debug)]
-    pub struct ScheduleOutter{
+    pub struct ScheduleOutter {
         pub schedule: Schedule
     }
 
     #[derive(Deserialize, Default, Debug)]
-    pub struct Schedule{
+    pub struct Schedule {
         pub pages: Pages,
         pub events: Vec<Event>
     }
 
     #[derive(Deserialize, Default, Debug)]
     pub struct Pages {
-        pub older: String,
-        pub newer: String
+        pub older: Option<String>,
+        pub newer: Option<String>
     }
 
     #[derive(Deserialize, Debug, Clone)]
@@ -207,7 +207,7 @@ pub mod serde_models {
         pub name: String,
         pub code: String,
         pub image: String,
-        pub result: MatchTeamResult
+        pub result: Option<MatchTeamResult>
     }
 
     #[derive(Deserialize, Debug)]

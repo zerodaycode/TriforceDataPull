@@ -10,11 +10,11 @@ use color_eyre::{eyre::Context, Result};
 fn main() -> Result<()> {
     color_eyre::install()?;
     let mut data_pull = service::DataPull::new().await;
-    // data_pull.fetch_leagues().await;
+    data_pull.fetch_leagues().await;
     // data_pull.fetch_tournaments().await;
     // data_pull.fetch_teams_and_players().await;
 
-    data_pull.fetch_schedule().await?;
+    data_pull.process_full_schedule().await?;
     println!("Datapull: {data_pull:?}");
     Ok(())
 
