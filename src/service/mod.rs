@@ -18,7 +18,8 @@ pub struct DataPull {
     pub tournaments: OurTournaments,
     pub teams: Vec<Team>,
     pub players: Vec<Player>,
-    pub schedule: Vec<Event>
+    pub schedule: Vec<Event>,
+    pub live: Vec<Event>
 }
 
 /// TODO Docs
@@ -35,6 +36,7 @@ impl DataPull {
             teams: Vec::default(),
             players: Vec::default(),
             schedule: Vec::default(),
+            live: Vec::default()
         }
     }
 
@@ -155,10 +157,14 @@ impl DataPull {
             .unwrap_or_default() 
     }
 
-    fn search_league_by_name_mut(&mut self, name: &str) -> LolesportsId {
-        self.leagues.leagues.iter()
-            .find(|league| (*league.name).eq(name))
-            .map(|league| league.id)
-            .unwrap_or_default() 
-    } 
+
+    pub async fn fetch_live(& mut self) -> Result<()> {
+        let response = caller::make_get_request::<&[()]>(lolesports::LIVE_ENDPOINT, None)
+            .await
+            .with_context(|| "A failure happened retrieving the Live Events from Lolesports");
+
+        serde_json::from_str::<Wrapper<ScheduleOutter>>(&response?.text().await.unwrap())
+            .map(|parsed| self.live = parsed.data.schedule.events)
+            .with_context(|| "A failure happened parsing the Live Events from Lolesports")
+    }
 }

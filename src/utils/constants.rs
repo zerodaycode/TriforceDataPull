@@ -8,4 +8,5 @@ pub mod lolesports {
     pub static TOURNAMENTS_ENDPOINT: &str = "/getTournamentsForLeague?hl=en-US";
     pub static TEAMS_AND_LEAGUES_ENDPOINT: &str = "/getTeams?hl=en-US";
     pub static SCHEDULE_ENDPOINT: &str = "/getSchedule?hl=en-US";
+    pub static LIVE_ENDPOINT: &str = "/getLive?hl=en-US";
 }

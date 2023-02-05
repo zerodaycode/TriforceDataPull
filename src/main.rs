@@ -15,6 +15,8 @@ fn main() -> Result<()> {
     // data_pull.fetch_teams_and_players().await;
 
     data_pull.process_full_schedule().await?;
+
+    data_pull.fetch_live().await?;
     println!("Datapull: {data_pull:?}");
     Ok(())
 

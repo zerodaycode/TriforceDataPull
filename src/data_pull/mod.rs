@@ -163,6 +163,7 @@ pub mod serde_models {
 
     #[derive(Deserialize, Default, Debug)]
     pub struct Schedule {
+        #[serde(default)]
         pub pages: Pages,
         pub events: Vec<Event>
     }
@@ -175,7 +176,7 @@ pub mod serde_models {
 
     #[derive(Deserialize, Debug, Clone)]
     pub struct ScheduleLeague {
-        #[serde(skip)]
+        #[serde(default)]
         pub league_id: LolesportsId,
         pub name: String,
         pub slug: String
