@@ -18,14 +18,14 @@ pub struct Player {
 
 impl From<&data_pull::serde_models::Player> for Player {
     fn from(value: &data_pull::serde_models::Player) -> Self {
-        Self { 
+        Self {
             id: Default::default(),
             ext_id: value.id.into(),
             first_name: value.first_name.clone(),
             last_name: value.last_name.clone(),
             summoner_name: value.summoner_name.clone(),
             image_url: value.image.clone(),
-            role: value.role.clone()
+            role: value.role.clone(),
         }
     }
 }

@@ -34,6 +34,9 @@ fn main() -> Result<()> {
     database_ops
         .bulk_players_in_database(&data_pull.players)
         .await?;
+    database_ops
+        .bulk_team_player_in_database(&data_pull.teams)
+        .await?;
 
     // Processing the complete schedule
     // data_pull.process_full_schedule().await?;
