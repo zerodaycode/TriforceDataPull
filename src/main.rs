@@ -3,10 +3,13 @@ mod data_pull;
 mod service;
 mod utils;
 
+use std::time::Instant;
+
 use color_eyre::Result;
 
 #[canyon_sql::main]
 fn main() -> Result<()> {
+    let start = Instant::now();
     color_eyre::install()?;
     let mut data_pull = service::DataPull::default();
     let mut database_ops = dao::DatabaseOps::default();
@@ -24,14 +27,21 @@ fn main() -> Result<()> {
         .await?;
 
     // Processing the teams and players
-    // data_pull.fetch_teams_and_players().await?;
+    data_pull.fetch_teams_and_players().await?;
+    database_ops
+        .bulk_teams_in_database(&data_pull.teams)
+        .await?;
+    database_ops
+        .bulk_players_in_database(&data_pull.players)
+        .await?;
 
     // Processing the complete schedule
     // data_pull.process_full_schedule().await?;
 
     // For testing purposes right now
     // data_pull.fetch_live().await?;
-    println!("Datapull: {data_pull:?}");
+    // println!("Datapull: {data_pull:?}");
+    println!("Execution time: {:?}", start.elapsed());
     Ok(())
 
     // data_pull.teams.iter().for_each(|t|
