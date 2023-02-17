@@ -101,6 +101,12 @@ pub mod serde_models {
         }
     }
 
+    impl From<LolesportsDateTime> for NaiveDateTime {
+        fn from(value: LolesportsDateTime) -> Self {
+            value.0
+        }
+    }
+
     #[derive(Deserialize, Debug, Clone)]
     pub struct Player {
         pub id: LolesportsId,
@@ -190,6 +196,7 @@ pub mod serde_models {
         pub block_name: Option<String>,
         pub league: ScheduleLeague,
         #[serde(default)]
+        slug: String,
         pub r#match: Option<Match>,
     }
 

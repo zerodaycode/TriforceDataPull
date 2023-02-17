@@ -4,3 +4,4 @@ pub mod teams;
 pub mod tournaments;
 
 pub mod team_player;
+pub mod event;

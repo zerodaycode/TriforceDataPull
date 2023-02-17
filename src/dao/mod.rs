@@ -3,7 +3,7 @@
 use std::fmt::Error;
 
 use self::models::{
-    leagues::League, players::Player, team_player::TeamPlayer, teams::Team, tournaments::Tournament,
+    leagues::League, players::Player, team_player::TeamPlayer, teams::Team, tournaments::Tournament, event::Schedule,
 };
 use crate::{
     data_pull::{self, serde_models::Leagues},
@@ -20,6 +20,7 @@ pub struct DatabaseOps {
     pub tournaments: Vec<Tournament>,
     pub teams: Vec<Team>,
     pub players: Vec<Player>,
+    pub events: Vec<Schedule>
 }
 
 impl DatabaseOps {
@@ -143,5 +144,64 @@ impl DatabaseOps {
         TeamPlayer::multi_insert(&mut vec_team_player.iter_mut().collect::<Vec<&mut TeamPlayer>>())
             .await
             .map_err(|e| color_eyre::eyre::ErrReport::from(*e.downcast_ref::<Error>().unwrap()))
+    }
+
+    pub async fn bulk_schedule_in_database(&mut self, events: &Vec<data_pull::serde_models::Event>) -> Result<()> {
+        let mut db_events = events.iter().map(
+            |serde_event| {
+            let mut db_event = Schedule::from(serde_event);
+            
+            db_event.league_id = self
+            .leagues
+            .iter()
+            .find(|db_league| db_league.slug.eq(&serde_event.league.slug))
+            .map(|l| l.id.into());
+            
+            if serde_event.r#match.is_some() && !&serde_event.r#match.as_ref().unwrap().teams.is_empty() {
+                let team_1 = serde_event.r#match.as_ref().expect("Not match found for event type match")
+                .teams.get(0).unwrap();
+
+                let team_2 = serde_event.r#match.as_ref().expect("Not match found for event type match")
+                .teams.get(1).unwrap();
+
+                
+                db_event.team_left_id = self
+                .teams
+                .iter()
+                .find(|db_team| db_team.name.eq(&team_1.name))
+                .map(|l| l.id.into());
+
+                
+                db_event.team_left_wins = match &team_1.result {
+                    Some(result) => Some(result.game_wins.into()),
+                    None => None,
+                };
+
+                db_event.team_right_id = self
+                .teams
+                .iter()
+                .find(|db_team| db_team.name.eq(&team_2.name))
+                .map(|l| l.id.into());
+
+                
+                db_event.team_right_wins = match &team_2.result {
+                    Some(result) => Some(result.game_wins.into()),
+                    None => None,
+                };
+                
+            }
+
+            db_event
+            }
+        ).collect::<Vec<_>>();
+
+        Schedule::multi_insert(&mut db_events.iter_mut().collect::<Vec<&mut Schedule>>())
+            .await
+            .map_err(|e| color_eyre::eyre::ErrReport::from(*e.downcast_ref::<Error>().unwrap()))?;
+
+           
+        self.events = db_events;
+
+        Ok(())
     }
 }

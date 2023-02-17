@@ -39,7 +39,12 @@ fn main() -> Result<()> {
         .await?;
 
     // Processing the complete schedule
-    // data_pull.process_full_schedule().await?;
+    data_pull.process_full_schedule().await?;
+
+    database_ops
+    .bulk_schedule_in_database(&data_pull.schedule)
+    .await?;
+
 
     // For testing purposes right now
     // data_pull.fetch_live().await?;
