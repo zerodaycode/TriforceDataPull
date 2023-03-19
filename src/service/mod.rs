@@ -1,4 +1,6 @@
 pub mod caller;
+
+use chrono::Local;
 use crate::{
     data_pull::serde_models::{
         Event, LeagueForTournaments, Leagues, LolesportsId, Player, ScheduleOutter, Team,
@@ -29,6 +31,8 @@ pub struct DataPull {
 
 impl DataPull {
     pub async fn fetch_leagues(&mut self) -> Result<()> {
+
+        println!("{} - Fetching Leagues from The LoLEsports API", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
         let response = caller::make_get_request::<&[()]>(lolesports::LEAGUES_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the Leagues from Lolesports");
@@ -39,6 +43,8 @@ impl DataPull {
     }
 
     pub async fn fetch_tournaments(&mut self) -> Result<()> {
+
+        println!("{} - Tournaments Leagues from The LoLEsports API", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
         for league in &self.leagues.leagues {
             let response = caller::make_get_request(
                 lolesports::TOURNAMENTS_ENDPOINT,
@@ -63,6 +69,8 @@ impl DataPull {
     }
 
     pub async fn fetch_teams_and_players(&mut self) -> Result<()> {
+
+        println!("{} - Fetching Teams and Players from The LoLEsports API", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
         let response =
             caller::make_get_request::<&[()]>(lolesports::TEAMS_AND_LEAGUES_ENDPOINT, None)
                 .await
@@ -95,7 +103,10 @@ impl DataPull {
     //         .with_context(|| "A failure happened parsing the Schedule from Lolesports")
     // }
 
+    // FIX ME Right now It only fetch present and future matches, not past
     pub async fn process_full_schedule(&mut self) -> Result<()> {
+
+        println!("{} - Fetching Full schedule from The LoLEsports API", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
         self.fetch_full_schedule().await?;
         // process
         for event in self.schedule.iter_mut() {
