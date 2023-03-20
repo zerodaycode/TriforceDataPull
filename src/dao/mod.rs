@@ -141,9 +141,12 @@ impl DatabaseOps {
             }
         });
 
-        TeamPlayer::multi_insert(&mut vec_team_player.iter_mut().collect::<Vec<&mut TeamPlayer>>())
-            .await
-            .map_err(|e| color_eyre::eyre::ErrReport::from(*e.downcast_ref::<Error>().unwrap()))
+        match TeamPlayer::multi_insert(&mut vec_team_player.iter_mut().collect::<Vec<&mut TeamPlayer>>())
+                    .await {
+            Ok(result) => {Ok(result)},
+            Err(e) => {println!("{e}");todo!()},
+        }
+        
     }
 
     pub async fn bulk_schedule_in_database(&mut self, events: &Vec<data_pull::serde_models::Event>) -> Result<()> {
