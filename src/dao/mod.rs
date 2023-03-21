@@ -14,6 +14,8 @@ use color_eyre::Result;
 use itertools::Itertools;
 mod models;
 
+use super::dao::League as DatabaseLeague;
+
 #[derive(Debug, Default)]
 pub struct DatabaseOps {
     pub leagues: Vec<League>,
@@ -25,13 +27,28 @@ pub struct DatabaseOps {
 
 impl DatabaseOps {
     pub async fn bulk_leagues_in_database(&mut self, leagues: &Leagues) -> Result<()> {
-        let mut db_leagues = leagues.leagues.iter().map(League::from).collect::<Vec<_>>();
+        let db_leagues = League::find_all().await;
+        if let Ok(db_lgs) = db_leagues {
+            for mut fetched_league in leagues.leagues.iter().map(|serde_league| League::from(serde_league)) {
 
-        League::multi_insert(&mut db_leagues.iter_mut().collect::<Vec<&mut League>>())
-            .await
-            .map_err(|e| color_eyre::eyre::ErrReport::from(*e.downcast_ref::<Error>().unwrap()))?;
+                let db_league = db_lgs.iter().find(|league| league.ext_id == fetched_league.ext_id);
 
-        self.leagues = db_leagues;
+    
+                match db_league {
+                    Some(l) => {
+                        fetched_league.id = l.id;
+                        let _ = fetched_league.update().await;
+                    } ,
+                    None => {
+                        let _ = fetched_league.insert().await;
+                    }
+                }
+    
+    
+            }
+        } else {
+            println!("No se pudo recuperar las ligas de base de datos")
+        }
 
         Ok(())
     }
@@ -207,4 +224,5 @@ impl DatabaseOps {
 
         Ok(())
     }
+
 }
