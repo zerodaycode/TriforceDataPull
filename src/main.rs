@@ -31,12 +31,13 @@ fn main() -> Result<()> {
         .await?;
 
 
-    // println!("{} - Initial tournaments fetch", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
-    // // Processing the tournaments
-    // data_pull.lock().await.fetch_tournaments().await?;
-    // database_ops.lock().await
-    //     .bulk_tournaments_in_database(&data_pull.lock().await.tournaments)
-    //     .await?;
+    println!("{} - Initial tournaments fetch", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
+    // Processing the tournaments
+    data_pull.lock().await.fetch_tournaments().await?;
+    println!("{} - Initial tournaments database update", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
+    database_ops.lock().await
+        .bulk_tournaments_in_database(&data_pull.lock().await.tournaments)
+        .await?;
 
     // println!("{} - Initial teams and players fetch", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
     // // Processing the teams and players

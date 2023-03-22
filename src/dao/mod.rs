@@ -57,26 +57,45 @@ impl DatabaseOps {
         &mut self,
         tournaments: &OurTournaments,
     ) -> Result<()> {
-        let mut db_tournaments = tournaments
-            .iter()
-            .map(|serde_tournament| {
-                let mut t = Tournament::from(serde_tournament);
-                // t.league
-                t.league = self
-                    .leagues
-                    .iter()
-                    .find(|league| serde_tournament.league_id.0 == league.ext_id)
-                    .map(|league| league.id)
-                    .unwrap_or_default();
-                t
-            })
-            .collect::<Vec<_>>();
 
-        Tournament::multi_insert(&mut db_tournaments.iter_mut().collect::<Vec<&mut Tournament>>())
-            .await
-            .map_err(|e| color_eyre::eyre::ErrReport::from(*e.downcast_ref::<Error>().unwrap()))?;
+        let db_leagues = League::find_all().await.unwrap();
 
-        self.tournaments = db_tournaments;
+        let db_tournaments = Tournament::find_all().await;
+        
+        let processed_fetched_tournaments = tournaments
+        .iter()
+        .map(|serde_tournament| {
+            let mut t = Tournament::from(serde_tournament);
+            // t.league
+            t.league = db_leagues
+                .iter()
+                .find(|league| serde_tournament.league_id.0 == league.ext_id)
+                .map(|league| league.id)
+                .unwrap_or_default();
+            t
+        })
+        .collect::<Vec<_>>();
+
+        if let Ok(db_tnmts) = db_tournaments {
+            for mut fetched_tnmt in processed_fetched_tournaments {
+
+                let db_tournament = db_tnmts.iter().find(|tnmt| tnmt.ext_id == fetched_tnmt.ext_id);
+
+    
+                match db_tournament {
+                    Some(t) => {
+                        fetched_tnmt.id = t.id;
+                        let _ = fetched_tnmt.update().await;
+                    } ,
+                    None => {
+                        let _ = fetched_tnmt.insert().await;
+                    }
+                }
+    
+            }
+        } else {
+            println!("No se pudo recuperar los torneos de base de datos")
+        }
 
         Ok(())
     }
