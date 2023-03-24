@@ -133,8 +133,31 @@ impl DataPull {
         self.schedule
             .extend(schedule_first_page.data.schedule.events);
 
+        // let mut old_entry_sentinel = schedule_first_page.data.schedule.pages.older;
         let mut newer_entry_sentinel = schedule_first_page.data.schedule.pages.newer;
+        // let mut total_old_entries = 1;
         let mut total_new_entries = 1;
+
+        // // While the API returns a key with older entries, we will continue fetching the calendar
+        // while let Some(older_events) = &old_entry_sentinel {
+        //     let r = caller::make_get_request(
+        //         lolesports::SCHEDULE_ENDPOINT,
+        //         Some(&[("pageToken", older_events)]),
+        //     )
+        //     .await
+        //     .with_context(|| "A failure happened retrieving the schedule from Lolesports");
+
+        //     serde_json::from_str::<Wrapper<ScheduleOutter>>(&r?.text().await.unwrap())
+        //         .map(|parsed| {
+        //             println!("Requesting pages: {:?}", &parsed.data.schedule.pages);
+        //             println!("Total old entries fetched: {:?}", &total_old_entries);
+        //             total_old_entries += 1;
+        //             old_entry_sentinel = parsed.data.schedule.pages.older;
+        //             self.schedule.extend(parsed.data.schedule.events)
+        //         })
+        //         .with_context(|| "A failure happened parsing the Schedule from Lolesports")?;
+        // }
+
         // While the API returns a key with newer entries, we will continue fetching the calendar
         while let Some(newer_events) = &newer_entry_sentinel {
             let r = caller::make_get_request(

@@ -39,27 +39,28 @@ fn main() -> Result<()> {
         .bulk_tournaments_in_database(&data_pull.lock().await.tournaments)
         .await?;
 
-    // println!("{} - Initial teams and players fetch", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
-    // // Processing the teams and players
-    // data_pull.lock().await.fetch_teams_and_players().await?;
-    // database_ops.lock().await
-    //     .bulk_teams_in_database(&data_pull.lock().await.teams)
-    //     .await?;
-    // database_ops.lock().await
-    //     .bulk_players_in_database(&data_pull.lock().await.players)
-    //     .await?;
-    // database_ops.lock().await
-    //     .bulk_team_player_in_database(&data_pull.lock().await.teams)
-    //     .await?;
+    println!("{} - Initial teams and players fetch", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
+    data_pull.lock().await.fetch_teams_and_players().await?;
+    // Processing the teams and players
+    println!("{} - Initial teams and players db update", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
+    database_ops.lock().await
+        .bulk_teams_in_database(&data_pull.lock().await.teams)
+        .await?;
+    database_ops.lock().await
+        .bulk_players_in_database(&data_pull.lock().await.players)
+        .await?;
+    database_ops.lock().await
+        .bulk_team_player_in_database(&data_pull.lock().await.teams)
+        .await?;
 
 
-    // println!("{} - Initial schedule fetch", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
-    // // Processing the complete schedule
-    // data_pull.lock().await.process_full_schedule().await?;
+    println!("{} - Initial schedule fetch", Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
+    // Processing the complete schedule
+    data_pull.lock().await.process_full_schedule().await?;
 
-    // database_ops.lock().await
-    // .bulk_schedule_in_database(&data_pull.lock().await.schedule)
-    // .await?;
+    database_ops.lock().await
+    .bulk_schedule_in_database(&data_pull.lock().await.schedule)
+    .await?;
 
     // println!("{} - Initial data {:?}", Local::now().format("%Y-%m-%d %H:%M:%S.%f"), data_pull);
     //
