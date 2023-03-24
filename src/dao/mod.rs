@@ -67,7 +67,6 @@ impl DatabaseOps {
         &mut self,
         tournaments: &OurTournaments,
     ) -> Result<()> {
-        // TODO Controlar fallo al recuperar
         let db_leagues = League::find_all().await;
 
         let db_tournaments = Tournament::find_all().await;
@@ -115,45 +114,46 @@ impl DatabaseOps {
         &mut self,
         teams: &Vec<data_pull::serde_models::Team>,
     ) -> Result<()> {
-        // TODO Controlar fallo al recuperar
-        let db_leagues = League::find_all().await.unwrap();
+        let db_leagues = League::find_all().await;
 
         let db_teams = Team::find_all().await;
 
-        let fetched_teams = teams
-            .iter()
-            .map(|serde_team| {
-                let mut t = Team::from(serde_team);
-                // t.league
-                t.home_league = db_leagues
+        match (db_leagues, db_teams) {
+            (Ok(on_db_leagues), Ok(on_db_teams)) => {
+                let fetched_teams = teams
                     .iter()
-                    .find(|db_league| db_league.ext_id.eq(&serde_team.id.0))
-                    .map(|l| l.id.into());
-                t
-            })
-            .collect::<Vec<_>>();
+                    .map(|serde_team| {
+                        let mut t = Team::from(serde_team);
+                        // t.league
+                        t.home_league = on_db_leagues
+                            .iter()
+                            .find(|db_league| db_league.ext_id.eq(&serde_team.id.0))
+                            .map(|l| l.id.into());
+                        t
+                    })
+                    .collect::<Vec<_>>();
 
-        if let Ok(on_db_teams) = db_teams {
-            for mut fetched_team in fetched_teams {
-                let db_team = on_db_teams
-                    .iter()
-                    .find(|team| team.ext_id == fetched_team.ext_id);
+                for mut fetched_team in fetched_teams {
+                    let db_team = on_db_teams
+                        .iter()
+                        .find(|team| team.ext_id == fetched_team.ext_id);
 
-                match db_team {
-                    Some(t) => {
-                        fetched_team.id = t.id;
-                        let _ = fetched_team.update().await;
-                    }
-                    None => {
-                        let _ = fetched_team.insert().await;
+                    match db_team {
+                        Some(t) => {
+                            fetched_team.id = t.id;
+                            let _ = fetched_team.update().await;
+                        }
+                        None => {
+                            let _ = fetched_team.insert().await;
+                        }
                     }
                 }
+                Ok(())
             }
-        } else {
-            println!("No se pudo recuperar los equipos de base de datos")
+            _ => Ok({
+                println!("No se pudo recuperar los datos de base de datos");
+            }),
         }
-
-        Ok(())
     }
 
     pub async fn bulk_players_in_database(
