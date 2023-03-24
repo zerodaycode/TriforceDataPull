@@ -1,7 +1,5 @@
-
+use canyon_sql::{date_time::NaiveDateTime, macros::*};
 use serde::Serialize;
-use canyon_sql::{macros::*,date_time::NaiveDateTime};
-
 
 use crate::data_pull;
 
@@ -21,12 +19,12 @@ pub struct Schedule {
     team_left_id: Option<i64>,
     team_left_wins: Option<i64>,
     team_right_id: Option<i64>,
-    team_right_wins: Option<i64>
+    team_right_wins: Option<i64>,
 }
 
 impl From<&data_pull::serde_models::Event> for Schedule {
     fn from(value: &data_pull::serde_models::Event) -> Self {
-        Self { 
+        Self {
             id: Default::default(),
             start_time: Some(value.start_time.into()),
             state: value.state.clone(),
@@ -48,7 +46,7 @@ impl From<&data_pull::serde_models::Event> for Schedule {
             team_left_id: None,
             team_left_wins: None,
             team_right_id: None,
-            team_right_wins: None
+            team_right_wins: None,
         }
     }
 }
