@@ -160,6 +160,20 @@ pub mod serde_models {
         pub region: String,
     }
 
+    #[derive(Deserialize, Debug)]
+    pub struct EventOutter {
+        pub event: EventDetails,
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct EventDetails {
+        pub id: LolesportsId,
+        pub r#type: String,
+        pub tournament: EventDetailTournament,
+        pub league: ScheduleLeague,
+        pub r#match: Option<EventDetailMatch>,
+    }
+
     #[derive(Deserialize, Default, Debug)]
     pub struct ScheduleOutter {
         pub schedule: Schedule,
@@ -186,7 +200,7 @@ pub mod serde_models {
         pub slug: String,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Clone)]
     pub struct Event {
         #[serde(alias = "startTime")]
         pub start_time: LolesportsDateTime,
@@ -200,14 +214,80 @@ pub mod serde_models {
         pub r#match: Option<Match>,
     }
 
-    #[derive(Deserialize, Debug)]
+    impl PartialEq for Event {
+        fn eq(&self, other: &Self) -> bool {
+            // If both events have a match object, compare their match IDs
+            if let (Some(self_match), Some(other_match)) = (&self.r#match, &other.r#match) {
+                return other_match.id.0 == self_match.id.0;
+            }
+            // If neither event has a match object (probably a type:"show"), compare start_time, type, and league slug
+            else if self.r#match.is_none() && other.r#match.is_none() {
+                return self.start_time.0 == other.start_time.0
+                    && self.r#type == other.r#type
+                    && self.league.slug == other.league.slug;
+            }
+            // Otherwise, the events are not equal
+            else {
+                return false;
+            }
+        }
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
     pub struct Match {
         pub id: LolesportsId,
         pub teams: Vec<TeamEvent>,
         pub strategy: Strategy,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct EventDetailTournament {
+        pub id: LolesportsId,
+    }
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct EventDetailMatch {
+        pub teams: Vec<TeamEvent>,
+        pub strategy: Strategy,
+        #[serde(default)]
+        pub games: Vec<Game>,
+    }
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct Game {
+        pub number: i32,
+        pub id: String,
+        pub state: String,
+        pub teams: Vec<TeamSide>,
+        #[serde(default)]
+        pub vods: Vec<Vod>,
+    }
+
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct TeamSide {
+        pub id: String,
+        pub side: String,
+    }
+
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct Vod {
+        pub id: String,
+        pub parameter: String,
+        pub locale: String,
+        pub mediaLocale: MediaLocale,
+        pub provider: String,
+        pub offset: i32,
+        pub firstFrameTime: String,
+        pub startMillis: Option<i64>,
+        pub endMillis: Option<i64>,
+    }
+
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct MediaLocale {
+        pub locale: String,
+        pub englishName: String,
+        pub translatedName: String,
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
     pub struct TeamEvent {
         pub name: String,
         pub code: String,
@@ -215,15 +295,16 @@ pub mod serde_models {
         pub result: Option<MatchTeamResult>,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Clone)]
     pub struct MatchTeamResult {
         pub outcome: Option<String>,
         #[serde(alias = "gameWins")]
         pub game_wins: i8,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Clone)]
     pub struct Strategy {
+        #[serde(default)]
         pub r#type: String,
         pub count: i8,
     }

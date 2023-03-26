@@ -1,14 +1,17 @@
 pub mod caller;
 
+use std::time::Duration;
+
 use crate::{
     data_pull::serde_models::{
-        Event, LeagueForTournaments, Leagues, LolesportsId, Player, ScheduleOutter, Team,
-        TeamsPlayers, Tournament, Wrapper,
+        Event, EventDetails, EventOutter, LeagueForTournaments, Leagues, LolesportsId, Player,
+        ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper,
     },
     utils::constants::lolesports,
 };
-use chrono::Local;
+use chrono::{format::Parsed, Local};
 use color_eyre::{eyre::Context, Result};
+use tokio::time::sleep;
 
 /**
  * This type alias are just a communist joke. They are the Lolesports tournaments only?
@@ -27,6 +30,9 @@ pub struct DataPull {
     pub players: Vec<Player>,
     pub schedule: Vec<Event>,
     pub live: Vec<Event>,
+    pub previous_live: Vec<Event>,
+    pub recent_ended_events_match: Vec<EventDetails>,
+    pub recent_ended_events_show: Vec<Event>,
 }
 
 impl DataPull {
@@ -146,22 +152,24 @@ impl DataPull {
         // let mut total_old_entries = 1;
         let mut total_new_entries = 1;
 
-        // // While the API returns a key with older entries, we will continue fetching the calendar
+        // While the API returns a key with older entries, we will continue fetching the calendar
         // while let Some(older_events) = &old_entry_sentinel {
+        //     sleep(Duration::from_millis(3500)).await;
         //     let r = caller::make_get_request(
         //         lolesports::SCHEDULE_ENDPOINT,
         //         Some(&[("pageToken", older_events)]),
         //     )
         //     .await
         //     .with_context(|| "A failure happened retrieving the schedule from Lolesports");
-
         //     serde_json::from_str::<Wrapper<ScheduleOutter>>(&r?.text().await.unwrap())
         //         .map(|parsed| {
         //             println!("Requesting pages: {:?}", &parsed.data.schedule.pages);
         //             println!("Total old entries fetched: {:?}", &total_old_entries);
         //             total_old_entries += 1;
         //             old_entry_sentinel = parsed.data.schedule.pages.older;
-        //             self.schedule.extend(parsed.data.schedule.events)
+        //             println!("Evento sin id match {:?}", parsed.data.schedule.events.iter().filter(|e|e.r#match.is_none() || e.r#type != "match").collect::<Vec<&Event>>());
+        //             self.schedule.extend(parsed.data.schedule.events);
+
         //         })
         //         .with_context(|| "A failure happened parsing the Schedule from Lolesports")?;
         // }
@@ -199,12 +207,85 @@ impl DataPull {
     }
 
     pub async fn fetch_live(&mut self) -> Result<()> {
+        self.recent_ended_events_match.clear();
+        self.recent_ended_events_show.clear();
+
         let response = caller::make_get_request::<&[()]>(lolesports::LIVE_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the Live Events from Lolesports");
 
         serde_json::from_str::<Wrapper<ScheduleOutter>>(&response?.text().await.unwrap())
-            .map(|parsed| self.live = parsed.data.schedule.events)
+            .map(|parsed| {
+                println!(
+                    "Eventos sin match {:?} ",
+                    parsed
+                        .data
+                        .schedule
+                        .events
+                        .iter()
+                        .filter(|e| e.r#match.is_none())
+                        .collect::<Vec<&Event>>()
+                );
+                self.live = parsed.data.schedule.events;
+            })
             .with_context(|| "A failure happened parsing the Live Events from Lolesports")
+    }
+
+    pub async fn fetch_recent_ended_events(&mut self) -> Result<()> {
+        let ended_events = &self
+            .previous_live
+            .iter()
+            .filter(|event| !self.live.contains(event))
+            .cloned()
+            .collect::<Vec<Event>>();
+
+        self.previous_live.clone_from(&self.live);
+
+        for ended_event in ended_events {
+            match ended_event.r#match {
+                Some(event_match) => {
+                    let response = caller::make_get_request::<&[()]>(
+                        lolesports::EVENT_DETAILS_ENDPOINT,
+                        Some(&[("id", event_match.id.into())]),
+                    )
+                    .await
+                    .with_context(|| {
+                        "A failure happened retrieving an Ended Event from Lolesports"
+                    });
+
+                    serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
+                        .map(|parsed| {
+                            self.recent_ended_events_match.push(parsed.data.event);
+                        })
+                        .with_context(|| {
+                            "A failure happened parsing an ended Event from Lolesports"
+                        });
+                    Ok(());
+                }
+                None => {
+                    ended_event.state = "completed".to_owned();
+                    self.recent_ended_events_show.push(ended_event.to_owned());
+                    Ok(());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn fetch_ended_game_test(&mut self) -> Result<()> {
+        let r = caller::make_get_request(
+            lolesports::EVENT_DETAILS_ENDPOINT,
+            Some(&[("id", 110056852358713598 as i64)]),
+        )
+        .await
+        .with_context(|| "A failure happened retrieving the schedule from Lolesports");
+
+        let result = serde_json::from_str::<Wrapper<EventOutter>>(&r?.text().await.unwrap())
+            .map(|parsed| {
+                println!("Event parseado {:?}", parsed.data);
+            })
+            .with_context(|| "A failure happened parsing the EventDetails from Lolesports")?;
+        Ok(())
     }
 }
