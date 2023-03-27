@@ -14,8 +14,8 @@ use color_eyre::Result;
 use tokio::sync::Mutex;
 use tokio::{select, task};
 
-#[tokio::main()]
-async fn main() -> Result<()> {
+#[canyon_sql::main()]
+fn main() -> Result<()> {
     let data_pull = Arc::new(Mutex::new(service::DataPull::default()));
     // let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
 
@@ -97,13 +97,15 @@ async fn main() -> Result<()> {
     // );
     // data_pull.lock().await.fetch_live().await?;
 
+    // println!("Datos {:?}", data_pull.lock().await.live);
+
     // database_ops
     //     .lock()
     //     .await
     //     .bulk_schedule_in_database(&data_pull.lock().await.schedule)
     //     .await?;
 
-    data_pull.lock().await.fetch_ended_game_test().await?;
+    // data_pull.lock().await.fetch_recent_ended_events().await?;
 
     // println!("{} - Initial live data {:?}", Local::now().format("%Y-%m-%d %H:%M:%S.%f"), data_pull);
 
@@ -118,6 +120,8 @@ async fn main() -> Result<()> {
     // let tournaments_schedule = Schedule::from_str("0 */20 * ? * *")?; // every 20 minutes
     // let teams_and_players_schedule = Schedule::from_str("0 */15 * ? * *")?; // every 15 minutes
     // let lolschedule_schedule = Schedule::from_str("0 */5 * ? * *")?; // every 5 minutes
+
+    let live_schedule = Schedule::from_str("0 */3 * ? * *")?; // every 5 minutes
 
     // // fetch_leagues
     // {
@@ -181,7 +185,23 @@ async fn main() -> Result<()> {
     //         }
     //     });
     //     // Wait for the tasks to finish
-    // tokio::signal::ctrl_c().await?;
+
+    {
+    let data_pull = data_pull.clone();
+    tokio::spawn(async move {
+        loop {
+            let now = Utc::now();
+            if let Some(next) = live_schedule.upcoming(Utc).next() {
+                let delay = next - now;
+                sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
+            }
+            let _ = data_pull.lock().await.fetch_live().await;
+        
+            let _ = data_pull.lock().await.fetch_recent_ended_events().await;
+        }
+    });
+}
+    tokio::signal::ctrl_c().await?;
 
     Ok(())
 }

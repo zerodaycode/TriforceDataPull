@@ -207,6 +207,9 @@ impl DataPull {
     }
 
     pub async fn fetch_live(&mut self) -> Result<()> {
+
+        println!("{} - Live fetch",Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
+
         self.recent_ended_events_match.clear();
         self.recent_ended_events_show.clear();
 
@@ -240,33 +243,27 @@ impl DataPull {
             .collect::<Vec<Event>>();
 
         self.previous_live.clone_from(&self.live);
-
+        println!("{} - Processing ended events",Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
         for ended_event in ended_events {
-            match ended_event.r#match {
-                Some(event_match) => {
-                    let response = caller::make_get_request::<&[()]>(
-                        lolesports::EVENT_DETAILS_ENDPOINT,
-                        Some(&[("id", event_match.id.into())]),
-                    )
-                    .await
-                    .with_context(|| {
-                        "A failure happened retrieving an Ended Event from Lolesports"
-                    });
 
-                    serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
-                        .map(|parsed| {
-                            self.recent_ended_events_match.push(parsed.data.event);
-                        })
-                        .with_context(|| {
-                            "A failure happened parsing an ended Event from Lolesports"
-                        });
-                    Ok(());
-                }
-                None => {
-                    ended_event.state = "completed".to_owned();
-                    self.recent_ended_events_show.push(ended_event.to_owned());
-                    Ok(());
-                }
+            println!("{} - Processing event {:?}",Local::now().format("%Y-%m-%d %H:%M:%S.%f"), &ended_event);
+
+            if let Some(event_match) = &ended_event.r#match {
+                let response = caller::make_get_request(
+                    lolesports::EVENT_DETAILS_ENDPOINT,
+                    Some(&[("id", event_match.id)]),
+                )
+                .await
+                .with_context(|| "A failure happened retrieving an Ended Event from Lolesports");
+
+                serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
+                    .map(|parsed| {
+                        self.recent_ended_events_match.push(parsed.data.event);
+                    })
+                    .with_context(|| "A failure happened parsing an ended Event from Lolesports");
+            } else {
+                ended_event.to_owned().state = "completed".to_owned();
+                self.recent_ended_events_show.push(ended_event.to_owned());
             }
         }
 
