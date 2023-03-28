@@ -121,7 +121,7 @@ fn main() -> Result<()> {
     // let teams_and_players_schedule = Schedule::from_str("0 */15 * ? * *")?; // every 15 minutes
     // let lolschedule_schedule = Schedule::from_str("0 */5 * ? * *")?; // every 5 minutes
 
-    let live_schedule = Schedule::from_str("0 */3 * ? * *")?; // every 5 minutes
+    let live_schedule = Schedule::from_str("0 */1 * ? * *")?; // every 5 minutes
 
     // // fetch_leagues
     // {
@@ -185,22 +185,24 @@ fn main() -> Result<()> {
     //         }
     //     });
     //     // Wait for the tasks to finish
+    let _ = data_pull.lock().await.fetch_live().await;
 
+    let _ = data_pull.lock().await.fetch_change_in_events().await;
     {
-    let data_pull = data_pull.clone();
-    tokio::spawn(async move {
-        loop {
-            let now = Utc::now();
-            if let Some(next) = live_schedule.upcoming(Utc).next() {
-                let delay = next - now;
-                sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
+        let data_pull = data_pull.clone();
+        tokio::spawn(async move {
+            loop {
+                let now = Utc::now();
+                if let Some(next) = live_schedule.upcoming(Utc).next() {
+                    let delay = next - now;
+                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
+                }
+                let _ = data_pull.lock().await.fetch_live().await;
+
+                let _ = data_pull.lock().await.fetch_change_in_events().await;
             }
-            let _ = data_pull.lock().await.fetch_live().await;
-        
-            let _ = data_pull.lock().await.fetch_recent_ended_events().await;
-        }
-    });
-}
+        });
+    }
     tokio::signal::ctrl_c().await?;
 
     Ok(())

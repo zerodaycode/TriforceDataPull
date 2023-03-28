@@ -169,14 +169,75 @@ pub mod serde_models {
     pub struct EventDetails {
         pub id: LolesportsId,
         pub r#type: String,
+        pub state: Option<String>,
+        #[serde(alias = "startTime")]
+        pub start_time: Option<LolesportsDateTime>,
         pub tournament: EventDetailTournament,
         pub league: ScheduleLeague,
         pub r#match: Option<EventDetailMatch>,
+        pub streams: Vec<Stream>,
+    }
+
+    impl PartialEq for EventDetails {
+        fn eq(&self, other: &Self) -> bool {
+            if self.id.0 != other.id.0 || self.state != other.state {
+                return false;
+            }
+            if let (Some(self_match), Some(other_match)) = (&self.r#match, &other.r#match) {
+                if self_match.teams.len() != other_match.teams.len() {
+                    return false;
+                }
+                for (self_team, other_team) in self_match.teams.iter().zip(other_match.teams.iter())
+                {
+                    if self_team.result.is_some() && other_team.result.is_some() {
+                        let self_result = self_team.result.as_ref().unwrap();
+                        let other_result = other_team.result.as_ref().unwrap();
+
+                        if self_result.game_wins != other_result.game_wins {
+                            return false;
+                        }
+                    }
+                    if self_team.name != other_team.name
+                        || self_team.code != other_team.code
+                        || self_team.image != other_team.image
+                    {
+                        return false;
+                    }
+                }
+
+                for (self_game, other_game) in self_match.games.iter().zip(other_match.games.iter())
+                {
+                    if self_game.id != other_game.id
+                        || self_game.state != other_game.state
+                        || self_game.number != other_game.number
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            } else {
+                return (self.start_time.is_none() == other.start_time.is_none()
+                    || self.start_time.is_some() && other.start_time.is_some())
+                    && self.league.name == other.league.name
+                    && self.r#type == other.r#type;
+            }
+        }
     }
 
     #[derive(Deserialize, Default, Debug)]
     pub struct ScheduleOutter {
         pub schedule: Schedule,
+    }
+
+    #[derive(Deserialize, Default, Debug)]
+    pub struct LiveScheduleOutter {
+        pub schedule: LiveSchedule,
+    }
+
+    #[derive(Deserialize, Default, Debug)]
+    pub struct LiveSchedule {
+        pub events: Vec<EventDetails>,
     }
 
     #[derive(Deserialize, Default, Debug)]
@@ -216,19 +277,37 @@ pub mod serde_models {
 
     impl PartialEq for Event {
         fn eq(&self, other: &Self) -> bool {
-            // If both events have a match object, compare their match IDs
             if let (Some(self_match), Some(other_match)) = (&self.r#match, &other.r#match) {
-                return other_match.id.0 == self_match.id.0;
-            }
-            // If neither event has a match object (probably a type:"show"), compare start_time, type, and league slug
-            else if self.r#match.is_none() && other.r#match.is_none() {
-                return self.start_time.0 == other.start_time.0
+                if self_match.id.0 != other_match.id.0
+                    || self_match.teams.len() != other_match.teams.len()
+                {
+                    return false;
+                }
+                for (self_team, other_team) in self_match.teams.iter().zip(other_match.teams.iter())
+                {
+                    if self_team.result.is_some() && other_team.result.is_some() {
+                        let self_result = self_team.result.as_ref().unwrap();
+                        let other_result = other_team.result.as_ref().unwrap();
+                        if self_result.game_wins != other_result.game_wins {
+                            return false;
+                        }
+                    }
+                    if self_team.name != other_team.name
+                        || self_team.code != other_team.code
+                        || self_team.image != other_team.image
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            } else {
+                self.start_time.0 == other.start_time.0
+                    && self.league.name == other.league.name
+                    && self.state == other.state
                     && self.r#type == other.r#type
-                    && self.league.slug == other.league.slug;
-            }
-            // Otherwise, the events are not equal
-            else {
-                return false;
+                    && self.block_name == other.block_name
+                    && self.slug == other.slug
+                    && other.r#match.is_none()
             }
         }
     }
@@ -272,19 +351,38 @@ pub mod serde_models {
         pub id: String,
         pub parameter: String,
         pub locale: String,
-        pub mediaLocale: MediaLocale,
+        #[serde(alias = "mediaLocale")]
+        pub media_locale: MediaLocale,
         pub provider: String,
         pub offset: i32,
-        pub firstFrameTime: String,
-        pub startMillis: Option<i64>,
-        pub endMillis: Option<i64>,
+        #[serde(alias = "firstFrameTime")]
+        pub first_frame_time: String,
+        #[serde(alias = "startMillis")]
+        pub start_millis: Option<i64>,
+        #[serde(alias = "endMillis")]
+        pub end_millis: Option<i64>,
+    }
+
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct Stream {
+        parameter: String,
+        locale: String,
+        #[serde(alias = "mediaLocale")]
+        media_locale: MediaLocale,
+        provider: String,
+        countries: Vec<String>,
+        offset: i32,
+        #[serde(alias = "statsStatus")]
+        stats_status: String,
     }
 
     #[derive(Debug, Deserialize, Clone)]
     pub struct MediaLocale {
         pub locale: String,
-        pub englishName: String,
-        pub translatedName: String,
+        #[serde(alias = "englishName")]
+        pub english_name: String,
+        #[serde(alias = "translatedName")]
+        pub translated_name: String,
     }
 
     #[derive(Deserialize, Debug, Clone)]

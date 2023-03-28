@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use crate::{
     data_pull::serde_models::{
-        Event, EventDetails, EventOutter, LeagueForTournaments, Leagues, LolesportsId, Player,
-        ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper,
+        Event, EventDetails, EventOutter, LeagueForTournaments, Leagues, LiveScheduleOutter,
+        LolesportsId, Player, ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper,
     },
     utils::constants::lolesports,
 };
@@ -29,10 +29,9 @@ pub struct DataPull {
     pub teams: Vec<Team>,
     pub players: Vec<Player>,
     pub schedule: Vec<Event>,
-    pub live: Vec<Event>,
-    pub previous_live: Vec<Event>,
-    pub recent_ended_events_match: Vec<EventDetails>,
-    pub recent_ended_events_show: Vec<Event>,
+    pub live: Vec<EventDetails>,
+    pub previous_live: Vec<EventDetails>,
+    pub events_with_recent_changes: Vec<EventDetails>,
 }
 
 impl DataPull {
@@ -207,65 +206,90 @@ impl DataPull {
     }
 
     pub async fn fetch_live(&mut self) -> Result<()> {
+        println!(
+            "{} - Live fetch",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
 
-        println!("{} - Live fetch",Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
-
-        self.recent_ended_events_match.clear();
-        self.recent_ended_events_show.clear();
+        self.events_with_recent_changes.clear();
 
         let response = caller::make_get_request::<&[()]>(lolesports::LIVE_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the Live Events from Lolesports");
 
-        serde_json::from_str::<Wrapper<ScheduleOutter>>(&response?.text().await.unwrap())
+        // println!("Live fetch body: {:?}",&response?.text().await.unwrap());
+
+        serde_json::from_str::<Wrapper<LiveScheduleOutter>>(&response?.text().await.unwrap())
             .map(|parsed| {
-                println!(
-                    "Eventos sin match {:?} ",
-                    parsed
-                        .data
-                        .schedule
-                        .events
-                        .iter()
-                        .filter(|e| e.r#match.is_none())
-                        .collect::<Vec<&Event>>()
-                );
                 self.live = parsed.data.schedule.events;
             })
             .with_context(|| "A failure happened parsing the Live Events from Lolesports")
+        // Ok(())
     }
 
-    pub async fn fetch_recent_ended_events(&mut self) -> Result<()> {
-        let ended_events = &self
+    pub async fn fetch_change_in_events(&mut self) -> Result<()> {
+        println!(
+            "{} - Processing events with changes",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
+
+        println!(
+            "{} - Number of Events in live {}",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+            self.live.len()
+        );
+
+        println!(
+            "{} - Number of Events in previous life {}",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+            self.previous_live.len()
+        );
+
+        let events_with_changes = &self
             .previous_live
             .iter()
             .filter(|event| !self.live.contains(event))
             .cloned()
-            .collect::<Vec<Event>>();
+            .collect::<Vec<EventDetails>>();
+
+        println!(
+            "{} - Number of Events with changes {}",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+            events_with_changes.len()
+        );
 
         self.previous_live.clone_from(&self.live);
-        println!("{} - Processing ended events",Local::now().format("%Y-%m-%d %H:%M:%S.%f"));
-        for ended_event in ended_events {
 
-            println!("{} - Processing event {:?}",Local::now().format("%Y-%m-%d %H:%M:%S.%f"), &ended_event);
+        for event_with_changes in events_with_changes {
+            println!(
+                "{} - Processing event {:?}",
+                Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+                &event_with_changes
+            );
 
-            if let Some(event_match) = &ended_event.r#match {
+            if let Some(event_match) = &event_with_changes.r#match {
                 let response = caller::make_get_request(
                     lolesports::EVENT_DETAILS_ENDPOINT,
-                    Some(&[("id", event_match.id)]),
+                    Some(&[("id", event_with_changes.id)]),
                 )
                 .await
                 .with_context(|| "A failure happened retrieving an Ended Event from Lolesports");
 
                 serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
                     .map(|parsed| {
-                        self.recent_ended_events_match.push(parsed.data.event);
+                        self.events_with_recent_changes.push(parsed.data.event);
                     })
                     .with_context(|| "A failure happened parsing an ended Event from Lolesports");
             } else {
-                ended_event.to_owned().state = "completed".to_owned();
-                self.recent_ended_events_show.push(ended_event.to_owned());
+                event_with_changes.to_owned().state = Some("completed".to_string());
+                self.events_with_recent_changes
+                    .push(event_with_changes.to_owned());
             }
         }
+        println!(
+            "Processed event with changes {:?}",
+            self.events_with_recent_changes
+        );
 
         Ok(())
     }

@@ -3,7 +3,7 @@
 use std::fmt::Error;
 
 use self::models::{
-    event::Schedule,
+    event::{self, Schedule},
     leagues::League,
     players::Player,
     team_player::{TeamPlayer, TeamPlayerField, TeamPlayerFieldValue},
@@ -336,6 +336,58 @@ impl DatabaseOps {
                         }
                     }
                 }
+                Ok(())
+            }
+            _ => Ok({
+                println!("No se pudo recuperar los datos de base de datos");
+            }),
+        }
+    }
+
+    pub async fn bulk_eventdetails_in_database(
+        &mut self,
+        events: &Vec<data_pull::serde_models::EventDetails>,
+    ) -> Result<()> {
+        let db_events = Schedule::find_all().await;
+
+        match (db_events) {
+            Ok(on_db_events) => {
+                for event in events {
+                    let mut db_event;
+                    match (&event.r#match) {
+                        Some(event_match) => {
+                            db_event = on_db_events
+                                .iter()
+                                .find(|ev| ev.match_id.unwrap_or_default() == event.id.0);
+                        }
+                        None => {
+                            db_event = on_db_events.iter()
+                            .find(|ev| 
+                                ev.event_type == event.r#type &&
+                                ev.league_id == Some(event.league.league_id.into())) // TODO hay que mapear antes la liga
+                                // hay que comparar el startTime
+                                ;
+                        }
+                    }
+
+                    match db_event {
+                        Some(e) => {
+                            if event.r#match.is_some() {
+                                e.team_left_wins = Some(event.r#match.expect("").teams.get(0).expect("").result.expect("").game_wins.into());
+                                e.team_left_wins = Some(event.r#match.expect("").teams.get(1).expect("").result.expect("").game_wins.into());
+                            }
+                            e.state = event.state.unwrap();
+
+                            let _ = e.update().await;
+                        }
+                        None => {
+                            println!("New event from Live to insert \n{:?}", &event);
+                            // TODO hay que implementar From para EventDetails
+                            todo!()
+                        }
+                    }
+                }
+
                 Ok(())
             }
             _ => Ok({
