@@ -170,6 +170,7 @@ pub mod serde_models {
         pub id: LolesportsId,
         pub r#type: String,
         pub state: Option<String>,
+        pub blockname: Option<String>,
         #[serde(alias = "startTime")]
         pub start_time: Option<LolesportsDateTime>,
         pub tournament: EventDetailTournament,

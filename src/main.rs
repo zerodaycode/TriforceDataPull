@@ -14,10 +14,10 @@ use color_eyre::Result;
 use tokio::sync::Mutex;
 use tokio::{select, task};
 
-#[canyon_sql::main()]
+#[canyon_sql::main(enable_migrations)]
 fn main() -> Result<()> {
     let data_pull = Arc::new(Mutex::new(service::DataPull::default()));
-    // let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
+    let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
 
     // println!(
     //     "{} - Initial league fetch",
@@ -82,7 +82,7 @@ fn main() -> Result<()> {
     //     "{} - Initial schedule fetch",
     //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
     // );
-    // Processing the complete schedule
+    // // Processing the complete schedule
     // data_pull.lock().await.process_full_schedule().await?;
 
     // database_ops
@@ -91,21 +91,16 @@ fn main() -> Result<()> {
     //     .bulk_schedule_in_database(&data_pull.lock().await.schedule)
     //     .await?;
 
-    // println!(
-    //     "{} - Live fetch",
-    //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-    // );
-    // data_pull.lock().await.fetch_live().await?;
-
-    // println!("Datos {:?}", data_pull.lock().await.live);
-
-    // database_ops
-    //     .lock()
-    //     .await
-    //     .bulk_schedule_in_database(&data_pull.lock().await.schedule)
-    //     .await?;
-
-    // data_pull.lock().await.fetch_recent_ended_events().await?;
+    println!(
+        "{} - Live fetch",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    data_pull.lock().await.fetch_live().await?;
+    println!(
+        "{} - Fetch recent changes in events",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    data_pull.lock().await.fetch_change_in_events().await;
 
     // println!("{} - Initial live data {:?}", Local::now().format("%Y-%m-%d %H:%M:%S.%f"), data_pull);
 
@@ -185,9 +180,7 @@ fn main() -> Result<()> {
     //         }
     //     });
     //     // Wait for the tasks to finish
-    let _ = data_pull.lock().await.fetch_live().await;
 
-    let _ = data_pull.lock().await.fetch_change_in_events().await;
     {
         let data_pull = data_pull.clone();
         tokio::spawn(async move {
@@ -197,9 +190,15 @@ fn main() -> Result<()> {
                     let delay = next - now;
                     sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
                 }
-                let _ = data_pull.lock().await.fetch_live().await;
+                data_pull.lock().await.fetch_live().await;
 
-                let _ = data_pull.lock().await.fetch_change_in_events().await;
+                data_pull.lock().await.fetch_change_in_events().await;
+
+                database_ops
+                .lock()
+                .await
+                .bulk_eventdetails_in_database(&data_pull.lock().await.events_with_recent_changes)
+                .await;
             }
         });
     }

@@ -1,12 +1,12 @@
 //! The data access layer
 
-use std::fmt::Error;
+use std::{fmt::Error, borrow::BorrowMut};
 
 use self::models::{
-    event::{self, Schedule},
+    event::{self, Schedule, ScheduleFieldValue},
     leagues::League,
     players::Player,
-    team_player::{TeamPlayer, TeamPlayerField, TeamPlayerFieldValue},
+    team_player::{TeamPlayer, TeamPlayerFieldValue},
     teams::Team,
     tournaments::Tournament,
 };
@@ -18,6 +18,7 @@ use canyon_sql::{
     crud::CrudOperations,
     query::{operators::Comp, ops::QueryBuilder},
 };
+use chrono::{NaiveDateTime, Utc, Days};
 use color_eyre::Result;
 use itertools::Itertools;
 mod models;
@@ -301,8 +302,7 @@ impl DatabaseOps {
                                 None => None,
                             };
 
-                            db_event.team_right_id = self
-                                .teams
+                            db_event.team_right_id = on_db_teams
                                 .iter()
                                 .find(|db_team| db_team.name.eq(&team_2.name))
                                 .map(|l| l.id.into());
@@ -348,42 +348,43 @@ impl DatabaseOps {
         &mut self,
         events: &Vec<data_pull::serde_models::EventDetails>,
     ) -> Result<()> {
-        let db_events = Schedule::find_all().await;
 
-        match (db_events) {
-            Ok(on_db_events) => {
+        let db_leagues = League::find_all().await;
+        let db_events = Schedule::select_query()
+        .r#where(
+            ScheduleFieldValue::start_time(&Utc::now().naive_utc().checked_sub_days(Days::new(1))),
+             Comp::Gt
+        ).query().await;
+
+        match (db_leagues, db_events) {
+            (Ok(on_db_leagues), Ok(mut on_db_events))  => {
                 for event in events {
-                    let mut db_event;
-                    match (&event.r#match) {
-                        Some(event_match) => {
-                            db_event = on_db_events
-                                .iter()
-                                .find(|ev| ev.match_id.unwrap_or_default() == event.id.0);
-                        }
+                    let db_event = match &event.r#match {
+                        Some(_event_match) => {
+                            let matching_event = on_db_events.iter_mut().find(|ev| {
+                                ev.match_id.unwrap_or_default() == event.id.0
+                            });
+                            matching_event
+                        },
                         None => {
-                            db_event = on_db_events.iter()
-                            .find(|ev| 
+
+                            let matching_event = on_db_events.iter_mut().find(|ev| {
                                 ev.event_type == event.r#type &&
-                                ev.league_id == Some(event.league.league_id.into())) // TODO hay que mapear antes la liga
-                                // hay que comparar el startTime
-                                ;
+                                ev.league_id == Some(event.league.league_id.into())
+                            });
+                            matching_event
                         }
-                    }
+                    };
 
                     match db_event {
                         Some(e) => {
-                            if event.r#match.is_some() {
-                                e.team_left_wins = Some(event.r#match.expect("").teams.get(0).expect("").result.expect("").game_wins.into());
-                                e.team_left_wins = Some(event.r#match.expect("").teams.get(1).expect("").result.expect("").game_wins.into());
-                            }
-                            e.state = event.state.unwrap();
 
+                            e.merge_with_event_details(event);
                             let _ = e.update().await;
                         }
                         None => {
-                            println!("New event from Live to insert \n{:?}", &event);
+                            println!("New event from Live to insert \n{:?} - Currently not saved in DB", &event);
                             // TODO hay que implementar From para EventDetails
-                            todo!()
                         }
                     }
                 }

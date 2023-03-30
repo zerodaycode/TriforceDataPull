@@ -261,9 +261,9 @@ checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "canyon_connection"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7928a6b74ca4c5906a8bf3afc3a3e68525baa55a042524a112a47393ed2d403"
+checksum = "0febd02284ed1b8b476c34a12d2fcf684f8967e5ef623f31c1a08ab6ec095362"
 dependencies = [
  "async-std",
  "futures",
@@ -279,9 +279,9 @@ dependencies = [
 
 [[package]]
 name = "canyon_crud"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65e2227b873f8a91be6daa3c54a460e24203fef05df35abe7d80007b2c4c9cd3"
+checksum = "ddd17369fec5272503dbde3a3918fab7773073860a3564aa37d2319aedb1a490"
 dependencies = [
  "async-trait",
  "canyon_connection",
@@ -290,9 +290,9 @@ dependencies = [
 
 [[package]]
 name = "canyon_macros"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "257a9390d518c6cb4100b459ac4fdfaf196663b8c572633bc9b6d13f3b1ccd02"
+checksum = "9691342e4aa1bc75ddde01fcf7b68f2fcf2ed71f81b4c6898b35742b425c8ba4"
 dependencies = [
  "canyon_connection",
  "canyon_crud",
@@ -306,9 +306,9 @@ dependencies = [
 
 [[package]]
 name = "canyon_observer"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d4884610ef51a880f07ad1dcd8c903de54e6248029e85c6754ea133e6332eaf"
+checksum = "5957db4bb2ae1105d294d66947639471a664ee23c217f9f37c632b33503a4f8f"
 dependencies = [
  "async-trait",
  "canyon_connection",
@@ -325,9 +325,9 @@ dependencies = [
 
 [[package]]
 name = "canyon_sql"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b96a5812c57bfeca435953c3d98046185ba332cb6e05702c040f24a3875adf8"
+checksum = "1d82a452077cd580e5328836d8fe038ef58cd1eaa5527ce6ab205795cda589f5"
 dependencies = [
  "async-trait",
  "canyon_connection",

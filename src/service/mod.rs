@@ -5,7 +5,7 @@ use std::time::Duration;
 use crate::{
     data_pull::serde_models::{
         Event, EventDetails, EventOutter, LeagueForTournaments, Leagues, LiveScheduleOutter,
-        LolesportsId, Player, ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper,
+        LolesportsId, Player, ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper, Game,
     },
     utils::constants::lolesports,
 };
@@ -55,6 +55,11 @@ impl DataPull {
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
         for league in &self.leagues.leagues {
+            println!(
+                "{} - Fetching Tournaments for League ID: {:?}",
+                Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+                &league.id
+            );
             let response = caller::make_get_request(
                 lolesports::TOURNAMENTS_ENDPOINT,
                 Some(&[("leagueId", &league.id)]),
@@ -210,7 +215,6 @@ impl DataPull {
             "{} - Live fetch",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
-
         self.events_with_recent_changes.clear();
 
         let response = caller::make_get_request::<&[()]>(lolesports::LIVE_ENDPOINT, None)
@@ -277,6 +281,23 @@ impl DataPull {
 
                 serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
                     .map(|parsed| {
+                        let match_max_games = event_match.strategy.count;
+                        let total_games_completed: i8 = event_match
+                            .games
+                            .iter()
+                            .filter(|g| g.state == "completed" || g.state == "unneeded")
+                            .count().try_into().unwrap();
+                        let total_wins: i8 = event_match
+                            .teams
+                            .iter()
+                            .filter_map(|t| t.result.as_ref())
+                            .map(|res| res.game_wins)
+                            .sum();
+
+                        if match_max_games == total_wins || match_max_games == total_games_completed
+                        {
+                            event_with_changes.to_owned().state = Some("completed".to_string());
+                        }
                         self.events_with_recent_changes.push(parsed.data.event);
                     })
                     .with_context(|| "A failure happened parsing an ended Event from Lolesports");
