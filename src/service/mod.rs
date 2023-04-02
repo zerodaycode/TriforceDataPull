@@ -280,7 +280,7 @@ impl DataPull {
                 .with_context(|| "A failure happened retrieving an Ended Event from Lolesports");
 
                 serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
-                    .map(|parsed| {
+                    .map(|mut parsed| {
                         let match_max_games = event_match.strategy.count;
                         let total_games_completed: i8 = event_match
                             .games
@@ -296,7 +296,7 @@ impl DataPull {
 
                         if match_max_games == total_wins || match_max_games == total_games_completed
                         {
-                            event_with_changes.to_owned().state = Some("completed".to_string());
+                            parsed.data.event.state = Some("completed".to_string());
                         }
                         self.events_with_recent_changes.push(parsed.data.event);
                     })
