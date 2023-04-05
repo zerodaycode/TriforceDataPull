@@ -311,6 +311,17 @@ impl DatabaseOps {
                                 Some(result) => Some(result.game_wins.into()),
                                 None => None,
                             };
+                            
+                            
+                            // Added because sometimes the state of the match is "unstarted" or "inProgress" even when the match ended hours ago,
+                            // but the match result is updated, so we need to manually correct this inconsistency.
+                            // Error first seen in EMEA Masters (formerly known as EU Masters) on 04/04/2023, with matches that ended 7 hours ago still having the "unstarted" state.
+                            // At some point on 05/04/2023, those matches had their states updated, but the matches of the day (same league) had the same problem.
+                            if let (Some(strategy_count), Some(right_wins), Some(left_wins)) = (db_event.strategy_count, db_event.team_right_wins, db_event.team_left_wins) {
+                                if strategy_count == right_wins + left_wins && db_event.state != "completed" {
+                                    db_event.state = "completed".to_string();
+                                }
+                            }
                         }
 
                         db_event
