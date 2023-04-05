@@ -14,82 +14,82 @@ use color_eyre::Result;
 use tokio::sync::Mutex;
 use tokio::{select, task};
 
-#[canyon_sql::main(enable_migrations)]
+#[canyon_sql::main()]
 fn main() -> Result<()> {
     let data_pull = Arc::new(Mutex::new(service::DataPull::default()));
     let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
 
-    // println!(
-    //     "{} - Initial league fetch",
-    //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-    // );
-    // // Processing the leagues
-    // data_pull.lock().await.fetch_leagues().await?;
+    println!(
+        "{} - Initial league fetch",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    // Processing the leagues
+    data_pull.lock().await.fetch_leagues().await?;
 
-    // println!(
-    //     "{} - Initial league database update",
-    //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-    // );
-    // database_ops
-    //     .lock()
-    //     .await
-    //     .bulk_leagues_in_database(&data_pull.lock().await.leagues)
-    //     .await?;
+    println!(
+        "{} - Initial league database update",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    database_ops
+        .lock()
+        .await
+        .bulk_leagues_in_database(&data_pull.lock().await.leagues)
+        .await?;
 
-    // println!(
-    //     "{} - Initial tournaments fetch",
-    //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-    // );
-    // // Processing the tournaments
-    // data_pull.lock().await.fetch_tournaments().await?;
-    // println!(
-    //     "{} - Initial tournaments database update",
-    //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-    // );
-    // database_ops
-    //     .lock()
-    //     .await
-    //     .bulk_tournaments_in_database(&data_pull.lock().await.tournaments)
-    //     .await?;
+    println!(
+        "{} - Initial tournaments fetch",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    // Processing the tournaments
+    data_pull.lock().await.fetch_tournaments().await?;
+    println!(
+        "{} - Initial tournaments database update",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    database_ops
+        .lock()
+        .await
+        .bulk_tournaments_in_database(&data_pull.lock().await.tournaments)
+        .await?;
 
-    // println!(
-    //     "{} - Initial teams and players fetch",
-    //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-    // );
-    // data_pull.lock().await.fetch_teams_and_players().await?;
-    // // Processing the teams and players
-    // println!(
-    //     "{} - Initial teams and players db update",
-    //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-    // );
-    // database_ops
-    //     .lock()
-    //     .await
-    //     .bulk_teams_in_database(&data_pull.lock().await.teams)
-    //     .await?;
-    // database_ops
-    //     .lock()
-    //     .await
-    //     .bulk_players_in_database(&data_pull.lock().await.players)
-    //     .await?;
-    // database_ops
-    //     .lock()
-    //     .await
-    //     .bulk_team_player_in_database(&data_pull.lock().await.teams)
-    //     .await?;
+    println!(
+        "{} - Initial teams and players fetch",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    data_pull.lock().await.fetch_teams_and_players().await?;
+    // Processing the teams and players
+    println!(
+        "{} - Initial teams and players db update",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    database_ops
+        .lock()
+        .await
+        .bulk_teams_in_database(&data_pull.lock().await.teams)
+        .await?;
+    database_ops
+        .lock()
+        .await
+        .bulk_players_in_database(&data_pull.lock().await.players)
+        .await?;
+    database_ops
+        .lock()
+        .await
+        .bulk_team_player_in_database(&data_pull.lock().await.teams)
+        .await?;
 
-    // println!(
-    //     "{} - Initial schedule fetch",
-    //     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-    // );
-    // // Processing the complete schedule
-    // data_pull.lock().await.process_full_schedule().await?;
+    println!(
+        "{} - Initial schedule fetch",
+        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+    );
+    // Processing the complete schedule
+    data_pull.lock().await.process_full_schedule().await?;
 
-    // database_ops
-    //     .lock()
-    //     .await
-    //     .bulk_schedule_in_database(&data_pull.lock().await.schedule)
-    //     .await?;
+    database_ops
+        .lock()
+        .await
+        .bulk_schedule_in_database(&data_pull.lock().await.schedule)
+        .await?;
 
     println!(
         "{} - Live fetch",
@@ -195,10 +195,12 @@ fn main() -> Result<()> {
                 data_pull.lock().await.fetch_change_in_events().await;
 
                 database_ops
-                .lock()
-                .await
-                .bulk_eventdetails_in_database(&data_pull.lock().await.events_with_recent_changes)
-                .await;
+                    .lock()
+                    .await
+                    .bulk_eventdetails_in_database(
+                        &data_pull.lock().await.events_with_recent_changes,
+                    )
+                    .await;
             }
         });
     }
