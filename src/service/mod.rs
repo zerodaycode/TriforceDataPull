@@ -1,17 +1,14 @@
 pub mod caller;
 
-use std::time::Duration;
-
 use crate::{
     data_pull::serde_models::{
         Event, EventDetails, EventOutter, LeagueForTournaments, Leagues, LiveScheduleOutter,
-        LolesportsId, Player, ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper, Game,
+        LolesportsId, Player, ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper,
     },
     utils::constants::lolesports,
 };
-use chrono::{format::Parsed, Local};
+use chrono::{Local};
 use color_eyre::{eyre::Context, Result};
-use tokio::time::sleep;
 
 /**
  * This type alias are just a communist joke. They are the Lolesports tournaments only?
@@ -286,7 +283,9 @@ impl DataPull {
                             .games
                             .iter()
                             .filter(|g| g.state == "completed" || g.state == "unneeded")
-                            .count().try_into().unwrap();
+                            .count()
+                            .try_into()
+                            .unwrap();
                         let total_wins: i8 = event_match
                             .teams
                             .iter()

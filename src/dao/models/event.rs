@@ -1,11 +1,9 @@
-use std::default;
-
 use canyon_sql::{date_time::NaiveDateTime, macros::*};
 use serde::Serialize;
 
-use crate::data_pull;
 use super::leagues::League;
 use super::teams::Team;
+use crate::data_pull;
 
 #[derive(Debug, Clone, CanyonCrud, Fields, CanyonMapper, Serialize)]
 #[canyon_entity]
@@ -83,10 +81,13 @@ impl From<&data_pull::serde_models::EventDetails> for Schedule {
     }
 }
 
-
 impl Schedule {
-    pub fn merge_with_event_details(&mut self, event_details: &data_pull::serde_models::EventDetails) {
-        if let Some(first_team) = event_details.r#match
+    pub fn merge_with_event_details(
+        &mut self,
+        event_details: &data_pull::serde_models::EventDetails,
+    ) {
+        if let Some(first_team) = event_details
+            .r#match
             .as_ref()
             .and_then(|event_match| event_match.teams.get(0))
             .and_then(|team| team.result.as_ref())
@@ -94,7 +95,8 @@ impl Schedule {
             self.team_left_wins = Some(first_team.game_wins.into());
         }
 
-        if let Some(second_team) = event_details.r#match
+        if let Some(second_team) = event_details
+            .r#match
             .as_ref()
             .and_then(|event_match| event_match.teams.get(1))
             .and_then(|team| team.result.as_ref())

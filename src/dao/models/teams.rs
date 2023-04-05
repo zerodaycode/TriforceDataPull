@@ -1,10 +1,8 @@
-use std::default;
-
 use canyon_sql::macros::*;
 use serde::Serialize;
 
-use crate::data_pull;
 use super::leagues::League;
+use crate::data_pull;
 
 #[derive(Debug, Clone, CanyonCrud, CanyonMapper, Serialize)]
 #[canyon_entity]
