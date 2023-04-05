@@ -16,7 +16,7 @@ use canyon_sql::{
     crud::CrudOperations,
     query::{operators::Comp, ops::QueryBuilder},
 };
-use chrono::{Days, Utc};
+use chrono::{Days, Utc, Local};
 use color_eyre::Result;
 use itertools::Itertools;
 mod models;
@@ -111,6 +111,12 @@ impl DatabaseOps {
         &mut self,
         teams: &Vec<data_pull::serde_models::Team>,
     ) -> Result<()> {
+
+        println!(
+            "{} - Processing teams to insert or update on database",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
+
         let db_leagues = League::find_all().await;
 
         let db_teams = Team::find_all().await;
@@ -157,6 +163,12 @@ impl DatabaseOps {
         &mut self,
         players: &Vec<data_pull::serde_models::Player>,
     ) -> Result<()> {
+
+        println!(
+            "{} - Processing players to insert or update on database",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
+
         let db_players = Player::find_all().await;
 
         let fetched_players = &mut players
@@ -192,6 +204,12 @@ impl DatabaseOps {
         &mut self,
         fetched_teams: &Vec<data_pull::serde_models::Team>,
     ) -> Result<()> {
+
+        println!(
+            "{} - Processing players and teams to insert on database",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
+
         let db_teams = Team::find_all().await;
 
         let db_players = Player::find_all().await;
@@ -200,13 +218,22 @@ impl DatabaseOps {
             (Ok(on_db_players), Ok(on_db_teams)) => {
                 let mut vec_team_player: Vec<TeamPlayer> = vec![];
 
-                // let _ = TeamPlayer::query("DELETE * FROM team_player",&[], "").await;
-
+                println!(
+                    "{} - Deleting all rows in the table",
+                    Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+                );
+        
                 let _ = TeamPlayer::delete_query()
                     .r#where(TeamPlayerFieldValue::id(&&0), Comp::Gt)
                     .query()
                     .await;
 
+
+                    println!(
+                        "{} - All rows delete !\n Starting to process the data to insert",
+                        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+                    );
+            
                 fetched_teams.iter().for_each(|serde_team| {
                     let team_id = on_db_teams
                         .iter()
