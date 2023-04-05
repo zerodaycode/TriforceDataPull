@@ -1,9 +1,7 @@
 //! The data access layer
 
-use std::{fmt::Error, borrow::BorrowMut};
-
 use self::models::{
-    event::{self, Schedule, ScheduleFieldValue},
+    event::{Schedule, ScheduleFieldValue},
     leagues::League,
     players::Player,
     team_player::{TeamPlayer, TeamPlayerFieldValue},
@@ -18,12 +16,10 @@ use canyon_sql::{
     crud::CrudOperations,
     query::{operators::Comp, ops::QueryBuilder},
 };
-use chrono::{NaiveDateTime, Utc, Days};
+use chrono::{Days, Utc};
 use color_eyre::Result;
 use itertools::Itertools;
 mod models;
-
-use super::dao::League as DatabaseLeague;
 
 #[derive(Debug, Default)]
 pub struct DatabaseOps {
@@ -263,7 +259,7 @@ impl DatabaseOps {
 
         match (db_leagues, db_teams, db_events) {
             (Ok(on_db_leagues), Ok(on_db_teams), Ok(on_db_events)) => {
-                let mut fetched_events = events
+                let fetched_events = events
                     .iter()
                     .map(|serde_event| {
                         let mut db_event = Schedule::from(serde_event);
@@ -311,14 +307,19 @@ impl DatabaseOps {
                                 Some(result) => Some(result.game_wins.into()),
                                 None => None,
                             };
-                            
-                            
+
                             // Added because sometimes the state of the match is "unstarted" or "inProgress" even when the match ended hours ago,
                             // but the match result is updated, so we need to manually correct this inconsistency.
                             // Error first seen in EMEA Masters (formerly known as EU Masters) on 04/04/2023, with matches that ended 7 hours ago still having the "unstarted" state.
                             // At some point on 05/04/2023, those matches had their states updated, but the matches of the day (same league) had the same problem.
-                            if let (Some(strategy_count), Some(right_wins), Some(left_wins)) = (db_event.strategy_count, db_event.team_right_wins, db_event.team_left_wins) {
-                                if strategy_count == right_wins + left_wins && db_event.state != "completed" {
+                            if let (Some(strategy_count), Some(right_wins), Some(left_wins)) = (
+                                db_event.strategy_count,
+                                db_event.team_right_wins,
+                                db_event.team_left_wins,
+                            ) {
+                                if strategy_count == right_wins + left_wins
+                                    && db_event.state != "completed"
+                                {
                                     db_event.state = "completed".to_string();
                                 }
                             }
@@ -359,43 +360,67 @@ impl DatabaseOps {
         &mut self,
         events: &Vec<data_pull::serde_models::EventDetails>,
     ) -> Result<()> {
-
         let db_leagues = League::find_all().await;
         let db_events = Schedule::select_query()
-        .r#where(
-            ScheduleFieldValue::start_time(&Utc::now().naive_utc().checked_sub_days(Days::new(1))),
-             Comp::Gt
-        ).query().await;
+            .r#where(
+                ScheduleFieldValue::start_time(
+                    &Utc::now().naive_utc().checked_sub_days(Days::new(1)),
+                ),
+                Comp::Gt,
+            )
+            .query()
+            .await;
 
         match (db_leagues, db_events) {
-            (Ok(on_db_leagues), Ok(mut on_db_events))  => {
+            (Ok(on_db_leagues), Ok(mut on_db_events)) => {
                 for event in events {
                     let db_event = match &event.r#match {
                         Some(_event_match) => {
-                            let matching_event = on_db_events.iter_mut().find(|ev| {
-                                ev.match_id.unwrap_or_default() == event.id.0
-                            });
+                            let matching_event = on_db_events
+                                .iter_mut()
+                                .find(|ev| ev.match_id.unwrap_or_default() == event.id.0);
                             matching_event
-                        },
+                        }
                         None => {
+                            let event_league_on_db =
+                                on_db_leagues.iter().find(|l| l.slug == event.league.slug);
 
-                            let matching_event = on_db_events.iter_mut().find(|ev| {
-                                ev.event_type == event.r#type &&
-                                ev.league_id == Some(event.league.league_id.into())
+                            let show_event = on_db_events.iter_mut().find(|ev| {
+                                ev.event_type == event.r#type
+                                    && match (ev.league_id, &event_league_on_db) {
+                                        (Some(ev_league_id), Some(event_league)) => {
+                                            ev_league_id == event_league.id as i64
+                                        }
+                                        (None, None) => true,
+                                        _ => false,
+                                    }
+                                    && ev
+                                        .start_time
+                                        .and_then(|ev_start| {
+                                            event.start_time.map(|event_start| {
+                                                let diff =
+                                                    event_start.0.signed_duration_since(ev_start);
+                                                diff.num_minutes().abs() <= 20
+                                            })
+                                        })
+                                        .unwrap_or(false)
                             });
-                            matching_event
+                            show_event
                         }
                     };
 
                     match db_event {
                         Some(e) => {
-
                             e.merge_with_event_details(event);
+
+                            println!("New event data from Live - Updating \n{:?}", &e);
                             let _ = e.update().await;
                         }
                         None => {
-                            println!("New event from Live to insert \n{:?} - Currently not saved in DB", &event);
-                            // TODO hay que implementar From para EventDetails
+                            println!(
+                                "New event from Live to insert (TODO - implement logic to insert) \n{:?}",
+                                &event
+                            );
                         }
                     }
                 }
