@@ -116,7 +116,7 @@ fn main() -> Result<()> {
     // let teams_and_players_schedule = Schedule::from_str("0 */15 * ? * *")?; // every 15 minutes
     // let lolschedule_schedule = Schedule::from_str("0 */5 * ? * *")?; // every 5 minutes
 
-    let live_schedule = Schedule::from_str("0 */1 * ? * *")?; // every 5 minutes
+    let live_schedule = Schedule::from_str("0 */1 * ? * *")?; // every min
 
     // // fetch_leagues
     // {
