@@ -7,7 +7,7 @@ use crate::{
     },
     utils::constants::lolesports,
 };
-use chrono::{Local};
+use chrono::Local;
 use color_eyre::{eyre::Context, Result};
 
 /**
@@ -267,43 +267,79 @@ impl DataPull {
                 Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
                 &event_with_changes
             );
+            if !self
+                .live
+                .iter()
+                .any(|ev| ev.id.0 == event_with_changes.id.0)
+            {
+                println!(
+                    "{} - Seems like the event with ID {} ended",
+                    Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+                    &event_with_changes.id.0
+                );
 
-            if let Some(event_match) = &event_with_changes.r#match {
-                let response = caller::make_get_request(
-                    lolesports::EVENT_DETAILS_ENDPOINT,
-                    Some(&[("id", event_with_changes.id)]),
-                )
-                .await
-                .with_context(|| "A failure happened retrieving an Ended Event from Lolesports");
+                if let Some(event_match) = &event_with_changes.r#match {
+                    let response = caller::make_get_request(
+                        lolesports::EVENT_DETAILS_ENDPOINT,
+                        Some(&[("id", event_with_changes.id)]),
+                    )
+                    .await
+                    .with_context(|| {
+                        "A failure happened retrieving an Ended Event from Lolesports"
+                    });
 
-                serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
-                    .map(|mut parsed| {
-                        let match_max_games = event_match.strategy.count;
-                        let total_games_completed: i8 = event_match
-                            .games
-                            .iter()
-                            .filter(|g| g.state == "completed" || g.state == "unneeded")
-                            .count()
-                            .try_into()
-                            .unwrap();
-                        let total_wins: i8 = event_match
+                    serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
+                        .map(|mut parsed| {
+                            let match_max_games = event_match.strategy.count;
+
+
+                            if event_match
                             .teams
                             .iter()
                             .filter_map(|t| t.result.as_ref())
                             .map(|res| res.game_wins)
-                            .sum();
+                            .any(|score| score > match_max_games/2)
+                            {   
+                                println!(
+                                    "\n{} - Changing state of event with ID {} \n",
+                                    Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+                                    &event_with_changes.id.0
+                                );
+                             
+                                parsed.data.event.state = Some("completed".to_string());
+                                println!(
+                                    "\n{} - Changing state of event with ID {} \nEvent parsed: {:?}",
+                                    Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+                                    &event_with_changes.id.0, &parsed
+                                );
 
-                        if match_max_games == total_wins || match_max_games == total_games_completed
-                        {
-                            parsed.data.event.state = Some("completed".to_string());
-                        }
-                        self.events_with_recent_changes.push(parsed.data.event);
-                    })
-                    .with_context(|| "A failure happened parsing an ended Event from Lolesports");
+                            }
+                            self.events_with_recent_changes.push(parsed.data.event);
+                        })
+                        .with_context(|| {
+                            "A failure happened parsing an ended Event from Lolesports"
+                        });
+                } else {
+                    let mut show_event = event_with_changes.clone();
+                    show_event.state = Some("completed".to_string());
+
+                    self.events_with_recent_changes
+                        .push(show_event);
+                }
             } else {
-                event_with_changes.to_owned().state = Some("completed".to_string());
-                self.events_with_recent_changes
-                    .push(event_with_changes.to_owned());
+                println!(
+                    "{} - Seems like the event with ID {} didnt end, just change",
+                    Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+                    &event_with_changes.id.0
+                );
+
+                self.events_with_recent_changes.push(
+                    self.live
+                        .iter()
+                        .find(|ev| ev.id.0 == event_with_changes.id.0)
+                        .expect("Didnt find the event on Live")
+                        .clone(),
+                )
             }
         }
         println!(
