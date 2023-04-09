@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use reqwest::Response;
 use serde::Serialize;
 
@@ -8,7 +10,7 @@ pub async fn make_get_request<T>(endpoint: &str, args: Option<&T>) -> Result<Res
 where
     T: Serialize,
 {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
 
     let mut b = client
         .get(format!("{}{}", lolesports::BASE_URL, endpoint))
