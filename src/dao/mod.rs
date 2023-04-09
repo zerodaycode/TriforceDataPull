@@ -16,7 +16,7 @@ use canyon_sql::{
     crud::CrudOperations,
     query::{operators::Comp, ops::QueryBuilder},
 };
-use chrono::{Days, Utc, Local};
+use chrono::{Days, Local, Utc};
 use color_eyre::Result;
 use itertools::Itertools;
 mod models;
@@ -111,7 +111,6 @@ impl DatabaseOps {
         &mut self,
         teams: &Vec<data_pull::serde_models::Team>,
     ) -> Result<()> {
-
         println!(
             "{} - Processing teams to insert or update on database",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -163,7 +162,6 @@ impl DatabaseOps {
         &mut self,
         players: &Vec<data_pull::serde_models::Player>,
     ) -> Result<()> {
-
         println!(
             "{} - Processing players to insert or update on database",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -204,7 +202,6 @@ impl DatabaseOps {
         &mut self,
         fetched_teams: &Vec<data_pull::serde_models::Team>,
     ) -> Result<()> {
-
         println!(
             "{} - Processing players and teams to insert on database",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -222,18 +219,17 @@ impl DatabaseOps {
                     "{} - Deleting all rows in the table",
                     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
                 );
-        
+
                 let _ = TeamPlayer::delete_query()
                     .r#where(TeamPlayerFieldValue::id(&&0), Comp::Gt)
                     .query()
                     .await;
 
+                println!(
+                    "{} - All rows delete !\n Starting to process the data to insert",
+                    Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+                );
 
-                    println!(
-                        "{} - All rows delete !\n Starting to process the data to insert",
-                        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-                    );
-            
                 fetched_teams.iter().for_each(|serde_team| {
                     let team_id = on_db_teams
                         .iter()

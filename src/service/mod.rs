@@ -299,13 +299,13 @@ impl DataPull {
                             .filter_map(|t| t.result.as_ref())
                             .map(|res| res.game_wins)
                             .any(|score| score > match_max_games/2)
-                            {   
+                            {
                                 println!(
                                     "\n{} - Changing state of event with ID {} \n",
                                     Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
                                     &event_with_changes.id.0
                                 );
-                             
+
                                 parsed.data.event.state = Some("completed".to_string());
                                 println!(
                                     "\n{} - Changing state of event with ID {} \nEvent parsed: {:?}",
@@ -323,8 +323,7 @@ impl DataPull {
                     let mut show_event = event_with_changes.clone();
                     show_event.state = Some("completed".to_string());
 
-                    self.events_with_recent_changes
-                        .push(show_event);
+                    self.events_with_recent_changes.push(show_event);
                 }
             } else {
                 println!(
