@@ -1,5 +1,7 @@
 pub mod caller;
 
+use std::time::Duration;
+
 use crate::{
     data_pull::serde_models::{
         Event, EventDetails, EventOutter, LeagueForTournaments, Leagues, LiveScheduleOutter,
@@ -9,6 +11,7 @@ use crate::{
 };
 use chrono::Local;
 use color_eyre::{eyre::Context, Result};
+use tokio::time::sleep;
 
 /**
  * This type alias are just a communist joke. They are the Lolesports tournaments only?
@@ -25,6 +28,7 @@ pub struct DataPull {
     pub tournaments: OurTournaments,
     pub teams: Vec<Team>,
     pub players: Vec<Player>,
+    pub schedule_single_page: Vec<Event>,
     pub schedule: Vec<Event>,
     pub live: Vec<EventDetails>,
     pub previous_live: Vec<EventDetails>,
@@ -104,19 +108,22 @@ impl DataPull {
             .with_context(|| "A failure happened parsing the Tournaments from Lolesports")
     }
 
-    // pub async fn fetch_schedule(&mut self) -> Result<()> {
-    //     let response = caller::make_get_request::<&[()]>(
-    //         lolesports::SCHEDULE_ENDPOINT,
-    //             None
-    //         ).await
-    //         .with_context(|| "A failure happened retrieving the schedule from Lolesports");
+    pub async fn fetch_current_page_schedule(&mut self) -> Result<()> {
+        println!(
+            "{} - Fetching current page of schedule from The LoLEsports API",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
+        let response = caller::make_get_request::<&[()]>(lolesports::SCHEDULE_ENDPOINT, None)
+            .await
+            .with_context(|| "A failure happened retrieving the schedule from Lolesports");
 
-    //     serde_json::from_str::<Wrapper<ScheduleOutter>>(&response?.text().await.unwrap())
-    //         .map(|parsed| self.schedule = parsed.data)
-    //         .with_context(|| "A failure happened parsing the Schedule from Lolesports")
-    // }
+        serde_json::from_str::<Wrapper<ScheduleOutter>>(&response?.text().await.unwrap())
+            .map(|parsed| {
+                self.schedule_single_page = parsed.data.schedule.events;
+            })
+            .with_context(|| "A failure happened parsing the Schedule from Lolesports")
+    }
 
-    // FIX ME Right now It only fetch present and future matches, not past
     pub async fn process_full_schedule(&mut self) -> Result<()> {
         println!(
             "{} - Fetching Full schedule from The LoLEsports API",
@@ -148,32 +155,33 @@ impl DataPull {
         self.schedule
             .extend(schedule_first_page.data.schedule.events);
 
-        // let mut old_entry_sentinel = schedule_first_page.data.schedule.pages.older;
+        let mut old_entry_sentinel = schedule_first_page.data.schedule.pages.older;
         let mut newer_entry_sentinel = schedule_first_page.data.schedule.pages.newer;
-        // let mut total_old_entries = 1;
+        let mut total_old_entries = 1;
         let mut total_new_entries = 1;
 
         // While the API returns a key with older entries, we will continue fetching the calendar
-        // while let Some(older_events) = &old_entry_sentinel {
-        //     sleep(Duration::from_millis(3500)).await;
-        //     let r = caller::make_get_request(
-        //         lolesports::SCHEDULE_ENDPOINT,
-        //         Some(&[("pageToken", older_events)]),
-        //     )
-        //     .await
-        //     .with_context(|| "A failure happened retrieving the schedule from Lolesports");
-        //     serde_json::from_str::<Wrapper<ScheduleOutter>>(&r?.text().await.unwrap())
-        //         .map(|parsed| {
-        //             println!("Requesting pages: {:?}", &parsed.data.schedule.pages);
-        //             println!("Total old entries fetched: {:?}", &total_old_entries);
-        //             total_old_entries += 1;
-        //             old_entry_sentinel = parsed.data.schedule.pages.older;
-        //             println!("Evento sin id match {:?}", parsed.data.schedule.events.iter().filter(|e|e.r#match.is_none() || e.r#type != "match").collect::<Vec<&Event>>());
-        //             self.schedule.extend(parsed.data.schedule.events);
+        while let Some(older_events) = &old_entry_sentinel {
+            if total_old_entries > 25 {
+                break;
+            }
+            let r = caller::make_get_request(
+                lolesports::SCHEDULE_ENDPOINT,
+                Some(&[("pageToken", older_events)]),
+            )
+            .await
+            .with_context(|| "A failure happened retrieving the schedule from Lolesports");
+            serde_json::from_str::<Wrapper<ScheduleOutter>>(&r?.text().await.unwrap())
+                .map(|parsed| {
+                    println!("Requesting pages: {:?}", &parsed.data.schedule.pages);
+                    println!("Total old entries fetched: {:?}", &total_old_entries);
+                    total_old_entries += 1;
+                    old_entry_sentinel = parsed.data.schedule.pages.older;
 
-        //         })
-        //         .with_context(|| "A failure happened parsing the Schedule from Lolesports")?;
-        // }
+                    self.schedule.extend(parsed.data.schedule.events);
+                })
+                .with_context(|| "A failure happened parsing the Schedule from Lolesports")?;
+        }
 
         // While the API returns a key with newer entries, we will continue fetching the calendar
         while let Some(newer_events) = &newer_entry_sentinel {
