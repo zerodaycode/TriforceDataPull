@@ -32,6 +32,10 @@ pub struct DatabaseOps {
 
 impl DatabaseOps {
     pub async fn bulk_leagues_in_database(&mut self, leagues: &Leagues) -> Result<()> {
+        println!(
+            "{} - Processing leagues to insert or update on database",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
         let db_leagues = League::find_all().await;
         if let Ok(db_lgs) = db_leagues {
             for mut fetched_league in leagues
@@ -67,6 +71,11 @@ impl DatabaseOps {
         let db_leagues = League::find_all().await;
 
         let db_tournaments = Tournament::find_all().await;
+
+        println!(
+            "{} - Processing tournaments to insert or update on database",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
 
         match (db_tournaments, db_leagues) {
             (Ok(db_tnmts), Ok(db_lgs)) => {
@@ -226,7 +235,7 @@ impl DatabaseOps {
                     .await;
 
                 println!(
-                    "{} - All rows delete !\n Starting to process the data to insert",
+                    "{} - All rows delete !\nStarting to process the data to insert",
                     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
                 );
 
@@ -253,7 +262,10 @@ impl DatabaseOps {
                         vec_team_player.push(team_player)
                     }
                 });
-
+                println!(
+                    "{} - Inserting all Team-Player relation rows",
+                    Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+                );
                 match TeamPlayer::multi_insert(
                     &mut vec_team_player.iter_mut().collect::<Vec<&mut TeamPlayer>>(),
                 )
@@ -276,6 +288,11 @@ impl DatabaseOps {
         &mut self,
         events: &Vec<data_pull::serde_models::Event>,
     ) -> Result<()> {
+        println!(
+            "{} - Processing schedule data to insert/update on database",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+        );
+
         let db_leagues = League::find_all().await;
         let db_teams = Team::find_all().await;
         let db_events = Schedule::find_all().await;
