@@ -14,7 +14,7 @@ use color_eyre::Result;
 use tokio::sync::Mutex;
 use tokio::{select, task};
 
-#[canyon_sql::main()]
+#[canyon_sql::main(enable_migrations)]
 fn main() -> Result<()> {
     let data_pull = Arc::new(Mutex::new(service::DataPull::default()));
     let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
@@ -111,76 +111,112 @@ fn main() -> Result<()> {
     // let teams_and_players_schedule = Schedule::from_str("0 0 * * * *")?; // every day at midnight
     // let lolschedule_schedule = Schedule::from_str("*/10 * * * *")?; // every 10 minutes
 
-    // let leagues_schedule = Schedule::from_str("0 */30 * ? * *")?; // every 30 minutes
-    // let tournaments_schedule = Schedule::from_str("0 */20 * ? * *")?; // every 20 minutes
-    // let teams_and_players_schedule = Schedule::from_str("0 */15 * ? * *")?; // every 15 minutes
-    // let lolschedule_schedule = Schedule::from_str("0 */5 * ? * *")?; // every 5 minutes
+    let leagues_schedule = Schedule::from_str("0 */120 * ? * *")?; // every 2 hours
+    let tournaments_schedule = Schedule::from_str("0 */120 * ? * *")?; // every 2 hours
+    let teams_and_players_schedule = Schedule::from_str("0 */90 * ? * *")?; // every 1 hour and half
+                                                                            // let lolschedule_schedule = Schedule::from_str("0 */60 * ? * *")?; // every 1 hour
+    let lolschedule_current_page = Schedule::from_str("0 */30 * ? * *")?; // every 30 minutes
+    let live_schedule = Schedule::from_str("0 */2 * ? * *")?; // every 2 minutes
 
-    let live_schedule = Schedule::from_str("0 */1 * ? * *")?; // every min
+    // Loop for leagues
+    {
+        let data_pull = data_pull.clone();
+        let database_ops = database_ops.clone();
+        tokio::spawn(async move {
+            loop {
+                let now = Utc::now();
+                if let Some(next) = leagues_schedule.upcoming(Utc).next() {
+                    let delay = next - now;
+                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
+                }
+                let _ = data_pull.lock().await.fetch_leagues().await;
+                let _ = database_ops
+                    .lock()
+                    .await
+                    .bulk_leagues_in_database(&data_pull.lock().await.leagues)
+                    .await;
+            }
+        });
+    }
 
-    // // fetch_leagues
-    // {
-    //     let data_pull = data_pull.clone();
-    //     tokio::spawn(async move {
-    //         loop {
-    //             let now = Utc::now();
-    //             if let Some(next) = leagues_schedule.upcoming(Utc).next() {
-    //                 let delay = next - now;
-    //                 sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-    //             }
-    //             let _ = data_pull.lock().await.fetch_leagues().await;
-    //         }
-    //     });
-    // }
+    // Loop for tournaments
+    {
+        let data_pull = data_pull.clone();
+        let database_ops = database_ops.clone();
+        tokio::spawn(async move {
+            loop {
+                let now = Utc::now();
+                if let Some(next) = tournaments_schedule.upcoming(Utc).next() {
+                    let delay = next - now;
+                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
+                }
+                let _ = data_pull.lock().await.fetch_tournaments().await;
 
-    // // fetch_tournaments
-    // {
-    //     let data_pull = data_pull.clone();
-    //     tokio::spawn(async move {
-    //         loop {
-    //             let now = Utc::now();
-    //             if let Some(next) = tournaments_schedule.upcoming(Utc).next() {
-    //                 let delay = next - now;
-    //                 sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-    //             }
-    //             let _ = data_pull.lock().await.fetch_tournaments().await;
+                let _ = database_ops
+                    .lock()
+                    .await
+                    .bulk_tournaments_in_database(&data_pull.lock().await.tournaments)
+                    .await;
+            }
+        });
+    }
 
-    //         }
-    //     });
-    // }
+    // Loop for teams and players
+    {
+        let data_pull = data_pull.clone();
+        let database_ops = database_ops.clone();
 
-    //  // fetch teams and players
-    // {
-    //     let data_pull = data_pull.clone();
-    //     tokio::spawn(async move {
-    //         loop {
-    //             let now = Utc::now();
-    //             if let Some(next) = teams_and_players_schedule.upcoming(Utc).next() {
-    //                 let delay = next - now;
-    //                 sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-    //             }
-    //             let _ = data_pull.lock().await.fetch_teams_and_players().await;
-    //         }
-    //     });
-    // }
+        tokio::spawn(async move {
+            loop {
+                let now = Utc::now();
+                if let Some(next) = teams_and_players_schedule.upcoming(Utc).next() {
+                    let delay = next - now;
+                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
+                }
+                let _ = data_pull.lock().await.fetch_teams_and_players().await;
 
-    // fetch schedule (long)
-    // TODO implement the live mechanic to only fetch a portion of the schedule, not the full schedule,
-    // too much request may trigger a shadow ban
-    // {
-    //     let data_pull = data_pull.clone();
-    //     tokio::spawn(async move {
-    //         loop {
-    //             let now = Utc::now();
-    //             if let Some(next) = lolschedule_schedule.upcoming(Utc).next() {
-    //                 let delay = next - now;
-    //                 sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-    //             }
-    //             let _ = data_pull.lock().await.process_full_schedule().await;
-    //         }
-    //     });
-    //     // Wait for the tasks to finish
+                let _ = database_ops
+                    .lock()
+                    .await
+                    .bulk_teams_in_database(&data_pull.lock().await.teams)
+                    .await;
+                let _ = database_ops
+                    .lock()
+                    .await
+                    .bulk_players_in_database(&data_pull.lock().await.players)
+                    .await;
+                let _ = database_ops
+                    .lock()
+                    .await
+                    .bulk_team_player_in_database(&data_pull.lock().await.teams)
+                    .await;
+            }
+        });
+    }
 
+    // Loop to normalize schedule
+    {
+        let data_pull = data_pull.clone();
+        let database_ops = database_ops.clone();
+        tokio::spawn(async move {
+            loop {
+                let now = Utc::now();
+                if let Some(next) = lolschedule_current_page.upcoming(Utc).next() {
+                    let delay = next - now;
+                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
+                }
+                let _ = data_pull.lock().await.fetch_current_page_schedule().await;
+
+                let _ = database_ops
+                    .lock()
+                    .await
+                    .bulk_schedule_in_database(&data_pull.lock().await.schedule_single_page)
+                    .await;
+            }
+        });
+    }
+
+    // Loop for live
     {
         let data_pull = data_pull.clone();
         tokio::spawn(async move {
