@@ -20,7 +20,7 @@
 pub mod serde_models {
     use std::fmt::Display;
 
-    use canyon_sql::{date_time::NaiveDateTime, db_clients::tiberius::time::chrono};
+    use canyon_sql::{date_time::NaiveDateTime};
 
     use serde::{Deserialize, Deserializer, Serialize};
 
