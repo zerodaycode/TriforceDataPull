@@ -1,8 +1,7 @@
-use std::default;
-
 use canyon_sql::macros::*;
 use serde::Serialize;
 
+use super::leagues::League;
 use crate::data_pull;
 
 #[derive(Debug, Clone, CanyonCrud, CanyonMapper, Serialize)]
@@ -17,6 +16,7 @@ pub struct Team {
     image_url: String,
     alt_image_url: Option<String>,
     bg_image_url: Option<String>,
+    #[foreign_key(table = "league", column = "id")]
     home_league: Option<i64>,
 }
 

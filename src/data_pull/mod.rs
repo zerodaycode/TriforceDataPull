@@ -20,7 +20,7 @@
 pub mod serde_models {
     use std::fmt::Display;
 
-    use canyon_sql::{date_time::NaiveDateTime, db_clients::tiberius::time::chrono};
+    use canyon_sql::{date_time::NaiveDateTime};
 
     use serde::{Deserialize, Deserializer, Serialize};
 
@@ -160,9 +160,85 @@ pub mod serde_models {
         pub region: String,
     }
 
+    #[derive(Deserialize, Debug)]
+    pub struct EventOutter {
+        pub event: EventDetails,
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct EventDetails {
+        pub id: LolesportsId,
+        pub r#type: String,
+        pub state: Option<String>,
+        pub blockname: Option<String>,
+        #[serde(alias = "startTime")]
+        pub start_time: Option<LolesportsDateTime>,
+        pub tournament: EventDetailTournament,
+        pub league: ScheduleLeague,
+        pub r#match: Option<EventDetailMatch>,
+        pub streams: Vec<Stream>,
+    }
+
+    impl PartialEq for EventDetails {
+        fn eq(&self, other: &Self) -> bool {
+            if self.id.0 != other.id.0 || self.state != other.state {
+                return false;
+            }
+            if let (Some(self_match), Some(other_match)) = (&self.r#match, &other.r#match) {
+                if self_match.teams.len() != other_match.teams.len() {
+                    return false;
+                }
+                for (self_team, other_team) in self_match.teams.iter().zip(other_match.teams.iter())
+                {
+                    if self_team.result.is_some() && other_team.result.is_some() {
+                        let self_result = self_team.result.as_ref().unwrap();
+                        let other_result = other_team.result.as_ref().unwrap();
+
+                        if self_result.game_wins != other_result.game_wins {
+                            return false;
+                        }
+                    }
+                    if self_team.name != other_team.name
+                        || self_team.code != other_team.code
+                        || self_team.image != other_team.image
+                    {
+                        return false;
+                    }
+                }
+
+                for (self_game, other_game) in self_match.games.iter().zip(other_match.games.iter())
+                {
+                    if self_game.id != other_game.id
+                        || self_game.state != other_game.state
+                        || self_game.number != other_game.number
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            } else {
+                return (self.start_time.is_none() == other.start_time.is_none()
+                    || self.start_time.is_some() && other.start_time.is_some())
+                    && self.league.name == other.league.name
+                    && self.r#type == other.r#type;
+            }
+        }
+    }
+
     #[derive(Deserialize, Default, Debug)]
     pub struct ScheduleOutter {
         pub schedule: Schedule,
+    }
+
+    #[derive(Deserialize, Default, Debug)]
+    pub struct LiveScheduleOutter {
+        pub schedule: LiveSchedule,
+    }
+
+    #[derive(Deserialize, Default, Debug)]
+    pub struct LiveSchedule {
+        pub events: Vec<EventDetails>,
     }
 
     #[derive(Deserialize, Default, Debug)]
@@ -186,7 +262,7 @@ pub mod serde_models {
         pub slug: String,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Clone)]
     pub struct Event {
         #[serde(alias = "startTime")]
         pub start_time: LolesportsDateTime,
@@ -200,14 +276,117 @@ pub mod serde_models {
         pub r#match: Option<Match>,
     }
 
-    #[derive(Deserialize, Debug)]
+    impl PartialEq for Event {
+        fn eq(&self, other: &Self) -> bool {
+            if let (Some(self_match), Some(other_match)) = (&self.r#match, &other.r#match) {
+                if self_match.id.0 != other_match.id.0
+                    || self_match.teams.len() != other_match.teams.len()
+                {
+                    return false;
+                }
+                for (self_team, other_team) in self_match.teams.iter().zip(other_match.teams.iter())
+                {
+                    if self_team.result.is_some() && other_team.result.is_some() {
+                        let self_result = self_team.result.as_ref().unwrap();
+                        let other_result = other_team.result.as_ref().unwrap();
+                        if self_result.game_wins != other_result.game_wins {
+                            return false;
+                        }
+                    }
+                    if self_team.name != other_team.name
+                        || self_team.code != other_team.code
+                        || self_team.image != other_team.image
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            } else {
+                self.start_time.0 == other.start_time.0
+                    && self.league.name == other.league.name
+                    && self.state == other.state
+                    && self.r#type == other.r#type
+                    && self.block_name == other.block_name
+                    && self.slug == other.slug
+                    && other.r#match.is_none()
+            }
+        }
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
     pub struct Match {
         pub id: LolesportsId,
         pub teams: Vec<TeamEvent>,
         pub strategy: Strategy,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct EventDetailTournament {
+        pub id: LolesportsId,
+    }
+    #[derive(Deserialize, Debug, Clone)]
+    pub struct EventDetailMatch {
+        pub teams: Vec<TeamEvent>,
+        pub strategy: Strategy,
+        #[serde(default)]
+        pub games: Vec<Game>,
+    }
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct Game {
+        pub number: i32,
+        pub id: String,
+        pub state: String,
+        pub teams: Vec<TeamSide>,
+        #[serde(default)]
+        pub vods: Vec<Vod>,
+    }
+
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct TeamSide {
+        pub id: String,
+        pub side: String,
+    }
+
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct Vod {
+        pub id: String,
+        pub parameter: String,
+        pub locale: String,
+        #[serde(alias = "mediaLocale")]
+        pub media_locale: MediaLocale,
+        pub provider: String,
+        pub offset: i32,
+        #[serde(alias = "firstFrameTime")]
+        pub first_frame_time: String,
+        #[serde(alias = "startMillis")]
+        pub start_millis: Option<i64>,
+        #[serde(alias = "endMillis")]
+        pub end_millis: Option<i64>,
+    }
+
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct Stream {
+        parameter: String,
+        locale: String,
+        #[serde(alias = "mediaLocale")]
+        media_locale: MediaLocale,
+        provider: String,
+        countries: Vec<String>,
+        offset: i32,
+        #[serde(alias = "statsStatus")]
+        stats_status: String,
+    }
+
+    #[derive(Debug, Deserialize, Clone)]
+    pub struct MediaLocale {
+        pub locale: String,
+        #[serde(alias = "englishName")]
+        pub english_name: String,
+        #[serde(alias = "translatedName")]
+        pub translated_name: String,
+    }
+
+    #[derive(Deserialize, Debug, Clone)]
     pub struct TeamEvent {
         pub name: String,
         pub code: String,
@@ -215,15 +394,16 @@ pub mod serde_models {
         pub result: Option<MatchTeamResult>,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Clone)]
     pub struct MatchTeamResult {
         pub outcome: Option<String>,
         #[serde(alias = "gameWins")]
         pub game_wins: i8,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Clone)]
     pub struct Strategy {
+        #[serde(default)]
         pub r#type: String,
         pub count: i8,
     }
