@@ -59,7 +59,9 @@ impl From<&data_pull::serde_models::EventDetails> for Schedule {
     fn from(value: &data_pull::serde_models::EventDetails) -> Self {
         Self {
             id: Default::default(),
-            start_time: Default::default(),
+            start_time: value.start_time.map(|ldt| {
+                ldt.into()
+            }),
             state: value.state.clone().unwrap_or_default(),
             event_type: value.r#type.clone(),
             blockname: value.blockname.clone(),

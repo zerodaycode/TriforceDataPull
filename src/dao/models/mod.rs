@@ -5,3 +5,4 @@ pub mod tournaments;
 
 pub mod event;
 pub mod team_player;
+pub mod streams;

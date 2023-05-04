@@ -106,6 +106,7 @@ pub mod serde_models {
             value.0
         }
     }
+    
 
     #[derive(Deserialize, Debug, Clone)]
     pub struct Player {
@@ -366,11 +367,11 @@ pub mod serde_models {
 
     #[derive(Debug, Deserialize, Clone)]
     pub struct Stream {
-        parameter: String,
+        pub parameter: String,
         locale: String,
         #[serde(alias = "mediaLocale")]
-        media_locale: MediaLocale,
-        provider: String,
+        pub media_locale: MediaLocale,
+        pub provider: String,
         countries: Vec<String>,
         offset: i32,
         #[serde(alias = "statsStatus")]
