@@ -14,7 +14,7 @@ use color_eyre::Result;
 use tokio::sync::Mutex;
 use tokio::{select, task};
 
-#[canyon_sql::main(enable_migrations)]
+#[canyon_sql::main]
 fn main() -> Result<()> {
     let data_pull = Arc::new(Mutex::new(service::DataPull::default()));
     let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
