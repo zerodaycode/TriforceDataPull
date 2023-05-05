@@ -357,19 +357,4 @@ impl DataPull {
         Ok(())
     }
 
-    pub async fn fetch_ended_game_test(&mut self) -> Result<()> {
-        let r = caller::make_get_request(
-            lolesports::EVENT_DETAILS_ENDPOINT,
-            Some(&[("id", 110056852358713598 as i64)]),
-        )
-        .await
-        .with_context(|| "A failure happened retrieving the schedule from Lolesports");
-
-        let result = serde_json::from_str::<Wrapper<EventOutter>>(&r?.text().await.unwrap())
-            .map(|parsed| {
-                println!("Event parseado {:?}", parsed.data);
-            })
-            .with_context(|| "A failure happened parsing the EventDetails from Lolesports")?;
-        Ok(())
-    }
 }

@@ -401,6 +401,7 @@ impl DatabaseOps {
         &mut self,
         events: &Vec<data_pull::serde_models::EventDetails>,
     ) -> Result<()> {
+        
         let db_leagues = League::find_all().await;
         let db_events = Schedule::select_query()
             .r#where(
@@ -415,9 +416,7 @@ impl DatabaseOps {
         match (db_leagues, db_events) {
             (Ok(on_db_leagues), Ok(mut on_db_events)) => {
                 
-                let db_streams = Stream::select_query()
-                .and_values_in(StreamField::event_id, &on_db_events.clone().into_iter().map(|e|e.id).collect_vec())
-                .query()
+                let db_streams = Stream::find_all()
                 .await;
     
                 match db_streams {
@@ -495,7 +494,7 @@ impl DatabaseOps {
                                 }
 
                                 let mut db_stream = Stream::from(stream);
-
+                                db_stream.event_id = event_id;
                                 let _ = db_stream.insert().await;
 
                             }
