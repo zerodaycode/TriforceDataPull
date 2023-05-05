@@ -356,5 +356,4 @@ impl DataPull {
 
         Ok(())
     }
-
 }

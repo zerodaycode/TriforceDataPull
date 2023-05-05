@@ -19,7 +19,7 @@ fn main() -> Result<()> {
     let data_pull = Arc::new(Mutex::new(service::DataPull::default()));
     let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
 
-    println!( 
+    println!(
         "{} - Initial league fetch",
         Local::now().format("%Y-%m-%d %H:%M:%S.%f")
     );

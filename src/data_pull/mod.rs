@@ -20,7 +20,7 @@
 pub mod serde_models {
     use std::fmt::Display;
 
-    use canyon_sql::{date_time::NaiveDateTime};
+    use canyon_sql::date_time::NaiveDateTime;
 
     use serde::{Deserialize, Deserializer, Serialize};
 
@@ -106,7 +106,6 @@ pub mod serde_models {
             value.0
         }
     }
-    
 
     #[derive(Deserialize, Debug, Clone)]
     pub struct Player {
