@@ -4,7 +4,7 @@ use self::models::{
     event::{Schedule, ScheduleFieldValue},
     leagues::League,
     players::Player,
-    streams::{Stream, StreamField},
+    streams::Stream,
     team_player::{TeamPlayer, TeamPlayerFieldValue},
     teams::Team,
     tournaments::Tournament,
@@ -467,10 +467,7 @@ impl DatabaseOps {
                                     event_id = e.id;
                                 }
                                 None => {
-                                    println!(
-                                        "New event from Live to insert (TODO - implement logic to insert) \n{:?}",
-                                        &event
-                                    );
+                                    println!("New event from Live to insert \n{:?}", &event);
                                     let mut event_to_db = Schedule::from(event);
                                     let _ = event_to_db.insert().await;
                                     event_id = event_to_db.id;

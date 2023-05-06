@@ -64,7 +64,10 @@ impl From<&data_pull::serde_models::EventDetails> for Schedule {
             event_type: value.r#type.clone(),
             blockname: value.blockname.clone(),
             league_id: None,
-            match_id: Some(value.id.into()),
+            match_id: match &value.r#type.as_str() {
+                &"show" => None,
+                _ => Some(value.id.into()),
+            },
             strategy: match &value.r#match {
                 Some(r#match) => Some(r#match.strategy.r#type.clone()),
                 None => None,
