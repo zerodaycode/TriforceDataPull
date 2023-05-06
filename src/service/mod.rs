@@ -254,10 +254,17 @@ impl DataPull {
             self.previous_live.len()
         );
 
-        let events_with_changes = &self
+        let mut events_with_changes = self
             .previous_live
             .iter()
             .filter(|event| !self.live.contains(event))
+            .cloned()
+            .collect::<Vec<EventDetails>>();
+
+        let new_events = self
+            .live
+            .iter()
+            .filter(|event| !self.previous_live.iter().any(|ple| ple.id.0 == event.id.0))
             .cloned()
             .collect::<Vec<EventDetails>>();
 
@@ -266,7 +273,13 @@ impl DataPull {
             Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
             events_with_changes.len()
         );
+        println!(
+            "{} - Number of new Events {}",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+            self.previous_live.len()
+        );
 
+        events_with_changes.extend(new_events.into_iter());
         self.previous_live.clone_from(&self.live);
 
         for event_with_changes in events_with_changes {
