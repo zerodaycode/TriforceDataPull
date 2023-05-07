@@ -359,6 +359,7 @@ impl DatabaseOps {
                                 db_event.team_right_wins,
                                 db_event.team_left_wins,
                             ) {
+                                // FIXME This is not right, this only account for BO with all games played
                                 if strategy_count == right_wins + left_wins
                                     && db_event.state != "completed"
                                 {
@@ -412,7 +413,7 @@ impl DatabaseOps {
             )
             .query()
             .await;
-
+        // TODO Should we update the teams IDs ?
         match (db_leagues, db_events) {
             (Ok(on_db_leagues), Ok(mut on_db_events)) => {
                 let db_streams = Stream::find_all().await;
@@ -462,13 +463,17 @@ impl DatabaseOps {
                                 Some(e) => {
                                     e.merge_with_event_details(event);
 
-                                    println!("New event data from Live - Updating \n{:?}", &e);
+                                    println!("\nNew event data from Live - Updating {:?}\n", &e);
                                     let _ = e.update().await;
                                     event_id = e.id;
                                 }
                                 None => {
-                                    println!("New event from Live to insert \n{:?}", &event);
+                                    println!("\nNew event from Live to insert {:?}\n", &event);
                                     let mut event_to_db = Schedule::from(event);
+                                    event_to_db.league_id = on_db_leagues
+                                        .iter()
+                                        .find(|db_league| db_league.slug.eq(&event.league.slug))
+                                        .map(|l| l.id.into());
                                     let _ = event_to_db.insert().await;
                                     event_id = event_to_db.id;
                                 }
@@ -488,7 +493,10 @@ impl DatabaseOps {
 
                                 let mut db_stream = Stream::from(stream);
                                 db_stream.event_id = event_id;
-                                let _ = db_stream.insert().await;
+                                let result = db_stream.insert().await;
+                                if result.is_err() {
+                                    println!("\nError inserting stream {:?} \n", &result);
+                                }
                             }
                         }
 

@@ -313,18 +313,16 @@ impl DataPull {
                         "A failure happened retrieving an Ended Event from Lolesports"
                     });
 
-                    
-                    let event_parsed = serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
-                        .map(|mut parsed|parsed);
+                    let event_parsed = serde_json::from_str::<Wrapper<EventOutter>>(
+                        &response?.text().await.unwrap(),
+                    )
+                    .map(|mut parsed| parsed);
 
-                            
                     if let Ok(mut event_data) = event_parsed {
                         println!("\n changing match state\n");
                         event_data.data.event.state = Some("completed".to_owned());
                         self.events_with_recent_changes.push(event_data.data.event);
                     }
-                            
-                   
                 } else {
                     println!("\n changing show state\n");
                     let mut show_event: EventDetails = event_with_changes.clone();
