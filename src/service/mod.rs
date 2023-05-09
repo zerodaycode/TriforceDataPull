@@ -254,10 +254,17 @@ impl DataPull {
             self.previous_live.len()
         );
 
-        let events_with_changes = &self
+        let mut events_with_changes = self
             .previous_live
             .iter()
             .filter(|event| !self.live.contains(event))
+            .cloned()
+            .collect::<Vec<EventDetails>>();
+
+        let new_events = self
+            .live
+            .iter()
+            .filter(|event| !self.previous_live.iter().any(|ple| ple.id.0 == event.id.0))
             .cloned()
             .collect::<Vec<EventDetails>>();
 
@@ -266,7 +273,13 @@ impl DataPull {
             Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
             events_with_changes.len()
         );
+        println!(
+            "{} - Number of new Events {}",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+            new_events.len()
+        );
 
+        events_with_changes.extend(new_events.into_iter());
         self.previous_live.clone_from(&self.live);
 
         for event_with_changes in events_with_changes {
@@ -287,6 +300,10 @@ impl DataPull {
                 );
 
                 if let Some(event_match) = &event_with_changes.r#match {
+                    println!(
+                        "\n{} - Calling EventDetails endpoint \n",
+                        Local::now().format("%Y-%m-%d %H:%M:%S.%f")
+                    );
                     let response = caller::make_get_request(
                         lolesports::EVENT_DETAILS_ENDPOINT,
                         Some(&[("id", event_with_changes.id)]),
@@ -296,46 +313,26 @@ impl DataPull {
                         "A failure happened retrieving an Ended Event from Lolesports"
                     });
 
-                    serde_json::from_str::<Wrapper<EventOutter>>(&response?.text().await.unwrap())
-                        .map(|mut parsed| {
-                            let match_max_games = event_match.strategy.count;
+                    let event_parsed = serde_json::from_str::<Wrapper<EventOutter>>(
+                        &response?.text().await.unwrap(),
+                    )
+                    .map(|mut parsed| parsed);
 
-
-                            if event_match
-                            .teams
-                            .iter()
-                            .filter_map(|t| t.result.as_ref())
-                            .map(|res| res.game_wins)
-                            .any(|score| score > match_max_games/2)
-                            {
-                                println!(
-                                    "\n{} - Changing state of event with ID {} \n",
-                                    Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
-                                    &event_with_changes.id.0
-                                );
-
-                                parsed.data.event.state = Some("completed".to_string());
-                                println!(
-                                    "\n{} - Changing state of event with ID {} \nEvent parsed: {:?}",
-                                    Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
-                                    &event_with_changes.id.0, &parsed
-                                );
-
-                            }
-                            self.events_with_recent_changes.push(parsed.data.event);
-                        })
-                        .with_context(|| {
-                            "A failure happened parsing an ended Event from Lolesports"
-                        });
+                    if let Ok(mut event_data) = event_parsed {
+                        println!("\n changing match state\n");
+                        event_data.data.event.state = Some("completed".to_owned());
+                        self.events_with_recent_changes.push(event_data.data.event);
+                    }
                 } else {
-                    let mut show_event = event_with_changes.clone();
+                    println!("\n changing show state\n");
+                    let mut show_event: EventDetails = event_with_changes.clone();
                     show_event.state = Some("completed".to_string());
 
                     self.events_with_recent_changes.push(show_event);
                 }
             } else {
                 println!(
-                    "{} - Seems like the event with ID {} didnt end, just change",
+                    "{} - Seems like the event with ID {} just start or didnt end, just changed",
                     Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
                     &event_with_changes.id.0
                 );
@@ -354,22 +351,6 @@ impl DataPull {
             self.events_with_recent_changes
         );
 
-        Ok(())
-    }
-
-    pub async fn fetch_ended_game_test(&mut self) -> Result<()> {
-        let r = caller::make_get_request(
-            lolesports::EVENT_DETAILS_ENDPOINT,
-            Some(&[("id", 110056852358713598 as i64)]),
-        )
-        .await
-        .with_context(|| "A failure happened retrieving the schedule from Lolesports");
-
-        let result = serde_json::from_str::<Wrapper<EventOutter>>(&r?.text().await.unwrap())
-            .map(|parsed| {
-                println!("Event parseado {:?}", parsed.data);
-            })
-            .with_context(|| "A failure happened parsing the EventDetails from Lolesports")?;
         Ok(())
     }
 }

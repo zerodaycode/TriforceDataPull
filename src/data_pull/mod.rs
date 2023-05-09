@@ -20,7 +20,7 @@
 pub mod serde_models {
     use std::fmt::Display;
 
-    use canyon_sql::{date_time::NaiveDateTime};
+    use canyon_sql::date_time::NaiveDateTime;
 
     use serde::{Deserialize, Deserializer, Serialize};
 
@@ -366,11 +366,11 @@ pub mod serde_models {
 
     #[derive(Debug, Deserialize, Clone)]
     pub struct Stream {
-        parameter: String,
+        pub parameter: String,
         locale: String,
         #[serde(alias = "mediaLocale")]
-        media_locale: MediaLocale,
-        provider: String,
+        pub media_locale: MediaLocale,
+        pub provider: String,
         countries: Vec<String>,
         offset: i32,
         #[serde(alias = "statsStatus")]

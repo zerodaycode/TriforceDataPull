@@ -4,6 +4,7 @@ use self::models::{
     event::{Schedule, ScheduleFieldValue},
     leagues::League,
     players::Player,
+    streams::Stream,
     team_player::{TeamPlayer, TeamPlayerFieldValue},
     teams::Team,
     tournaments::Tournament,
@@ -15,6 +16,7 @@ use crate::{
 use canyon_sql::{
     crud::CrudOperations,
     query::{operators::Comp, ops::QueryBuilder},
+    runtime::futures::future::ok,
 };
 use chrono::{Days, Local, Utc};
 use color_eyre::Result;
@@ -357,6 +359,7 @@ impl DatabaseOps {
                                 db_event.team_right_wins,
                                 db_event.team_left_wins,
                             ) {
+                                // FIXME This is not right, this only account for BO with all games played
                                 if strategy_count == right_wins + left_wins
                                     && db_event.state != "completed"
                                 {
@@ -410,62 +413,102 @@ impl DatabaseOps {
             )
             .query()
             .await;
-
+        // TODO Should we update the teams IDs ?
         match (db_leagues, db_events) {
             (Ok(on_db_leagues), Ok(mut on_db_events)) => {
-                for event in events {
-                    let db_event = match &event.r#match {
-                        Some(_event_match) => {
-                            let matching_event = on_db_events
-                                .iter_mut()
-                                .find(|ev| ev.match_id.unwrap_or_default() == event.id.0);
-                            matching_event
-                        }
-                        None => {
-                            let event_league_on_db =
-                                on_db_leagues.iter().find(|l| l.slug == event.league.slug);
+                let db_streams = Stream::find_all().await;
 
-                            let show_event = on_db_events.iter_mut().find(|ev| {
-                                ev.event_type == event.r#type
-                                    && match (ev.league_id, &event_league_on_db) {
-                                        (Some(ev_league_id), Some(event_league)) => {
-                                            ev_league_id == event_league.id as i64
-                                        }
-                                        (None, None) => true,
-                                        _ => false,
-                                    }
-                                    && ev
-                                        .start_time
-                                        .and_then(|ev_start| {
-                                            event.start_time.map(|event_start| {
-                                                let diff =
-                                                    event_start.0.signed_duration_since(ev_start);
-                                                diff.num_minutes().abs() <= 20
-                                            })
-                                        })
-                                        .unwrap_or(false)
-                            });
-                            show_event
-                        }
-                    };
+                match db_streams {
+                    Ok(on_db_streams) => {
+                        for event in events {
+                            let db_event: Option<&mut Schedule> = match &event.r#match {
+                                Some(_event_match) => {
+                                    let matching_event = on_db_events
+                                        .iter_mut()
+                                        .find(|ev| ev.match_id.unwrap_or_default() == event.id.0);
+                                    matching_event
+                                }
+                                None => {
+                                    let event_league_on_db =
+                                        on_db_leagues.iter().find(|l| l.slug == event.league.slug);
 
-                    match db_event {
-                        Some(e) => {
-                            e.merge_with_event_details(event);
+                                    let show_event = on_db_events.iter_mut().find(|ev| {
+                                        ev.event_type == event.r#type
+                                            && match (ev.league_id, &event_league_on_db) {
+                                                (Some(ev_league_id), Some(event_league)) => {
+                                                    ev_league_id == event_league.id as i64
+                                                }
+                                                (None, None) => true,
+                                                _ => false,
+                                            }
+                                            && ev
+                                                .start_time
+                                                .and_then(|ev_start| {
+                                                    event.start_time.map(|event_start| {
+                                                        let diff = event_start
+                                                            .0
+                                                            .signed_duration_since(ev_start);
+                                                        diff.num_minutes().abs() <= 20
+                                                    })
+                                                })
+                                                .unwrap_or(false)
+                                    });
+                                    show_event
+                                }
+                            };
 
-                            println!("New event data from Live - Updating \n{:?}", &e);
-                            let _ = e.update().await;
+                            let event_id;
+
+                            match db_event {
+                                Some(e) => {
+                                    e.merge_with_event_details(event);
+
+                                    println!("\nNew event data from Live - Updating {:?}\n", &e);
+                                    let _ = e.update().await;
+                                    event_id = e.id;
+                                }
+                                None => {
+                                    println!("\nNew event from Live to insert {:?}\n", &event);
+                                    let mut event_to_db = Schedule::from(event);
+                                    event_to_db.league_id = on_db_leagues
+                                        .iter()
+                                        .find(|db_league| db_league.slug.eq(&event.league.slug))
+                                        .map(|l| l.id.into());
+                                    let _ = event_to_db.insert().await;
+                                    event_id = event_to_db.id;
+                                }
+                            }
+
+                            for stream in event.streams.iter() {
+                                let matching_stream = on_db_streams.iter().find(|stm| {
+                                    stm.event_id == event_id
+                                        && stm.english_name == stream.media_locale.english_name
+                                        && stm.locale == stream.media_locale.locale
+                                        && stm.parameter == stream.parameter
+                                        && stm.provider == stream.provider
+                                });
+                                if matching_stream.is_some() {
+                                    continue;
+                                }
+
+                                let mut db_stream = Stream::from(stream);
+                                db_stream.event_id = event_id;
+                                let result = db_stream.insert().await;
+                                if result.is_err() {
+                                    println!("\nError inserting stream {:?} \n", &result);
+                                }
+                            }
                         }
-                        None => {
-                            println!(
-                                "New event from Live to insert (TODO - implement logic to insert) \n{:?}",
-                                &event
-                            );
-                        }
+
+                        Ok(())
                     }
+                    Err(error) => Ok({
+                        println!(
+                            "No se pudo recuperar los eventos  de base de datos. Err {:?}",
+                            error
+                        );
+                    }),
                 }
-
-                Ok(())
             }
             _ => Ok({
                 println!("No se pudo recuperar los datos de base de datos");
