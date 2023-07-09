@@ -137,10 +137,11 @@ impl DatabaseOps {
                     .iter()
                     .map(|serde_team| {
                         let mut t = Team::from(serde_team);
-                        // t.league
                         t.home_league = on_db_leagues
                             .iter()
-                            .find(|db_league| db_league.ext_id.eq(&serde_team.id.0))
+                            .find(|db_league| 
+                                serde_team.home_league.as_ref().map_or(false, |home_league| db_league.name == home_league.name)
+                            )
                             .map(|l| l.id.into());
                         t
                     })
@@ -359,10 +360,9 @@ impl DatabaseOps {
                                 db_event.team_right_wins,
                                 db_event.team_left_wins,
                             ) {
-                                // FIXME This is not right, this only account for BO with all games played
-                                if strategy_count == right_wins + left_wins
-                                    && db_event.state != "completed"
-                                {
+                                let half_count = strategy_count as f32 / 2.0;
+
+                                if right_wins as f32 > half_count || left_wins as f32 > half_count {
                                     db_event.state = "completed".to_string();
                                 }
                             }
