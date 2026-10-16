@@ -5,7 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- `canyon.example.toml` template, copy it to `canyon.toml`.
+- `canyon.toml.example` template, copy it to `canyon.toml`.
 - README, roadmap, development workflow, decisions and investigations in `docs/`.
 
 ### Changed

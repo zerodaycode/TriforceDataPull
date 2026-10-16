@@ -18,10 +18,11 @@ docker compose -f docker/docker-compose.yml up -d
 Create the Canyon config from the template:
 
 ```sh
-cp canyon.example.toml canyon.toml
+cp canyon.toml.example canyon.toml
 ```
 
 `canyon.toml` is not in git, change it there if your database is different.
+Canyon reads the first `canyon*.toml` it finds (up to 2 folders deep), so don't add other files with that name.
 With `migrations = 'enabled'` building connects to that database and creates `canyon_memory`, and running the app creates and changes its tables. Only point it to a database you own.
 
 ## Run

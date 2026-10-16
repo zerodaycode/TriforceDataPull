@@ -1,4 +1,5 @@
 # Copy to canyon.toml (not in git) and adjust.
+# Don't rename this to canyon*.toml: Canyon reads the first canyon*.toml it finds (up to 2 folders deep).
 # Values match docker/docker-compose.yml.
 [canyon_sql]
 datasources = [
