@@ -111,9 +111,9 @@ fn main() -> Result<()> {
     // let teams_and_players_schedule = Schedule::from_str("0 0 * * * *")?; // every day at midnight
     // let lolschedule_schedule = Schedule::from_str("*/10 * * * *")?; // every 10 minutes
 
-    let leagues_schedule = Schedule::from_str("0 */120 * ? * *")?; // every 2 hours
-    let tournaments_schedule = Schedule::from_str("0 */120 * ? * *")?; // every 2 hours
-    let teams_and_players_schedule = Schedule::from_str("0 */90 * ? * *")?; // every 1 hour and half
+    let leagues_schedule = Schedule::from_str("0 0 */2 ? * *")?; // every 2 hours
+    let tournaments_schedule = Schedule::from_str("0 0 */2 ? * *")?; // every 2 hours
+    let teams_and_players_schedule = Schedule::from_str("0 0 * ? * *")?; // every hour (cron can't express 90 min)
                                                                             // let lolschedule_schedule = Schedule::from_str("0 */60 * ? * *")?; // every 1 hour
     let lolschedule_current_page = Schedule::from_str("0 */30 * ? * *")?; // every 30 minutes
     let live_schedule = Schedule::from_str("0 */2 * ? * *")?; // every 2 minutes
