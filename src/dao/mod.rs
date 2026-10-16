@@ -39,11 +39,7 @@ impl DatabaseOps {
         );
         let db_leagues = League::find_all().await;
         if let Ok(db_lgs) = db_leagues {
-            for mut fetched_league in leagues
-                .leagues
-                .iter()
-                .map(League::from)
-            {
+            for mut fetched_league in leagues.leagues.iter().map(League::from) {
                 let db_league = db_lgs
                     .iter()
                     .find(|league| league.ext_id == fetched_league.ext_id);
@@ -138,9 +134,12 @@ impl DatabaseOps {
                         let mut t = Team::from(serde_team);
                         t.home_league = on_db_leagues
                             .iter()
-                            .find(|db_league| 
-                                serde_team.home_league.as_ref().is_some_and(|home_league| db_league.name == home_league.name)
-                            )
+                            .find(|db_league| {
+                                serde_team
+                                    .home_league
+                                    .as_ref()
+                                    .is_some_and(|home_league| db_league.name == home_league.name)
+                            })
                             .map(|l| l.id.into());
                         t
                     })
@@ -232,9 +231,11 @@ impl DatabaseOps {
                 );
 
                 if let Err(e) = TeamPlayer::delete_query()?
-                                                .where_value(&TeamPlayerFieldValue::id(0), Operator::Gt)
-                                                .build()?
-                                                .launch_default::<TeamPlayer>().await {
+                    .where_value(&TeamPlayerFieldValue::id(0), Operator::Gt)
+                    .build()?
+                    .launch_default::<TeamPlayer>()
+                    .await
+                {
                     println!("Error deleting team_player rows: {e}");
                 }
 
@@ -317,7 +318,8 @@ impl DatabaseOps {
                                 .r#match
                                 .as_ref()
                                 .expect("Not match found for event type match")
-                                .teams.first()
+                                .teams
+                                .first()
                                 .unwrap();
 
                             let team_2 = serde_event
@@ -333,14 +335,16 @@ impl DatabaseOps {
                                 .find(|db_team| db_team.name.eq(&team_1.name))
                                 .map(|l| l.id.into());
 
-                            db_event.team_left_wins = team_1.result.as_ref().map(|result| result.game_wins.into());
+                            db_event.team_left_wins =
+                                team_1.result.as_ref().map(|result| result.game_wins.into());
 
                             db_event.team_right_id = on_db_teams
                                 .iter()
                                 .find(|db_team| db_team.name.eq(&team_2.name))
                                 .map(|l| l.id.into());
 
-                            db_event.team_right_wins = team_2.result.as_ref().map(|result| result.game_wins.into());
+                            db_event.team_right_wins =
+                                team_2.result.as_ref().map(|result| result.game_wins.into());
 
                             // Added because sometimes the state of the match is "unstarted" or "inProgress" even when the match ended hours ago,
                             // but the match result is updated, so we need to manually correct this inconsistency.
@@ -395,11 +399,16 @@ impl DatabaseOps {
         events: &Vec<data_pull::serde_models::EventDetails>,
     ) -> Result<()> {
         let db_leagues = League::find_all().await;
-        let db_events =     Schedule::select_query()?
-        .where_value(&ScheduleFieldValue::start_time(Utc::now().naive_utc().checked_sub_days(Days::new(1))), Operator::Gt)
-        .build()?
-        .launch_default::<Schedule>()
-        .await;
+        let db_events = Schedule::select_query()?
+            .where_value(
+                &ScheduleFieldValue::start_time(
+                    Utc::now().naive_utc().checked_sub_days(Days::new(1)),
+                ),
+                Operator::Gt,
+            )
+            .build()?
+            .launch_default::<Schedule>()
+            .await;
         // TODO Should we update the teams IDs ?
         match (db_leagues, db_events) {
             (Ok(on_db_leagues), Ok(mut on_db_events)) => {
@@ -409,17 +418,13 @@ impl DatabaseOps {
                     Ok(on_db_streams) => {
                         for event in events {
                             let db_event: Option<&mut Schedule> = match &event.r#match {
-                                Some(_event_match) => {
-                                    
-                                    on_db_events
-                                        .iter_mut()
-                                        .find(|ev| ev.match_id.unwrap_or_default() == event.id.0)
-                                }
+                                Some(_event_match) => on_db_events
+                                    .iter_mut()
+                                    .find(|ev| ev.match_id.unwrap_or_default() == event.id.0),
                                 None => {
                                     let event_league_on_db =
                                         on_db_leagues.iter().find(|l| l.slug == event.league.slug);
 
-                                    
                                     on_db_events.iter_mut().find(|ev| {
                                         ev.event_type == event.r#type
                                             && match (ev.league_id, &event_league_on_db) {

@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::time::Duration;
 
 use crate::utils::constants::lolesports;
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{Result, eyre::Context};
 use tokio::time::sleep;
 
 pub async fn make_get_request<T>(endpoint: &str, args: Option<&T>) -> Result<Response>

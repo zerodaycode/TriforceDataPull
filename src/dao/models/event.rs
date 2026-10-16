@@ -36,8 +36,14 @@ impl From<&data_pull::serde_models::Event> for Schedule {
             blockname: value.block_name.clone(),
             league_id: None,
             match_id: value.r#match.as_ref().map(|r#match| r#match.id.into()),
-            strategy: value.r#match.as_ref().map(|r#match| r#match.strategy.r#type.clone()),
-            strategy_count: value.r#match.as_ref().map(|r#match| r#match.strategy.count.into()),
+            strategy: value
+                .r#match
+                .as_ref()
+                .map(|r#match| r#match.strategy.r#type.clone()),
+            strategy_count: value
+                .r#match
+                .as_ref()
+                .map(|r#match| r#match.strategy.count.into()),
             team_left_id: None,
             team_left_wins: None,
             team_right_id: None,
@@ -59,8 +65,14 @@ impl From<&data_pull::serde_models::EventDetails> for Schedule {
                 &"show" => None,
                 _ => Some(value.id.into()),
             },
-            strategy: value.r#match.as_ref().map(|r#match| r#match.strategy.r#type.clone()),
-            strategy_count: value.r#match.as_ref().map(|r#match| r#match.strategy.count.into()),
+            strategy: value
+                .r#match
+                .as_ref()
+                .map(|r#match| r#match.strategy.r#type.clone()),
+            strategy_count: value
+                .r#match
+                .as_ref()
+                .map(|r#match| r#match.strategy.count.into()),
             team_left_id: None,
             team_left_wins: None,
             team_right_id: None,

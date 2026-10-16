@@ -1,6 +1,5 @@
 pub mod caller;
 
-
 use crate::{
     data_pull::serde_models::{
         Event, EventDetails, EventOutter, LeagueForTournaments, Leagues, LiveScheduleOutter,
@@ -9,7 +8,7 @@ use crate::{
     utils::constants::lolesports,
 };
 use chrono::Local;
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{Result, eyre::Context};
 
 /**
  * This type alias are just a communist joke. They are the Lolesports tournaments only?
@@ -89,9 +88,9 @@ impl DataPull {
         let response =
             caller::make_get_request::<&[()]>(lolesports::TEAMS_AND_LEAGUES_ENDPOINT, None)
                 .await
-                .with_context(|| {
-                    "A failure happened retrieving the Teams and players from Lolesports"
-                });
+                .with_context(
+                    || "A failure happened retrieving the Teams and players from Lolesports",
+                );
 
         serde_json::from_str::<Wrapper<TeamsPlayers>>(&response?.text().await.unwrap())
             .map(|parsed| {
@@ -307,9 +306,9 @@ impl DataPull {
                         Some(&[("id", event_with_changes.id)]),
                     )
                     .await
-                    .with_context(|| {
-                        "A failure happened retrieving an Ended Event from Lolesports"
-                    });
+                    .with_context(
+                        || "A failure happened retrieving an Ended Event from Lolesports",
+                    );
 
                     let event_parsed = serde_json::from_str::<Wrapper<EventOutter>>(
                         &response?.text().await.unwrap(),
