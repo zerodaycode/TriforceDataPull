@@ -1,0 +1,6 @@
+# Copy to canyon.toml (not in git) and adjust.
+# Values match docker/docker-compose.yml.
+[canyon_sql]
+datasources = [
+    {name = 'postgres', auth = { postgresql = { basic = { username = "postgres", password = "postgres" } } }, properties.host = 'localhost', properties.port = 5438, properties.db_name = 'postgres', properties.migrations = 'enabled' },
+]

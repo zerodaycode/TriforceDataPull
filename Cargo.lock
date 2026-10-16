@@ -199,7 +199,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 [[package]]
 name = "canyon_core"
 version = "0.5.1"
-source = "git+https://github.com/zerodaycode/Canyon-SQL.git?branch=develop#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
+source = "git+https://github.com/zerodaycode/Canyon-SQL.git?rev=1c81b3b1c1982c33aeadd1d214bc2aeef95253b4#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
 dependencies = [
  "bb8",
  "bb8-postgres",
@@ -217,7 +217,7 @@ dependencies = [
 [[package]]
 name = "canyon_crud"
 version = "0.5.1"
-source = "git+https://github.com/zerodaycode/Canyon-SQL.git?branch=develop#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
+source = "git+https://github.com/zerodaycode/Canyon-SQL.git?rev=1c81b3b1c1982c33aeadd1d214bc2aeef95253b4#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
 dependencies = [
  "canyon_core",
  "chrono",
@@ -227,7 +227,7 @@ dependencies = [
 [[package]]
 name = "canyon_entities"
 version = "0.5.1"
-source = "git+https://github.com/zerodaycode/Canyon-SQL.git?branch=develop#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
+source = "git+https://github.com/zerodaycode/Canyon-SQL.git?rev=1c81b3b1c1982c33aeadd1d214bc2aeef95253b4#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
 dependencies = [
  "partialdebug",
  "proc-macro2",
@@ -238,7 +238,7 @@ dependencies = [
 [[package]]
 name = "canyon_macros"
 version = "0.5.1"
-source = "git+https://github.com/zerodaycode/Canyon-SQL.git?branch=develop#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
+source = "git+https://github.com/zerodaycode/Canyon-SQL.git?rev=1c81b3b1c1982c33aeadd1d214bc2aeef95253b4#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
 dependencies = [
  "canyon_core",
  "canyon_crud",
@@ -252,7 +252,7 @@ dependencies = [
 [[package]]
 name = "canyon_migrations"
 version = "0.5.1"
-source = "git+https://github.com/zerodaycode/Canyon-SQL.git?branch=develop#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
+source = "git+https://github.com/zerodaycode/Canyon-SQL.git?rev=1c81b3b1c1982c33aeadd1d214bc2aeef95253b4#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
 dependencies = [
  "canyon_core",
  "canyon_crud",
@@ -266,7 +266,7 @@ dependencies = [
 [[package]]
 name = "canyon_sql"
 version = "0.5.1"
-source = "git+https://github.com/zerodaycode/Canyon-SQL.git?branch=develop#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
+source = "git+https://github.com/zerodaycode/Canyon-SQL.git?rev=1c81b3b1c1982c33aeadd1d214bc2aeef95253b4#1c81b3b1c1982c33aeadd1d214bc2aeef95253b4"
 dependencies = [
  "canyon_core",
  "canyon_crud",
@@ -1793,9 +1793,9 @@ dependencies = [
 
 [[package]]
 name = "schannel"
-version = "0.1.29"
+version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91c1b7e4904c873ef0710c1f407dde2e6287de2bebc1bbbf7d430bb7cbffd939"
+checksum = "9cb23c424d8ee841bb4d813677ca237e2a610067d594fec130f87d6093495ab5"
 dependencies = [
  "windows-sys 0.61.2",
 ]
