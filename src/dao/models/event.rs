@@ -5,7 +5,7 @@ use super::leagues::League;
 use super::teams::Team;
 use crate::data_pull;
 
-#[derive(Debug, Clone, CanyonCrud, Fields, CanyonMapper, Serialize)]
+#[derive(Debug, Clone, Crud, Fields, CanyonMapper, Serialize)]
 #[canyon_entity]
 pub struct Schedule {
     #[primary_key]

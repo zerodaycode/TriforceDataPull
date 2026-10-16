@@ -14,9 +14,11 @@ use crate::{
     service::OurTournaments,
 };
 use canyon_sql::{
-    crud::CrudOperations,
-    query::{operators::Comp, ops::QueryBuilder},
-    runtime::futures::future::ok,
+    CanyonResult,
+    connection::DbConnection,
+    core::Canyon,
+    crud::{Delete, Insert, Read, Update},
+    query::{operators::Operator, querybuilder::QueryBuilderOps},
 };
 use chrono::{Days, Local, Utc};
 use color_eyre::Result;
@@ -232,10 +234,12 @@ impl DatabaseOps {
                     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
                 );
 
-                let _ = TeamPlayer::delete_query()
-                    .r#where(TeamPlayerFieldValue::id(&&0), Comp::Gt)
-                    .query()
-                    .await;
+                if let Err(e) = TeamPlayer::delete_query()?
+                                                .where_value(&TeamPlayerFieldValue::id(0), Operator::Gt)
+                                                .build()?
+                                                .launch_default::<TeamPlayer>().await {
+                    println!("Error deleting team_player rows: {e}");
+                }
 
                 println!(
                     "{} - All rows delete !\nStarting to process the data to insert",
@@ -269,17 +273,14 @@ impl DatabaseOps {
                     "{} - Inserting all Team-Player relation rows",
                     Local::now().format("%Y-%m-%d %H:%M:%S.%f")
                 );
-                match TeamPlayer::multi_insert(
-                    &mut vec_team_player.iter_mut().collect::<Vec<&mut TeamPlayer>>(),
-                )
-                .await
-                {
-                    Ok(result) => Ok(result),
-                    Err(e) => {
+
+                for team_player in &mut vec_team_player {
+                    if let Err(e) = team_player.insert().await {
                         println!("{e}");
                         todo!()
                     }
                 }
+                Ok(())
             }
             _ => Ok({
                 println!("No se pudo recuperar los datos de base de datos");
@@ -404,15 +405,11 @@ impl DatabaseOps {
         events: &Vec<data_pull::serde_models::EventDetails>,
     ) -> Result<()> {
         let db_leagues = League::find_all().await;
-        let db_events = Schedule::select_query()
-            .r#where(
-                ScheduleFieldValue::start_time(
-                    &Utc::now().naive_utc().checked_sub_days(Days::new(1)),
-                ),
-                Comp::Gt,
-            )
-            .query()
-            .await;
+        let db_events =     Schedule::select_query()?
+        .where_value(&ScheduleFieldValue::start_time(Utc::now().naive_utc().checked_sub_days(Days::new(1))), Operator::Gt)
+        .build()?
+        .launch_default::<Schedule>()
+        .await;
         // TODO Should we update the teams IDs ?
         match (db_leagues, db_events) {
             (Ok(on_db_leagues), Ok(mut on_db_events)) => {

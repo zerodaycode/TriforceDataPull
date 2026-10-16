@@ -4,7 +4,7 @@ use serde::Serialize;
 use super::event::Schedule;
 use crate::data_pull;
 
-#[derive(Debug, Clone, CanyonCrud, CanyonMapper, Serialize, Fields)]
+#[derive(Debug, Clone, Crud, CanyonMapper, Serialize, Fields)]
 #[canyon_entity]
 pub struct Stream {
     #[primary_key]

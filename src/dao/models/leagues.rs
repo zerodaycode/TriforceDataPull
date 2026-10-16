@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use crate::data_pull;
 
-#[derive(Debug, Clone, CanyonCrud, CanyonMapper, Serialize)]
+#[derive(Debug, Clone, Crud, CanyonMapper, Serialize)]
 #[canyon_entity]
 pub struct League {
     #[primary_key]

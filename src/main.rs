@@ -1,3 +1,5 @@
+extern crate canyon_sql;
+
 mod dao;
 mod data_pull;
 mod service;

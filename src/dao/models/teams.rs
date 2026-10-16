@@ -4,7 +4,7 @@ use serde::Serialize;
 use super::leagues::League;
 use crate::data_pull;
 
-#[derive(Debug, Clone, CanyonCrud, CanyonMapper, Serialize)]
+#[derive(Debug, Clone, Crud, CanyonMapper, Serialize)]
 #[canyon_entity]
 pub struct Team {
     #[primary_key]

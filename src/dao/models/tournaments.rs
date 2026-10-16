@@ -5,7 +5,7 @@ use crate::data_pull;
 
 use super::leagues::League;
 
-#[derive(Debug, Clone, CanyonCrud, CanyonMapper, Serialize)]
+#[derive(Debug, Clone, Crud, CanyonMapper, Serialize)]
 #[canyon_entity]
 pub struct Tournament {
     #[primary_key]
