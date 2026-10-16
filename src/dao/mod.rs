@@ -14,9 +14,6 @@ use crate::{
     service::OurTournaments,
 };
 use canyon_sql::{
-    CanyonResult,
-    connection::DbConnection,
-    core::Canyon,
     crud::{Delete, Insert, Read, Update},
     query::{operators::Operator, querybuilder::QueryBuilderOps},
 };
@@ -45,7 +42,7 @@ impl DatabaseOps {
             for mut fetched_league in leagues
                 .leagues
                 .iter()
-                .map(|serde_league| League::from(serde_league))
+                .map(League::from)
             {
                 let db_league = db_lgs
                     .iter()
@@ -142,7 +139,7 @@ impl DatabaseOps {
                         t.home_league = on_db_leagues
                             .iter()
                             .find(|db_league| 
-                                serde_team.home_league.as_ref().map_or(false, |home_league| db_league.name == home_league.name)
+                                serde_team.home_league.as_ref().is_some_and(|home_league| db_league.name == home_league.name)
                             )
                             .map(|l| l.id.into());
                         t
@@ -185,12 +182,12 @@ impl DatabaseOps {
 
         let fetched_players = &mut players
             .iter()
-            .map(|serde_player| Player::from(serde_player))
+            .map(Player::from)
             .unique_by(|player| player.ext_id)
             .collect::<Vec<_>>();
 
         if let Ok(on_db_players) = db_players {
-            for mut fetched_player in fetched_players {
+            for fetched_player in fetched_players {
                 let db_player = on_db_players
                     .iter()
                     .find(|player| player.ext_id == fetched_player.ext_id);
@@ -320,8 +317,7 @@ impl DatabaseOps {
                                 .r#match
                                 .as_ref()
                                 .expect("Not match found for event type match")
-                                .teams
-                                .get(0)
+                                .teams.first()
                                 .unwrap();
 
                             let team_2 = serde_event
@@ -337,20 +333,14 @@ impl DatabaseOps {
                                 .find(|db_team| db_team.name.eq(&team_1.name))
                                 .map(|l| l.id.into());
 
-                            db_event.team_left_wins = match &team_1.result {
-                                Some(result) => Some(result.game_wins.into()),
-                                None => None,
-                            };
+                            db_event.team_left_wins = team_1.result.as_ref().map(|result| result.game_wins.into());
 
                             db_event.team_right_id = on_db_teams
                                 .iter()
                                 .find(|db_team| db_team.name.eq(&team_2.name))
                                 .map(|l| l.id.into());
 
-                            db_event.team_right_wins = match &team_2.result {
-                                Some(result) => Some(result.game_wins.into()),
-                                None => None,
-                            };
+                            db_event.team_right_wins = team_2.result.as_ref().map(|result| result.game_wins.into());
 
                             // Added because sometimes the state of the match is "unstarted" or "inProgress" even when the match ended hours ago,
                             // but the match result is updated, so we need to manually correct this inconsistency.
@@ -420,16 +410,17 @@ impl DatabaseOps {
                         for event in events {
                             let db_event: Option<&mut Schedule> = match &event.r#match {
                                 Some(_event_match) => {
-                                    let matching_event = on_db_events
+                                    
+                                    on_db_events
                                         .iter_mut()
-                                        .find(|ev| ev.match_id.unwrap_or_default() == event.id.0);
-                                    matching_event
+                                        .find(|ev| ev.match_id.unwrap_or_default() == event.id.0)
                                 }
                                 None => {
                                     let event_league_on_db =
                                         on_db_leagues.iter().find(|l| l.slug == event.league.slug);
 
-                                    let show_event = on_db_events.iter_mut().find(|ev| {
+                                    
+                                    on_db_events.iter_mut().find(|ev| {
                                         ev.event_type == event.r#type
                                             && match (ev.league_id, &event_league_on_db) {
                                                 (Some(ev_league_id), Some(event_league)) => {
@@ -449,8 +440,7 @@ impl DatabaseOps {
                                                     })
                                                 })
                                                 .unwrap_or(false)
-                                    });
-                                    show_event
+                                    })
                                 }
                             };
 

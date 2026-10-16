@@ -1,5 +1,5 @@
 use chrono::Local;
-use reqwest::{Error, Response};
+use reqwest::Response;
 use serde::Serialize;
 use std::fmt::Debug;
 use std::time::Duration;

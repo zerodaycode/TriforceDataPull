@@ -216,12 +216,12 @@ pub mod serde_models {
                     }
                 }
 
-                return true;
+                true
             } else {
-                return (self.start_time.is_none() == other.start_time.is_none()
+                (self.start_time.is_none() == other.start_time.is_none()
                     || self.start_time.is_some() && other.start_time.is_some())
                     && self.league.name == other.league.name
-                    && self.r#type == other.r#type;
+                    && self.r#type == other.r#type
             }
         }
     }
@@ -300,7 +300,7 @@ pub mod serde_models {
                         return false;
                     }
                 }
-                return true;
+                true
             } else {
                 self.start_time.0 == other.start_time.0
                     && self.league.name == other.league.name

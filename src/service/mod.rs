@@ -1,6 +1,5 @@
 pub mod caller;
 
-use std::time::Duration;
 
 use crate::{
     data_pull::serde_models::{
@@ -11,7 +10,6 @@ use crate::{
 };
 use chrono::Local;
 use color_eyre::{eyre::Context, Result};
-use tokio::time::sleep;
 
 /**
  * This type alias are just a communist joke. They are the Lolesports tournaments only?
@@ -102,7 +100,7 @@ impl DataPull {
                         home_league.league_id = self.search_league_by_name(&home_league.name);
                     }
                     self.teams.push(team.clone());
-                    self.players.extend(team.players.into_iter())
+                    self.players.extend(team.players)
                 }
             })
             .with_context(|| "A failure happened parsing the Tournaments from Lolesports")
@@ -279,7 +277,7 @@ impl DataPull {
             new_events.len()
         );
 
-        events_with_changes.extend(new_events.into_iter());
+        events_with_changes.extend(new_events);
         self.previous_live.clone_from(&self.live);
 
         for event_with_changes in events_with_changes {
@@ -299,7 +297,7 @@ impl DataPull {
                     &event_with_changes.id.0
                 );
 
-                if let Some(event_match) = &event_with_changes.r#match {
+                if let Some(_event_match) = &event_with_changes.r#match {
                     println!(
                         "\n{} - Calling EventDetails endpoint \n",
                         Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -315,8 +313,7 @@ impl DataPull {
 
                     let event_parsed = serde_json::from_str::<Wrapper<EventOutter>>(
                         &response?.text().await.unwrap(),
-                    )
-                    .map(|mut parsed| parsed);
+                    );
 
                     if let Ok(mut event_data) = event_parsed {
                         println!("\n changing match state\n");

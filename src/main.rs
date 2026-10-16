@@ -14,7 +14,6 @@ use tokio::time::{sleep, Duration};
 
 use color_eyre::Result;
 use tokio::sync::Mutex;
-use tokio::{select, task};
 
 #[canyon_sql::main]
 fn main() -> Result<()> {

@@ -35,18 +35,9 @@ impl From<&data_pull::serde_models::Event> for Schedule {
             event_type: value.r#type.clone(),
             blockname: value.block_name.clone(),
             league_id: None,
-            match_id: match &value.r#match {
-                Some(r#match) => Some(r#match.id.into()),
-                None => None,
-            },
-            strategy: match &value.r#match {
-                Some(r#match) => Some(r#match.strategy.r#type.clone()),
-                None => None,
-            },
-            strategy_count: match &value.r#match {
-                Some(r#match) => Some(r#match.strategy.count.into()),
-                None => None,
-            },
+            match_id: value.r#match.as_ref().map(|r#match| r#match.id.into()),
+            strategy: value.r#match.as_ref().map(|r#match| r#match.strategy.r#type.clone()),
+            strategy_count: value.r#match.as_ref().map(|r#match| r#match.strategy.count.into()),
             team_left_id: None,
             team_left_wins: None,
             team_right_id: None,
@@ -68,14 +59,8 @@ impl From<&data_pull::serde_models::EventDetails> for Schedule {
                 &"show" => None,
                 _ => Some(value.id.into()),
             },
-            strategy: match &value.r#match {
-                Some(r#match) => Some(r#match.strategy.r#type.clone()),
-                None => None,
-            },
-            strategy_count: match &value.r#match {
-                Some(r#match) => Some(r#match.strategy.count.into()),
-                None => None,
-            },
+            strategy: value.r#match.as_ref().map(|r#match| r#match.strategy.r#type.clone()),
+            strategy_count: value.r#match.as_ref().map(|r#match| r#match.strategy.count.into()),
             team_left_id: None,
             team_left_wins: None,
             team_right_id: None,
@@ -92,7 +77,7 @@ impl Schedule {
         if let Some(first_team) = event_details
             .r#match
             .as_ref()
-            .and_then(|event_match| event_match.teams.get(0))
+            .and_then(|event_match| event_match.teams.first())
             .and_then(|team| team.result.as_ref())
         {
             self.team_left_wins = Some(first_team.game_wins.into());
