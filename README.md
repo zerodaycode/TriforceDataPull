@@ -65,6 +65,7 @@ Schedules are in `src/main.rs`.
 | `docker/` | Postgres for local development |
 | `bash_alias.sh` | Docker aliases (`. ./bash_alias.sh`) |
 | `docs/` | Workflow, decisions and investigations |
+| `tools/lolesports-explorer/` | Python tools to study the LoL Esports APIs |
 
 ## Docs
 

@@ -34,6 +34,6 @@ The why goes to `docs/decisions` or `docs/investigations`, not to the commit.
 | Change | Update |
 |---|---|
 | Something users notice (feature, fix, upgrade) | `CHANGELOG.md` |
-| A decision with trade-offs | new ADR in `docs/decisions/` from `0000-template.md`. Don't edit an accepted ADR, write a new one that supersedes it |
+| A decision with trade-offs | new ADR in `docs/decisions/` from `0000-template.md`. A proposed ADR can be updated until it's accepted, after that don't edit it, write a new one that supersedes it |
 | Research behind a decision | `docs/investigations/YYYY-MM-DD-topic.md`, linked from the ADR |
 | Plans change | `ROADMAP.md`, with `[High]`/`[Medium]`/`[Low]` |

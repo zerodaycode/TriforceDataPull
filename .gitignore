@@ -18,3 +18,9 @@ docker/*-data
 
 # Canyon-SQL datasource configuration file
 canyon.toml
+
+# Browser captures (cookies, location) and lolesports-explorer output
+*.har
+recordings/
+har_report/
+__pycache__/

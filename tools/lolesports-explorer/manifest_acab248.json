@@ -1,0 +1,996 @@
+{
+ "format": "apollo-persisted-query-manifest",
+ "version": 1,
+ "operations": [
+  {
+   "id": "a396a1e56532b71613403e76e5320f55672c768b6d53b2347fcdc6db0a75ec0b",
+   "name": "ALlArticle",
+   "type": "query",
+   "body": "query ALlArticle($fallbackWhere: ArticleFilter, $where: ArticleFilter) {\n  __typename\n  articles: allArticle(\n    limit: 5\n    sort: [{publishingDates: {displayedPublishDate: DESC}}]\n    where: $where\n  ) {\n    __typename\n    ...NewsItem\n  }\n  fallbackArticles: allArticle(\n    limit: 5\n    sort: [{publishingDates: {displayedPublishDate: DESC}}]\n    where: $fallbackWhere\n  ) {\n    __typename\n    ...NewsItem\n  }\n}\n\nfragment NewsItem on Article {\n  __typename\n  _id\n  bannerMedia {\n    __typename\n    sanityImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n  }\n  externalTitle\n  externalUrl\n  path {\n    __typename\n    current\n  }\n  publishingDates {\n    __typename\n    displayedPublishDate\n  }\n}"
+  },
+  {
+   "id": "ac580a66e2f08262665803fe094b5b78816a21ab255aed90a824e9c2e3edee76",
+   "name": "AddCompetePlayer",
+   "type": "mutation",
+   "body": "mutation AddCompetePlayer($input: CompetePlayerInput!) {\n  __typename\n  addCompetePlayer(input: $input) {\n    __typename\n    assets {\n      __typename\n      id\n      playerId\n      type\n      value\n    }\n    id\n    tournamentRealmDisplayNameCurrent\n    tournamentRealmDisplayNameRequested\n  }\n}"
+  },
+  {
+   "id": "d27a09ef1ad2bae8b6bbf71cd925d09c1fa0d6902a10e4bda15bc8f1bed0ce6b",
+   "name": "ArticleEsportsLeague",
+   "type": "query",
+   "body": "query ArticleEsportsLeague($id: ID!) {\n  EsportsLeague(id: $id) {\n    __typename\n    ...ArticleLeague\n  }\n  __typename\n}\n\nfragment ArticleLeague on EsportsLeague {\n  __typename\n  logoLight {\n    __typename\n    sanityImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n  }\n}"
+  },
+  {
+   "id": "929c7aeab8c9dcc40946948110aa00c7f18d3cebf1a86dcd7734b8c14769f229",
+   "name": "ArticlePage",
+   "type": "query",
+   "body": "query ArticlePage($fallbackWhere: ArticleFilter, $where: ArticleFilter) {\n  __typename\n  allArticle(where: $where) {\n    __typename\n    ...Article\n  }\n  fallbackArticle: allArticle(where: $fallbackWhere) {\n    __typename\n    ...Article\n  }\n}\n\nfragment Article on Article {\n  __typename\n  authors {\n    __typename\n    externalTitle\n  }\n  bannerMedia {\n    __typename\n    sanityImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n  }\n  contentBlocks {\n    __typename\n    ... on ContentItemContentBlock {\n      __typename\n      ...ContentItem\n    }\n    ... on MastheadContentBlock {\n      __typename\n      ...Masthead\n    }\n    ... on MediaPromosListContentBlock {\n      __typename\n      ...MediaGallery\n    }\n    ... on QuoteContentBlock {\n      __typename\n      ...Quote\n    }\n    ... on RichTextContentBlock {\n      __typename\n      ...RichText\n    }\n    ... on SeparatorContentBlock {\n      __typename\n      ...Separator\n    }\n    ... on SimpleImageContentBlock {\n      __typename\n      ...SimpleImage\n    }\n    ... on VideoContentBlock {\n      __typename\n      ...Video\n    }\n  }\n  description\n  esportsLeague {\n    __typename\n    _ref\n  }\n  externalTitle\n  path {\n    __typename\n    current\n  }\n  publishingDates {\n    __typename\n    displayedPublishDate\n  }\n  translationMetadata {\n    __typename\n    translations {\n      __typename\n      locale: _key\n    }\n  }\n}\n\nfragment ContentItem on ContentItemContentBlock {\n  __typename\n  media {\n    __typename\n    ...VideoAsset\n  }\n}\n\nfragment Masthead on MastheadContentBlock {\n  __typename\n  header {\n    __typename\n    description {\n      __typename\n      bodyHtml\n    }\n    media {\n      __typename\n      sanityImage {\n        __typename\n        asset {\n          __typename\n          url\n        }\n      }\n    }\n    supertitle\n  }\n}\n\nfragment MediaGallery on MediaPromosListContentBlock {\n  __typename\n  items {\n    __typename\n    media {\n      __typename\n      sanityImage {\n        __typename\n        asset {\n          __typename\n          url\n        }\n      }\n    }\n  }\n}\n\nfragment Quote on QuoteContentBlock {\n  __typename\n  description {\n    __typename\n    bodyHtml\n  }\n  quote\n  quoteType\n  source\n}\n\nfragment RichText on RichTextContentBlock {\n  __typename\n  richText {\n    __typename\n    bodyHtml\n  }\n}\n\nfragment Separator on SeparatorContentBlock {\n  __typename\n  separatorType\n  size\n}\n\nfragment SimpleImage on SimpleImageContentBlock {\n  __typename\n  attribution\n  descriptionText\n  image {\n    __typename\n    sanityImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n  }\n}\n\nfragment Video on VideoContentBlock {\n  __typename\n  videoMedia {\n    __typename\n    ...VideoAsset\n  }\n}\n\nfragment VideoAsset on MultimediaAsset {\n  __typename\n  twitchAsset {\n    __typename\n    embedID\n    embedType\n  }\n  youtubeAsset {\n    __typename\n    videoID\n  }\n}"
+  },
+  {
+   "id": "2c958c5f428910714f0538a073dfd14a05294edb3884898133d8d0382974670f",
+   "name": "CheckInCompetePlayer",
+   "type": "mutation",
+   "body": "mutation CheckInCompetePlayer($input: CompetePlayerTournamentCheckInInput!) {\n  __typename\n  checkInCompetePlayer(input: $input) {\n    __typename\n    checkedIn\n    checkedInAt\n    id\n    status\n  }\n}"
+  },
+  {
+   "id": "acbcbba681a9c9a8063f792f7d665ba1eda81b19528b6af19e523f0c2061bec2",
+   "name": "CompeteTournamentSearch",
+   "type": "query",
+   "body": "query CompeteTournamentSearch($after: String, $filter: CompeteTournamentSearchFilterInput!, $first: Int, $sortBy: CompeteTournamentSearchSortInput, $sport: Sport!) {\n  __typename\n  competeTournamentSearch(\n    sport: $sport\n    filter: $filter\n    sortBy: $sortBy\n    first: $first\n    after: $after\n  ) {\n    __typename\n    edges {\n      __typename\n      cursor\n      node {\n        __typename\n        ... on RbTournamentSearchResult {\n          __typename\n          distanceMeters\n          organizer {\n            __typename\n            id\n            isFavorited\n            name\n            physicalAddress {\n              __typename\n              adminArea1\n              city\n              formattedAddress\n              latitude\n              longitude\n            }\n          }\n          tournament {\n            __typename\n            config {\n              __typename\n              ... on RiftboundTournamentConfig {\n                __typename\n                format\n                participantCapacity\n                playerFormat\n                tournamentType\n              }\n            }\n            entryFee {\n              __typename\n              currency\n              minorUnits\n            }\n            id\n            name\n            pricing\n            registrantCounts {\n              __typename\n              count\n              status\n            }\n            startsAt\n          }\n        }\n      }\n    }\n    pageInfo {\n      __typename\n      endCursor\n      hasNextPage\n    }\n  }\n}"
+  },
+  {
+   "id": "b2c57225fb8c0a4dc321525e7260342b79ad0b1ea749defdbb246b4d4cf9f53f",
+   "name": "CreateOrganizerTournament",
+   "type": "mutation",
+   "body": "mutation CreateOrganizerTournament($input: CreateOrganizerTournamentInput!) {\n  __typename\n  createOrganizerTournament(input: $input) {\n    __typename\n    competeType\n    config {\n      __typename\n      ... on RiftboundTournamentConfig {\n        __typename\n        deckSubmissionPolicy\n        format\n        matchFormat\n        participantCapacity\n        playerFormat\n        roundCount\n        structure\n        tournamentType\n        waitlistCapacity\n      }\n    }\n    endsAt\n    entryFee {\n      __typename\n      currency\n      minorUnits\n    }\n    id\n    name\n    pricing\n    registrationEndAt\n    registrationPolicy\n    registrationStartAt\n    shards\n    sport\n    startsAt\n    visibility\n  }\n}"
+  },
+  {
+   "id": "f0e0d22521495f315f4d3534745514373954bb7bdac80b529bb902850c9f198d",
+   "name": "CreatePickemsCustomLeaderboard",
+   "type": "mutation",
+   "body": "mutation CreatePickemsCustomLeaderboard($leaderboardName: String!, $tournamentId: String!) {\n  __typename\n  createCustomLeaderboard(\n    tournamentId: $tournamentId\n    leaderboardName: $leaderboardName\n  ) {\n    __typename\n    displayName\n    id\n    state\n  }\n}"
+  },
+  {
+   "id": "9716745e7b157000a22e386b5a55200d8c105bd43ff72539e8aded627e658b17",
+   "name": "CreatePickemsCustomLeaderboardInvite",
+   "type": "mutation",
+   "body": "mutation CreatePickemsCustomLeaderboardInvite($leaderboardId: String!) {\n  __typename\n  createCustomLeaderboardInvitation(leaderboardId: $leaderboardId) {\n    __typename\n    id\n  }\n}"
+  },
+  {
+   "id": "a4c726c8b85245115daf4f3e8eab0f571af17cd0e08701fd33abe606fc73197d",
+   "name": "DeleteOrganizerTournament",
+   "type": "mutation",
+   "body": "mutation DeleteOrganizerTournament($esportsTournamentId: String!) {\n  __typename\n  deleteOrganizerTournament(esportsTournamentId: $esportsTournamentId)\n}"
+  },
+  {
+   "id": "c2c3984c2c050f1f9ab54e5fb373e99e645e91cf010ee4a681b80089826b63d2",
+   "name": "DeregisterCompetePlayer",
+   "type": "mutation",
+   "body": "mutation DeregisterCompetePlayer($esportsTournamentId: String!) {\n  __typename\n  deregisterCompetePlayerForTournament(esportsTournamentId: $esportsTournamentId) {\n    __typename\n    acceptedTermsAt\n    esportsTournamentId\n    id\n  }\n}"
+  },
+  {
+   "id": "62e3a8fb957ce9ba6d69daecc208c05e06a6436b8735f0f658a9453c3e7c5602",
+   "name": "Distributors",
+   "type": "query",
+   "body": "query Distributors($countryCode: String) {\n  __typename\n  distributors(countryCode: $countryCode) {\n    __typename\n    company\n    id\n    websiteLink\n  }\n}"
+  },
+  {
+   "id": "de49d7c455017093075e79b537558ee398b84aceab36bb0e1e648a665967d95d",
+   "name": "DropCompetePlayerFromTournament",
+   "type": "mutation",
+   "body": "mutation DropCompetePlayerFromTournament($esportsTournamentId: String!) {\n  __typename\n  dropCompetePlayerFromTournament(esportsTournamentId: $esportsTournamentId)\n}"
+  },
+  {
+   "id": "bb7b8ab46ae79594652ef09f6c1283f6103c610ad05ee2067f6ea58ea5865e80",
+   "name": "DropPlayersAsTournamentOperator",
+   "type": "mutation",
+   "body": "mutation DropPlayersAsTournamentOperator($input: DropPlayersInput!) {\n  __typename\n  dropPlayers(input: $input) {\n    __typename\n    deregisteredPlayerIds\n    droppedPlayerIds\n  }\n}"
+  },
+  {
+   "id": "80740df75cd7148fae22aa75c6070f37a8f16467c992c1eb8fc4711926d0816d",
+   "name": "FavoriteOrganizer",
+   "type": "mutation",
+   "body": "mutation FavoriteOrganizer($organizerId: ID!) {\n  __typename\n  favoriteOrganizer(organizerId: $organizerId)\n}"
+  },
+  {
+   "id": "8186f58c21e12fb11f76e413ba2795d62baf8d21bc422575f3ea34d894edda2f",
+   "name": "FavoritedOrganizers",
+   "type": "query",
+   "body": "query FavoritedOrganizers {\n  __typename\n  favoritedOrganizers {\n    __typename\n    id\n    isFavorited\n    name\n    physicalAddress {\n      __typename\n      formattedAddress\n    }\n  }\n}"
+  },
+  {
+   "id": "94a6508178b9d81ffcdc65a8652d8f4c3b5a204fb7c705f30cf2971167079e7d",
+   "name": "FinalizeRound",
+   "type": "mutation",
+   "body": "mutation FinalizeRound($input: FinalizeRoundInput!) {\n  __typename\n  finalizeRound(input: $input) {\n    __typename\n    esportsTournamentId\n  }\n}"
+  },
+  {
+   "id": "c8ffe362d9e399a84128e4fa2a026d9fdaa72e54741c57d6358ff164863445aa",
+   "name": "GeneratePairings",
+   "type": "mutation",
+   "body": "mutation GeneratePairings($input: GeneratePairingsInput!) {\n  __typename\n  generatePairings(input: $input) {\n    __typename\n    ...CompeteRbTournament\n  }\n}\n\nfragment CompeteRbMatch on CompeteMatch {\n  __typename\n  esportsMatchId\n  games {\n    __typename\n    esportsGameId\n    number\n    teamOutcomes {\n      __typename\n      esportsTeamId\n      outcome\n    }\n  }\n  status\n  tableNumber\n  teamOutcomes {\n    __typename\n    esportsTeamId\n    outcome\n  }\n  teams {\n    __typename\n    ...CompeteRbTeam\n  }\n}\n\nfragment CompeteRbParticipant on CompeteTournamentParticipant {\n  __typename\n  esportsTeamId\n  id\n  player {\n    __typename\n    displayName\n    id\n  }\n  status\n}\n\nfragment CompeteRbRegistrant on TournamentRegistrant {\n  __typename\n  acceptedTermsAt\n  checkedIn\n  id\n  player {\n    __typename\n    displayName\n    id\n    tagLine\n  }\n  status\n  team {\n    __typename\n    id\n  }\n}\n\nfragment CompeteRbRound on CompeteRound {\n  __typename\n  byeTeamIds\n  endOfRoundStandings {\n    __typename\n    esportsTeamId\n    gameWinPercentage\n    matchDraws\n    matchLosses\n    matchPoints\n    matchWins\n    opponentGameWinPercentage\n    opponentMatchWinPercentage\n    rank\n  }\n  matches {\n    __typename\n    ...CompeteRbMatch\n  }\n  roundDuration\n  roundNumber\n  startedAt\n  status\n}\n\nfragment CompeteRbSection on CompeteSection {\n  __typename\n  esportsSectionId\n  rounds {\n    __typename\n    ...CompeteRbRound\n  }\n}\n\nfragment CompeteRbStage on CompeteStage {\n  __typename\n  esportsStageId\n  name\n  sections {\n    __typename\n    ...CompeteRbSection\n  }\n}\n\nfragment CompeteRbTeam on CompeteTeam {\n  __typename\n  esportsTeamId\n  players {\n    __typename\n    displayName\n    id\n  }\n}\n\nfragment CompeteRbTournament on CompeteTournament {\n  __typename\n  checkIn {\n    __typename\n    mode\n  }\n  config {\n    __typename\n    ... on RiftboundTournamentConfig {\n      __typename\n      deckSubmissionPolicy\n      format\n      matchFormat\n      participantCapacity\n      playerFormat\n      roundCount\n      structure\n      tournamentType\n      waitlistCapacity\n      waitlistPromotionPolicy\n    }\n  }\n  description\n  endsAt\n  entryFee {\n    __typename\n    currency\n    minorUnits\n  }\n  id\n  name\n  organizerId\n  pricing\n  registrantCounts {\n    __typename\n    count\n    status\n  }\n  registrationEndAt\n  registrationPolicy\n  registrationStartAt\n  stages {\n    __typename\n    ...CompeteRbStage\n  }\n  startsAt\n  tournamentParticipants {\n    __typename\n    ...CompeteRbParticipant\n  }\n  tournamentProgram {\n    __typename\n    id\n    programName\n  }\n  tournamentRegistrants {\n    __typename\n    ...CompeteRbRegistrant\n  }\n  updatedAt\n  visibility\n}"
+  },
+  {
+   "id": "2e2115a193832160a89de09ab7e26d0faaf8a065596a7a52876b53c9eafffac8",
+   "name": "GetAuthenticatedPlayer",
+   "type": "query",
+   "body": "query GetAuthenticatedPlayer {\n  __typename\n  registeredPlayer {\n    __typename\n    ...PickemsPlayer\n  }\n}\n\nfragment PickemsPlayer on Picker {\n  __typename\n  avatarUrl\n  displayName\n  id\n  ... on CelebrityPlayer {\n    __typename\n    externalUrl\n  }\n}"
+  },
+  {
+   "id": "f4c63fee8a5d82b71bab638d61779f8b3567ebf8499e1e6105b0d9556915d6f9",
+   "name": "GetCompetePlayer",
+   "type": "query",
+   "body": "query GetCompetePlayer($sport: Sport) {\n  __typename\n  competePlayer(sport: $sport) {\n    __typename\n    assets {\n      __typename\n      id\n      playerId\n      type\n      value\n    }\n    displayName\n    id\n    shard\n    tagLine\n    tournamentRealmDisplayNameCurrent\n    tournamentRealmDisplayNameRequested\n    tournamentRealmLogin\n    tournamentRealmPassword\n  }\n}"
+  },
+  {
+   "id": "495a3b955e28b5d3287fe10238d652c6d4c7ba1ca4585bec753d2e68052f67d1",
+   "name": "GetCompetePlayerTournamentCheckIn",
+   "type": "query",
+   "body": "query GetCompetePlayerTournamentCheckIn($esportsTournamentId: String!) {\n  __typename\n  competePlayerForTournament(esportsTournamentId: $esportsTournamentId) {\n    __typename\n    checkedIn\n    checkedInAt\n    id\n    status\n  }\n}"
+  },
+  {
+   "id": "cac0d0d62e82b62fb2fad1270a923a6c826734211538e728f924c7822ea58cdc",
+   "name": "GetCompeteQualificationPlayer",
+   "type": "query",
+   "body": "query GetCompeteQualificationPlayer {\n  __typename\n  competePlayer {\n    __typename\n    displayName\n    id\n    tagLine\n  }\n}"
+  },
+  {
+   "id": "459dbd58b231ad1767b999a1bf987836123ac86a0b5110e166de15b69723ba0d",
+   "name": "GetCompeteRbRefreshPoller",
+   "type": "query",
+   "body": "query GetCompeteRbRefreshPoller($tournamentId: String!) {\n  __typename\n  t: competeTournamentUpdatedAt(esportsTournamentId: $tournamentId) {\n    __typename\n    u: updatedAt\n  }\n}"
+  },
+  {
+   "id": "d89d9b0690706663d95ee9a010e29cc71af904659ff8b27501742a290569fc69",
+   "name": "GetCompeteRbRegistrant",
+   "type": "query",
+   "body": "query GetCompeteRbRegistrant($esportsTournamentId: String!) {\n  __typename\n  competePlayerForTournament(esportsTournamentId: $esportsTournamentId) {\n    __typename\n    checkedIn\n    checkedInAt\n    id\n    player {\n      __typename\n      id\n    }\n    status\n  }\n}"
+  },
+  {
+   "id": "060d2505fce21ce757dc2f9158a2db67c5ed27849f197a2216602577ad28e196",
+   "name": "GetCompeteRegistrant",
+   "type": "query",
+   "body": "query GetCompeteRegistrant($esportsTournamentId: String!) {\n  __typename\n  competePlayerForTournament(esportsTournamentId: $esportsTournamentId) {\n    __typename\n    acceptedTermsAt\n    id\n  }\n}"
+  },
+  {
+   "id": "dd4b98c602663b29c578c08bf6fc3642b5205dfaaa74f7541b251459778a4f60",
+   "name": "GetCompeteSchedule",
+   "type": "query",
+   "body": "query GetCompeteSchedule($after: String, $before: String, $eventTypes: [CompeteTournamentType]!, $first: Int, $last: Int, $milestones: [CompeteScheduleMilestone]!, $region: [TftRegion]!, $sport: Sport!) {\n  __typename\n  competeSchedule(\n    sport: $sport\n    first: $first\n    last: $last\n    before: $before\n    after: $after\n    region: $region\n    eventTypes: $eventTypes\n    milestones: $milestones\n  ) {\n    __typename\n    edges {\n      __typename\n      cursor\n      node {\n        __typename\n        ... on CompeteEventScheduleItem {\n          __typename\n          date\n          esportsStageId\n          esportsTournamentId\n          eventType\n          id\n          regions\n          shards\n          sport\n        }\n        ... on CompeteMilestoneScheduleItem {\n          __typename\n          date\n          esportsTournamentId\n          id\n          milestoneType\n          regions\n          shards\n          sport\n        }\n        ... on CompeteSnapshotScheduleItem {\n          __typename\n          date\n          esportsTournamentId\n          id\n          milestoneType\n          regions\n          shards\n          sport\n        }\n      }\n    }\n    pageInfo {\n      __typename\n      endCursor\n      hasNextPage\n      hasPreviousPage\n      startCursor\n    }\n    totalCount\n  }\n}"
+  },
+  {
+   "id": "6864bdf3499e2d832ab11c6246ae34414646aa128429e8bf792a99031bd460c5",
+   "name": "GetCompeteTournamentForRiftboundAdmin",
+   "type": "query",
+   "body": "query GetCompeteTournamentForRiftboundAdmin($tournamentId: String!) {\n  __typename\n  competeTournamentForOrganizer(esportsTournamentId: $tournamentId) {\n    __typename\n    tournamentLocation {\n      __typename\n      formattedAddress\n      googlePlaceId\n    }\n    tournamentRegistrants {\n      __typename\n      id\n      team {\n        __typename\n        players {\n          __typename\n          displayName\n          id\n          tagLine\n        }\n      }\n    }\n    ...CompeteRbTournament\n  }\n}\n\nfragment CompeteRbMatch on CompeteMatch {\n  __typename\n  esportsMatchId\n  games {\n    __typename\n    esportsGameId\n    number\n    teamOutcomes {\n      __typename\n      esportsTeamId\n      outcome\n    }\n  }\n  status\n  tableNumber\n  teamOutcomes {\n    __typename\n    esportsTeamId\n    outcome\n  }\n  teams {\n    __typename\n    ...CompeteRbTeam\n  }\n}\n\nfragment CompeteRbParticipant on CompeteTournamentParticipant {\n  __typename\n  esportsTeamId\n  id\n  player {\n    __typename\n    displayName\n    id\n  }\n  status\n}\n\nfragment CompeteRbRegistrant on TournamentRegistrant {\n  __typename\n  acceptedTermsAt\n  checkedIn\n  id\n  player {\n    __typename\n    displayName\n    id\n    tagLine\n  }\n  status\n  team {\n    __typename\n    id\n  }\n}\n\nfragment CompeteRbRound on CompeteRound {\n  __typename\n  byeTeamIds\n  endOfRoundStandings {\n    __typename\n    esportsTeamId\n    gameWinPercentage\n    matchDraws\n    matchLosses\n    matchPoints\n    matchWins\n    opponentGameWinPercentage\n    opponentMatchWinPercentage\n    rank\n  }\n  matches {\n    __typename\n    ...CompeteRbMatch\n  }\n  roundDuration\n  roundNumber\n  startedAt\n  status\n}\n\nfragment CompeteRbSection on CompeteSection {\n  __typename\n  esportsSectionId\n  rounds {\n    __typename\n    ...CompeteRbRound\n  }\n}\n\nfragment CompeteRbStage on CompeteStage {\n  __typename\n  esportsStageId\n  name\n  sections {\n    __typename\n    ...CompeteRbSection\n  }\n}\n\nfragment CompeteRbTeam on CompeteTeam {\n  __typename\n  esportsTeamId\n  players {\n    __typename\n    displayName\n    id\n  }\n}\n\nfragment CompeteRbTournament on CompeteTournament {\n  __typename\n  checkIn {\n    __typename\n    mode\n  }\n  config {\n    __typename\n    ... on RiftboundTournamentConfig {\n      __typename\n      deckSubmissionPolicy\n      format\n      matchFormat\n      participantCapacity\n      playerFormat\n      roundCount\n      structure\n      tournamentType\n      waitlistCapacity\n      waitlistPromotionPolicy\n    }\n  }\n  description\n  endsAt\n  entryFee {\n    __typename\n    currency\n    minorUnits\n  }\n  id\n  name\n  organizerId\n  pricing\n  registrantCounts {\n    __typename\n    count\n    status\n  }\n  registrationEndAt\n  registrationPolicy\n  registrationStartAt\n  stages {\n    __typename\n    ...CompeteRbStage\n  }\n  startsAt\n  tournamentParticipants {\n    __typename\n    ...CompeteRbParticipant\n  }\n  tournamentProgram {\n    __typename\n    id\n    programName\n  }\n  tournamentRegistrants {\n    __typename\n    ...CompeteRbRegistrant\n  }\n  updatedAt\n  visibility\n}"
+  },
+  {
+   "id": "49e62f23606100a3bd03c6d7fc3b2d134320aa1c080f0ade8afd095c7e7182bc",
+   "name": "GetCompeteTournamentForRiftboundPlayer",
+   "type": "query",
+   "body": "query GetCompeteTournamentForRiftboundPlayer($tournamentId: String!) {\n  __typename\n  competeTournaments(esportsTournamentIds: [$tournamentId]) {\n    __typename\n    ...CompeteRbTournament\n  }\n}\n\nfragment CompeteRbMatch on CompeteMatch {\n  __typename\n  esportsMatchId\n  games {\n    __typename\n    esportsGameId\n    number\n    teamOutcomes {\n      __typename\n      esportsTeamId\n      outcome\n    }\n  }\n  status\n  tableNumber\n  teamOutcomes {\n    __typename\n    esportsTeamId\n    outcome\n  }\n  teams {\n    __typename\n    ...CompeteRbTeam\n  }\n}\n\nfragment CompeteRbParticipant on CompeteTournamentParticipant {\n  __typename\n  esportsTeamId\n  id\n  player {\n    __typename\n    displayName\n    id\n  }\n  status\n}\n\nfragment CompeteRbRegistrant on TournamentRegistrant {\n  __typename\n  acceptedTermsAt\n  checkedIn\n  id\n  player {\n    __typename\n    displayName\n    id\n    tagLine\n  }\n  status\n  team {\n    __typename\n    id\n  }\n}\n\nfragment CompeteRbRound on CompeteRound {\n  __typename\n  byeTeamIds\n  endOfRoundStandings {\n    __typename\n    esportsTeamId\n    gameWinPercentage\n    matchDraws\n    matchLosses\n    matchPoints\n    matchWins\n    opponentGameWinPercentage\n    opponentMatchWinPercentage\n    rank\n  }\n  matches {\n    __typename\n    ...CompeteRbMatch\n  }\n  roundDuration\n  roundNumber\n  startedAt\n  status\n}\n\nfragment CompeteRbSection on CompeteSection {\n  __typename\n  esportsSectionId\n  rounds {\n    __typename\n    ...CompeteRbRound\n  }\n}\n\nfragment CompeteRbStage on CompeteStage {\n  __typename\n  esportsStageId\n  name\n  sections {\n    __typename\n    ...CompeteRbSection\n  }\n}\n\nfragment CompeteRbTeam on CompeteTeam {\n  __typename\n  esportsTeamId\n  players {\n    __typename\n    displayName\n    id\n  }\n}\n\nfragment CompeteRbTournament on CompeteTournament {\n  __typename\n  checkIn {\n    __typename\n    mode\n  }\n  config {\n    __typename\n    ... on RiftboundTournamentConfig {\n      __typename\n      deckSubmissionPolicy\n      format\n      matchFormat\n      participantCapacity\n      playerFormat\n      roundCount\n      structure\n      tournamentType\n      waitlistCapacity\n      waitlistPromotionPolicy\n    }\n  }\n  description\n  endsAt\n  entryFee {\n    __typename\n    currency\n    minorUnits\n  }\n  id\n  name\n  organizerId\n  pricing\n  registrantCounts {\n    __typename\n    count\n    status\n  }\n  registrationEndAt\n  registrationPolicy\n  registrationStartAt\n  stages {\n    __typename\n    ...CompeteRbStage\n  }\n  startsAt\n  tournamentParticipants {\n    __typename\n    ...CompeteRbParticipant\n  }\n  tournamentProgram {\n    __typename\n    id\n    programName\n  }\n  tournamentRegistrants {\n    __typename\n    ...CompeteRbRegistrant\n  }\n  updatedAt\n  visibility\n}"
+  },
+  {
+   "id": "ffc441a391257dfc0128286a3252a594dd3a02b422d27d2ba80488efd23208d4",
+   "name": "GetCompeteTournamentLadderPointsQualification",
+   "type": "query",
+   "body": "query GetCompeteTournamentLadderPointsQualification($esportsTournamentId: String!, $hl: Locale!, $shard: Shard!) {\n  __typename\n  competeTournamentGrouping(esportsTournamentId: $esportsTournamentId, hl: $hl) {\n    __typename\n    ...CompeteQualificationTournamentGrouping\n  }\n  competeTournamentLadderSchedules(\n    esportsTournamentId: $esportsTournamentId\n    shard: $shard\n    hl: $hl\n  ) {\n    __typename\n    ...CompeteTftLadderScheduleEntry\n  }\n  tftLadderPoints(esportsTournamentId: $esportsTournamentId, shard: $shard) {\n    __typename\n    ...CompeteTftLadderPointsEntry\n  }\n}\n\nfragment CompeteQualificationTournamentGrouping on CompeteTournamentGrouping {\n  __typename\n  groupingName\n  id\n  positionRangeEnd\n  positionRangeStart\n  qualifierEsportsId\n  shard\n  type\n}\n\nfragment CompeteTftLadderPointsEntry on TFTLadderPoints {\n  __typename\n  createdAt\n  displayName\n  id\n  position\n  shard\n  snapshots {\n    __typename\n    createdAt\n    dropped\n    ladderScheduleId\n    points\n  }\n  tagLine\n  totalPoints\n}\n\nfragment CompeteTftLadderScheduleEntry on CompeteTournamentLadderSchedule {\n  __typename\n  id\n  snapshotName\n  snapshotType\n  takeSnapshotAt\n}"
+  },
+  {
+   "id": "af9f1dd75f86c26e31ec4e68ed1d86b7c2f028a74eb3557edd7a27c21b575ea9",
+   "name": "GetCompeteTournamentLadderQualification",
+   "type": "query",
+   "body": "query GetCompeteTournamentLadderQualification($esportsTournamentId: String!, $hl: Locale!, $shard: Shard!) {\n  __typename\n  competeTournamentGrouping(esportsTournamentId: $esportsTournamentId, hl: $hl) {\n    __typename\n    ...CompeteQualificationTournamentGrouping\n  }\n  competeTournamentLadderSchedules(\n    esportsTournamentId: $esportsTournamentId\n    shard: $shard\n    hl: $hl\n  ) {\n    __typename\n    id\n    snapshotType\n    takeSnapshotAt\n  }\n  tftLadderByShardAndTournament(\n    esportsTournamentId: $esportsTournamentId\n    shard: $shard\n  ) {\n    __typename\n    entries {\n      __typename\n      ...CompeteTftLadderEntry\n    }\n  }\n}\n\nfragment CompeteQualificationTournamentGrouping on CompeteTournamentGrouping {\n  __typename\n  groupingName\n  id\n  positionRangeEnd\n  positionRangeStart\n  qualifierEsportsId\n  shard\n  type\n}\n\nfragment CompeteTftLadderEntry on TFTLadderEntry {\n  __typename\n  createdAt\n  date\n  displayName\n  id\n  lp\n  matches\n  position\n  rank\n  tagLine\n  tier\n  top4\n  top4Finish\n}"
+  },
+  {
+   "id": "2ad8eef728daa32c351cb54c512f273a2b575d902877a4b556dccc0a0cfdd7f0",
+   "name": "GetCompeteTournamentQualification",
+   "type": "query",
+   "body": "query GetCompeteTournamentQualification($esportsTournamentId: String!, $hl: Locale!) {\n  __typename\n  competeTournamentGrouping(esportsTournamentId: $esportsTournamentId, hl: $hl) {\n    __typename\n    ...CompeteQualificationTournamentGrouping\n  }\n}\n\nfragment CompeteQualificationTournamentGrouping on CompeteTournamentGrouping {\n  __typename\n  groupingName\n  id\n  positionRangeEnd\n  positionRangeStart\n  qualifierEsportsId\n  shard\n  type\n}"
+  },
+  {
+   "id": "13a421f0e3fd0255e2e1ac4af9a3bf6df6bc7cd99c6f64da09c76201ad54aa58",
+   "name": "GetCompeteTournamentRegistration",
+   "type": "query",
+   "body": "query GetCompeteTournamentRegistration($esportsTournamentId: String!) {\n  __typename\n  competeTournaments(esportsTournamentIds: [$esportsTournamentId]) {\n    __typename\n    competeType\n    endsAt\n    id\n    name\n    registrationEndAt\n    registrationStartAt\n    shards\n    startsAt\n  }\n}"
+  },
+  {
+   "id": "745fb68848143b4d7b8ca8991e4a8f596f3fe431b6072a7f3faf36cf658f357d",
+   "name": "GetCompeteTournaments",
+   "type": "query",
+   "body": "query GetCompeteTournaments($hl: Locale!, $tournamentsId: [ID]) {\n  __typename\n  tournaments(hl: $hl, id: $tournamentsId) {\n    __typename\n    ...CompeteTournament\n  }\n}\n\nfragment CompeteTournament on Tournament {\n  __typename\n  awards {\n    __typename\n    description\n    placement\n    points\n    title\n  }\n  awardsDescription\n  competeType\n  description\n  endTime\n  id\n  league {\n    __typename\n    id\n    name\n    slug\n  }\n  name\n  phases {\n    __typename\n    description\n    title\n  }\n  phasesDescription\n  registrationEndAt\n  registrationStartAt\n  season {\n    __typename\n    id\n  }\n  shards\n  split {\n    __typename\n    id\n    name\n    slug\n    tournaments {\n      __typename\n      id\n      name\n    }\n  }\n  stages {\n    __typename\n    displayState\n    id\n    name\n    sections {\n      __typename\n      matches {\n        __typename\n        id\n        state\n      }\n      name\n      type\n    }\n    slug\n  }\n  startTime\n  state\n  participants: tournamentParticipants {\n    __typename\n    ...TournamentParticipant\n  }\n}\n\nfragment TournamentParticipant on CompeteTournamentParticipant {\n  __typename\n  id\n  player {\n    __typename\n    displayName\n    id\n    shard\n    tagLine\n    trDisplayName: tournamentRealmDisplayNameCurrent\n    type\n  }\n  points\n  position\n  qualifierEsportsId\n  qualifierType\n  type\n}"
+  },
+  {
+   "id": "2b930d5d648f723d4ff60bd4c7695bccde254f4826c10a4b4ec76cc68a7f5804",
+   "name": "GetCompeteUser",
+   "type": "query",
+   "body": "query GetCompeteUser {\n  __typename\n  competeUser {\n    __typename\n    displayName\n    flags\n    shard\n    tagLine\n  }\n}"
+  },
+  {
+   "id": "ba7d42da027a0c02adde9aa3b7c83b06d223a6236ec349cfca123d67e95bfe31",
+   "name": "GetCrystalBallPlayerPicks",
+   "type": "query",
+   "body": "query GetCrystalBallPlayerPicks($eldsTournamentId: String!, $playerId: String!) {\n  __typename\n  crystalBallPlayerPicks(eldsTournamentId: $eldsTournamentId, playerId: $playerId) {\n    __typename\n    pickemPlayerId\n    promptPicks {\n      __typename\n      ...CrystalBallPlayerPickFields\n    }\n  }\n}\n\nfragment CrystalBallPlayerPickFields on CrystalBallPromptChoice {\n  __typename\n  choiceTierPoints\n  promptChoiceId\n  promptId\n}"
+  },
+  {
+   "id": "4bbd0448fcb6c2942c17114caae01729327b7e7f077f700b1faa1e00d17ebbb5",
+   "name": "GetCrystalBallPlayerStats",
+   "type": "query",
+   "body": "query GetCrystalBallPlayerStats($eldsTournamentId: String!, $playerId: String) {\n  __typename\n  playerStats(eldsTournamentId: $eldsTournamentId, playerId: $playerId) {\n    __typename\n    crystalBallPoints\n    globalCrystalBallRankPercent\n    id\n    playerId\n  }\n}"
+  },
+  {
+   "id": "0536fbdfd57368bba80b9a27e40e05f45c02fb0dcc0200939b91208a8272969d",
+   "name": "GetCrystalBallPrompts",
+   "type": "query",
+   "body": "query GetCrystalBallPrompts($eldsTournamentId: String!, $hl: Locale) {\n  __typename\n  crystalBallPrompts(eldsTournamentId: $eldsTournamentId, hl: $hl) {\n    __typename\n    id\n    prompts {\n      __typename\n      ...CrystalBallPromptFields\n    }\n  }\n}\n\nfragment CrystalBallChoiceFields on CrystalBallPromptChoice {\n  __typename\n  answer {\n    __typename\n    metaValue\n    playableId\n    playerValue {\n      __typename\n      handle\n      homeTeam {\n        __typename\n        code\n        image\n        name\n      }\n      id\n      image\n    }\n    questionState\n    questionType\n    teamValue {\n      __typename\n      backgroundImage\n      code\n      homeLeague {\n        __typename\n        image\n        name\n      }\n      image\n      name\n    }\n  }\n  choiceTierPoints\n  promptChoiceId\n  promptChoicePlacement\n  promptId\n}\n\nfragment CrystalBallPromptFields on CrystalBallPrompt {\n  __typename\n  id\n  promptChoiceTiers\n  promptChoices {\n    __typename\n    ...CrystalBallChoiceFields\n  }\n  promptId\n  promptPlacement\n  promptState\n  promptType\n  questionTitle\n}"
+  },
+  {
+   "id": "2fcd46d416d3ed7ab7c9120f72a151a789c1a76703c6b28c8cd74576def03fa0",
+   "name": "GetDrops",
+   "type": "query",
+   "body": "query GetDrops($hl: String!, $site: String, $year: Int) {\n  __typename\n  earnedDrops(locale: $hl, year: $year, site: $site) {\n    __typename\n    ...Drop\n  }\n}\n\nfragment Drop on EarnedDrop {\n  __typename\n  cappedDrop\n  dropsetDescription\n  dropsetImages {\n    __typename\n    cardUrl\n    notificationUrl\n  }\n  dropsetTitle\n  id\n  inventory {\n    __typename\n    ...DropInventoryItem\n  }\n  leagueID\n  numberOfFansUnlocked\n  rarity {\n    __typename\n    ...DropRarity\n  }\n  sponsor\n  sponsorImages {\n    __typename\n    cardOverlayUrl\n    presentedByUrl\n  }\n  unlockedDateMillis\n}\n\nfragment DropInventoryItem on Inventory {\n  __typename\n  fulfillmentStatus\n  localizedInventory {\n    __typename\n    description {\n      __typename\n      locale\n      localizationString\n    }\n    inventory {\n      __typename\n      createdDateEpochMillis\n      descriptionKey\n      dropType\n      gameItemID\n      id\n      imageUrl\n      internalTitle\n      itemType\n      psaType\n      quantity\n      status\n      storeType\n      titleKey\n    }\n    title {\n      __typename\n      locale\n      localizationString\n    }\n  }\n  promoCode\n}\n\nfragment DropRarity on Rarity {\n  __typename\n  badgeBackgroundColor\n  badgeForegroundColor\n  isRare\n  styleDeclaration\n  type\n}"
+  },
+  {
+   "id": "437528049ec6ae7f4770cd8e5ad39fe0b2e891eeccbef5ef873608997e15adf0",
+   "name": "GetDropsLeagues",
+   "type": "query",
+   "body": "query GetDropsLeagues($hl: Locale!, $id: [ID]) {\n  __typename\n  leagues(hl: $hl, id: $id) {\n    __typename\n    ...DropLeague\n  }\n}\n\nfragment DropLeague on League {\n  __typename\n  id\n  image\n  name\n  slug\n}"
+  },
+  {
+   "id": "e1096b278a7abbd7ab4264a60d21f17c7680c5a92934b7722ff14e4e71684a19",
+   "name": "GetEarnedDrop",
+   "type": "query",
+   "body": "query GetEarnedDrop($dropId: String!, $locale: String) {\n  __typename\n  earnedDrop(dropId: $dropId, locale: $locale) {\n    __typename\n    ...Drop\n  }\n}\n\nfragment Drop on EarnedDrop {\n  __typename\n  cappedDrop\n  dropsetDescription\n  dropsetImages {\n    __typename\n    cardUrl\n    notificationUrl\n  }\n  dropsetTitle\n  id\n  inventory {\n    __typename\n    ...DropInventoryItem\n  }\n  leagueID\n  numberOfFansUnlocked\n  rarity {\n    __typename\n    ...DropRarity\n  }\n  sponsor\n  sponsorImages {\n    __typename\n    cardOverlayUrl\n    presentedByUrl\n  }\n  unlockedDateMillis\n}\n\nfragment DropInventoryItem on Inventory {\n  __typename\n  fulfillmentStatus\n  localizedInventory {\n    __typename\n    description {\n      __typename\n      locale\n      localizationString\n    }\n    inventory {\n      __typename\n      createdDateEpochMillis\n      descriptionKey\n      dropType\n      gameItemID\n      id\n      imageUrl\n      internalTitle\n      itemType\n      psaType\n      quantity\n      status\n      storeType\n      titleKey\n    }\n    title {\n      __typename\n      locale\n      localizationString\n    }\n  }\n  promoCode\n}\n\nfragment DropRarity on Rarity {\n  __typename\n  badgeBackgroundColor\n  badgeForegroundColor\n  isRare\n  styleDeclaration\n  type\n}"
+  },
+  {
+   "id": "bff37c8af0c99b89d19bceb1e376d71bd059afff6b913892e644503c2532b9f3",
+   "name": "GetFactionMemberLeaderboard",
+   "type": "query",
+   "body": "query GetFactionMemberLeaderboard($factionId: String!) {\n  __typename\n  factionMemberLeaderboard(factionId: $factionId) {\n    __typename\n    topPlayers {\n      __typename\n      ...PickemsStanding\n    }\n    ...FactionLeaderboardEntry\n  }\n}\n\nfragment Faction on Faction {\n  __typename\n  host {\n    __typename\n    ...FactionHost\n  }\n  iconUrl\n  id\n  name\n  playerCount\n  region\n  rewardId\n  teamId\n}\n\nfragment FactionHost on CelebrityPlayer {\n  __typename\n  avatarUrl\n  displayName\n  externalUrl\n  id\n}\n\nfragment FactionLeaderboardEntry on FactionLeaderboardEntry {\n  __typename\n  averagePoints\n  faction {\n    __typename\n    ...Faction\n  }\n  factionScoreHistogram {\n    __typename\n    count\n    score\n  }\n  hostRank\n  hostScore\n  playerCount\n  rank\n}\n\nfragment PickemsPlayer on Picker {\n  __typename\n  avatarUrl\n  displayName\n  id\n  ... on CelebrityPlayer {\n    __typename\n    externalUrl\n  }\n}\n\nfragment PickemsStanding on LeaderboardStanding {\n  __typename\n  player {\n    __typename\n    ...PickemsPlayer\n  }\n  points\n  rank\n}"
+  },
+  {
+   "id": "ef89de331fd084289bd37cb79c4235b38a615865400b0d208bd45187fc66ce1f",
+   "name": "GetFactions",
+   "type": "query",
+   "body": "query GetFactions($hl: Locale!, $tournamentId: ID!) {\n  __typename\n  factions(tournamentId: $tournamentId, hl: $hl) {\n    __typename\n    ...Faction\n  }\n}\n\nfragment Faction on Faction {\n  __typename\n  host {\n    __typename\n    ...FactionHost\n  }\n  iconUrl\n  id\n  name\n  playerCount\n  region\n  rewardId\n  teamId\n}\n\nfragment FactionHost on CelebrityPlayer {\n  __typename\n  avatarUrl\n  displayName\n  externalUrl\n  id\n}"
+  },
+  {
+   "id": "711b21441db89212642f5e50584bd019988f21452f14acf15a1a1a62a947cc01",
+   "name": "GetFactionsLeaderboard",
+   "type": "query",
+   "body": "query GetFactionsLeaderboard($tournamentId: String!) {\n  __typename\n  factionLeaderboard(tournamentId: $tournamentId) {\n    __typename\n    factions {\n      __typename\n      ...FactionLeaderboardEntry\n    }\n    lastUpdated\n    totalFactions\n  }\n}\n\nfragment Faction on Faction {\n  __typename\n  host {\n    __typename\n    ...FactionHost\n  }\n  iconUrl\n  id\n  name\n  playerCount\n  region\n  rewardId\n  teamId\n}\n\nfragment FactionHost on CelebrityPlayer {\n  __typename\n  avatarUrl\n  displayName\n  externalUrl\n  id\n}\n\nfragment FactionLeaderboardEntry on FactionLeaderboardEntry {\n  __typename\n  averagePoints\n  faction {\n    __typename\n    ...Faction\n  }\n  factionScoreHistogram {\n    __typename\n    count\n    score\n  }\n  hostRank\n  hostScore\n  playerCount\n  rank\n}"
+  },
+  {
+   "id": "c749e5ac23bd1614867cd86a8fc0eefec4b448bd986b2614e1ed7f85dfa2107f",
+   "name": "GetGprSeasons",
+   "type": "query",
+   "body": "query GetGprSeasons($hl: Locale!, $sport: Sport) {\n  __typename\n  seasons(hl: $hl, sport: [$sport]) {\n    __typename\n    ...GprSeason\n  }\n}\n\nfragment GprSeason on Season {\n  __typename\n  endTime\n  id\n  name\n  slug\n  splits {\n    __typename\n    endTime\n    id\n    name\n    slug\n    startTime\n  }\n  sport\n  startTime\n}"
+  },
+  {
+   "id": "a16c0e02797e8becb5473ed9c460e0aced1f7d3e0081d126deb54983a177c4b9",
+   "name": "GetLeagueElo",
+   "type": "query",
+   "body": "query GetLeagueElo($endDate: String, $hl: Locale!, $sport: Sport, $startDate: String) {\n  __typename\n  leagueELO(hl: $hl, startDate: $startDate, endDate: $endDate, sport: $sport) {\n    __typename\n    currentYearRecord {\n      __typename\n      losses\n      wins\n    }\n    dateCalculated\n    id\n    league {\n      __typename\n      id\n      image\n      name\n      slug\n    }\n    leagueElo\n    previousYearRecord {\n      __typename\n      losses\n      wins\n    }\n  }\n}"
+  },
+  {
+   "id": "e06ed3941b8e323d4aa8f47ff0d1548f95a9bd0f9d5213cfcd726364b67003a6",
+   "name": "GetLoLTeamEvents",
+   "type": "query",
+   "body": "query GetLoLTeamEvents($eventDateEnd: Date, $eventDateStart: Date, $eventState: [EventState], $eventType: EventType, $hl: Locale!, $pageSize: Int, $sport: [Sport], $teamId: [ID]) {\n  __typename\n  esports(\n    hl: $hl\n    sport: $sport\n    teamId: $teamId\n    eventState: $eventState\n    eventType: $eventType\n    eventDateStart: $eventDateStart\n    eventDateEnd: $eventDateEnd\n    pageSize: $pageSize\n  ) {\n    __typename\n    events {\n      __typename\n      ...LoLTeamEventMatch\n    }\n  }\n}\n\nfragment LoLTeamEventMatch on EventMatch {\n  __typename\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    name\n    slug\n  }\n  match {\n    __typename\n    id\n  }\n  matchTeams {\n    __typename\n    code\n    id\n    image\n    name\n  }\n  startTime\n  state\n}"
+  },
+  {
+   "id": "a4dfb316d714a9dc7792563159695b39791a9ab506b09391b16cd0aa5d2d619a",
+   "name": "GetLoLTeamOverview",
+   "type": "query",
+   "body": "query GetLoLTeamOverview($hl: Locale!, $sport: [Sport], $teamId: [ID]) {\n  __typename\n  teams(hl: $hl, sport: $sport, id: $teamId) {\n    __typename\n    ...LoLOverviewTeam\n  }\n}\n\nfragment LoLOverviewTeam on Team {\n  __typename\n  backgroundImage\n  code\n  homeLeague {\n    __typename\n    id\n    image\n    name\n    region\n    slug\n  }\n  id\n  image\n  name\n  players {\n    __typename\n    firstName\n    handle\n    id\n    image\n    lastName\n    role\n    summonerName\n  }\n  slug\n}"
+  },
+  {
+   "id": "918ac934ed5fe11fdc3258d103140baee11bebd11ffd0dff3b9cf7cc8191a74d",
+   "name": "GetOrgSignTermsVersions",
+   "type": "query",
+   "body": "query GetOrgSignTermsVersions($documentType: String!, $hl: String!) {\n  __typename\n  allRbEsportsDocument(\n    limit: 1\n    where: {documentType: {eq: $documentType}, language: {eq: $hl}}\n    sort: {documentVersion: DESC}\n  ) {\n    __typename\n    documentVersion\n  }\n  fallbackAllRbEsportsDocument: allRbEsportsDocument(\n    limit: 1\n    where: {documentType: {eq: $documentType}, language: {eq: \"en-us\"}}\n    sort: {documentVersion: DESC}\n  ) {\n    __typename\n    documentVersion\n  }\n  organizerDetail {\n    __typename\n    application {\n      __typename\n      acceptedTermsVersion\n      id\n    }\n    applicationStatus\n    id\n    organizerStatus\n  }\n}"
+  },
+  {
+   "id": "5f631e634d5b0d01a02103a1e8a8c6f0c8dc9dabde2d4755934b9248b89f6b91",
+   "name": "GetOrganizerApplicationDetail",
+   "type": "query",
+   "body": "query GetOrganizerApplicationDetail {\n  __typename\n  organizerDetail {\n    __typename\n    application {\n      __typename\n      bizTaxId\n      distributorId\n      email\n      eoriNumber\n      id\n      mailingAddress {\n        __typename\n        adminArea1\n        adminArea2\n        city\n        countryCode\n        formattedAddress\n        googlePlaceId\n        latitude\n        line1\n        line2\n        longitude\n        postalCode\n      }\n      orgId\n      orgName\n      orgType\n      ownerInfo {\n        __typename\n        email\n        firstName\n        lastName\n        phone {\n          __typename\n          countryDialingCode\n          number\n        }\n        preferredLanguage\n      }\n      phone {\n        __typename\n        countryDialingCode\n        number\n      }\n      physicalAddress {\n        __typename\n        adminArea1\n        adminArea2\n        city\n        countryCode\n        formattedAddress\n        googlePlaceId\n        latitude\n        line1\n        line2\n        longitude\n        postalCode\n      }\n      preferredSocialPlatform\n      socialPlatforms {\n        __typename\n        link\n        platform\n      }\n      taxRegistrationNumber\n      website\n    }\n    applicationStatus\n    decisionReason\n    id\n    organizerStatus\n    role\n    staff {\n      __typename\n      displayName\n      firstName\n      id\n      lastName\n      riotId\n      role\n      status\n      tagLine\n    }\n  }\n}"
+  },
+  {
+   "id": "5d0ba93a37395b2211ee30db0436abaf790e80f6de62267ed42384d5b725c248",
+   "name": "GetOrganizerMemberships",
+   "type": "query",
+   "body": "query GetOrganizerMemberships {\n  __typename\n  organizerMemberships {\n    __typename\n    applicationStatus\n    membershipStatus\n    orgId\n    orgName\n    role\n    status\n  }\n}"
+  },
+  {
+   "id": "69477b07c997328f2e4c5eb554e1b4aad838c1d93eaecb4c501178a9826c707e",
+   "name": "GetOrganizerTournamentCheckIn",
+   "type": "query",
+   "body": "query GetOrganizerTournamentCheckIn($esportsTournamentId: String!) {\n  __typename\n  organizerTournamentCheckIn(esportsTournamentId: $esportsTournamentId) {\n    __typename\n    accessCode\n    mode\n  }\n}"
+  },
+  {
+   "id": "5f0448cc6f85a512abeaccb57252bfbfec62f1fd6dcb9f64fbe866178caec6de",
+   "name": "GetOrganizerTournamentPrograms",
+   "type": "query",
+   "body": "query GetOrganizerTournamentPrograms {\n  __typename\n  organizerTournamentPrograms {\n    __typename\n    config {\n      __typename\n      ... on RiftboundTournamentProgramConfig {\n        __typename\n        tournamentFormats\n        riftboundTournamentType: tournamentType\n      }\n      ... on TftTournamentProgramConfig {\n        __typename\n        tftTournamentType: tournamentType\n      }\n    }\n    id\n    matchFormats\n    organizerRegistrationEndAt\n    organizerRegistrationStartAt\n    playerFormats\n    programName\n    remainingTournamentsAllowed\n    sport\n    tournamentSchedulingEndAt\n    tournamentSchedulingStartAt\n    tournamentStructures\n  }\n}"
+  },
+  {
+   "id": "5f506855940b63b610e11723acb1f22565a1dec54e2551bf876177a643a4e142",
+   "name": "GetOrganizerTournaments",
+   "type": "query",
+   "body": "query GetOrganizerTournaments($after: String, $first: Int, $includePast: Boolean!, $includeUpcoming: Boolean!) {\n  __typename\n  organizerTournaments {\n    __typename\n    past(first: $first, after: $after) @include(if: $includePast) {\n      __typename\n      edges {\n        __typename\n        node {\n          __typename\n          ...CompeteRbAdminTournamentListItem\n        }\n      }\n      pageInfo {\n        __typename\n        endCursor\n        hasNextPage\n      }\n    }\n    upcoming(first: $first, after: $after) @include(if: $includeUpcoming) {\n      __typename\n      edges {\n        __typename\n        node {\n          __typename\n          ...CompeteRbAdminTournamentListItem\n        }\n      }\n      pageInfo {\n        __typename\n        endCursor\n        hasNextPage\n      }\n    }\n  }\n}\n\nfragment CompeteRbAdminTournamentListItem on CompeteTournament {\n  __typename\n  config {\n    __typename\n    ... on RiftboundTournamentConfig {\n      __typename\n      matchFormat\n      participantCapacity\n      structure\n      tournamentType\n    }\n  }\n  id\n  name\n  registrantCounts {\n    __typename\n    count\n    status\n  }\n  startsAt\n}"
+  },
+  {
+   "id": "2e10f3933c6196c549d910dcf8b5df918b00c0840305537b35b2ae94f94c9201",
+   "name": "GetOtherLeagues",
+   "type": "query",
+   "body": "query GetOtherLeagues($locale: Locale!, $sport: Sport) {\n  __typename\n  leagues(hl: $locale, sport: [$sport]) {\n    __typename\n    darkImage\n    displayPriority {\n      __typename\n      position\n    }\n    id\n    image\n    name\n    region\n    slug\n    tournaments {\n      __typename\n      endTime\n      id\n      name\n      season {\n        __typename\n        endTime\n        id\n        name\n        startTime\n      }\n      slug\n      split {\n        __typename\n        id\n      }\n      stages {\n        __typename\n        displayState\n        id\n      }\n      startTime\n    }\n  }\n}"
+  },
+  {
+   "id": "02d20d91566ca8ed27d40e5a26f57355f28c2c71955cec8c3ee754d1cc8e3162",
+   "name": "GetPickemsEarnedRewards",
+   "type": "query",
+   "body": "query GetPickemsEarnedRewards($locale: String!, $site: String!, $tournamentId: String!) {\n  __typename\n  earnedReward(locale: $locale, tournament: $tournamentId, site: $site) {\n    __typename\n    groupID\n    id\n  }\n}"
+  },
+  {
+   "id": "5db4d040636085ded8987e121c6eecc3381cf99e8174064f2fcd18b00cbe50ba",
+   "name": "GetPickemsGlobalLeaderboardStats",
+   "type": "query",
+   "body": "query GetPickemsGlobalLeaderboardStats($gameType: GameType!, $tournamentId: String!) {\n  __typename\n  globalLeaderboardStats(tournamentId: $tournamentId, gameType: $gameType) {\n    __typename\n    currentPerfectScore\n    scoreHistogram {\n      __typename\n      count\n      score\n    }\n    tierScores {\n      __typename\n      cutoffScore\n      name\n      reward\n      reward\n    }\n  }\n}"
+  },
+  {
+   "id": "1ff3bb0e832c33d63fdf0345c42b741025edbcfd7cebd79cd61405c6dcc3326f",
+   "name": "GetPickemsLeadboardFactionsSummaries",
+   "type": "query",
+   "body": "query GetPickemsLeadboardFactionsSummaries($leaderboardTypes: [LeaderboardType!]!, $playerId: String, $tournamentId: String!) {\n  __typename\n  leaderboardSummaries(\n    tournamentId: $tournamentId\n    playerId: $playerId\n    leaderboardTypes: $leaderboardTypes\n  ) {\n    __typename\n    displayName\n    leaderboardType\n    numberOfParticipants\n    ... on FactionLeaderboardSummary {\n      __typename\n      faction {\n        __typename\n        id\n      }\n      playerStats {\n        __typename\n        ...PickemsPlayerLeaderboardStats\n      }\n    }\n  }\n}\n\nfragment PickemsPlayerLeaderboardStats on PlayerLeaderboardStats {\n  __typename\n  points\n  rank\n  rankPercent\n}"
+  },
+  {
+   "id": "c9e262e1a9948d30ad70ad2cb2985c954b7947663ccd5e20a5a8f038d226fea2",
+   "name": "GetPickemsLeaderboard",
+   "type": "query",
+   "body": "query GetPickemsLeaderboard($gameType: GameType!, $leaderboardId: String, $leaderboardType: LeaderboardType!, $pageSize: Int, $tournamentId: String!) {\n  __typename\n  leaderboard(\n    tournamentId: $tournamentId\n    gameType: $gameType\n    leaderboardType: $leaderboardType\n    leaderboardId: $leaderboardId\n    pageSize: $pageSize\n  ) {\n    __typename\n    displayName\n    id\n    leaderboardState\n    leaderboardType\n    numberOfParticipants\n    standings {\n      __typename\n      ...PickemsStanding\n    }\n  }\n}\n\nfragment PickemsPlayer on Picker {\n  __typename\n  avatarUrl\n  displayName\n  id\n  ... on CelebrityPlayer {\n    __typename\n    externalUrl\n  }\n}\n\nfragment PickemsStanding on LeaderboardStanding {\n  __typename\n  player {\n    __typename\n    ...PickemsPlayer\n  }\n  points\n  rank\n}"
+  },
+  {
+   "id": "6b01e3f2f051997ef92d62a4f5a79860aca3b4f104426a683b6206c94f36cb29",
+   "name": "GetPickemsLeaderboardInvitation",
+   "type": "query",
+   "body": "query GetPickemsLeaderboardInvitation($leaderboardId: String!) {\n  __typename\n  leaderboardInvitation(leaderboardId: $leaderboardId) {\n    __typename\n    id\n  }\n}"
+  },
+  {
+   "id": "1ac0ba191b33018fdd02242782327080307344374a38bd87659c4388779096ae",
+   "name": "GetPickemsLeaderboardSummaries",
+   "type": "query",
+   "body": "query GetPickemsLeaderboardSummaries($leaderboardTypes: [LeaderboardType!]!, $playerId: String, $tournamentId: String!) {\n  __typename\n  leaderboardSummaries(\n    tournamentId: $tournamentId\n    playerId: $playerId\n    leaderboardTypes: $leaderboardTypes\n  ) {\n    __typename\n    displayName\n    leaderboardType\n    numberOfParticipants\n    ... on CelebrityLeaderboardSummary {\n      __typename\n      standings {\n        __typename\n        ...PickemsStanding\n      }\n    }\n    ... on CustomLeaderboardSummary {\n      __typename\n      id\n      playerStats {\n        __typename\n        ...PickemsPlayerLeaderboardStats\n      }\n      state\n    }\n    ... on GlobalLeaderboardSummary {\n      __typename\n      playerStats {\n        __typename\n        ...PickemsPlayerLeaderboardStats\n      }\n    }\n  }\n}\n\nfragment PickemsPlayer on Picker {\n  __typename\n  avatarUrl\n  displayName\n  id\n  ... on CelebrityPlayer {\n    __typename\n    externalUrl\n  }\n}\n\nfragment PickemsPlayerLeaderboardStats on PlayerLeaderboardStats {\n  __typename\n  points\n  rank\n  rankPercent\n}\n\nfragment PickemsStanding on LeaderboardStanding {\n  __typename\n  player {\n    __typename\n    ...PickemsPlayer\n  }\n  points\n  rank\n}"
+  },
+  {
+   "id": "d2b8bc5df115a5d27985d5fd3f63864dcff45cdf4a2d9340e0470b7e7c3b6d2a",
+   "name": "GetPickemsLeagues",
+   "type": "query",
+   "body": "query GetPickemsLeagues($hl: Locale!, $orderBy: TeamOrder) {\n  __typename\n  pickemLeagues(hl: $hl) {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    hl\n    id\n    pickemTournaments {\n      __typename\n      ...PickemsTournament\n    }\n    slug\n    sport\n  }\n}\n\nfragment PickemsLeague on League {\n  __typename\n  id\n  name\n  slug\n}\n\nfragment PickemsPickBlock on PickBlock {\n  __typename\n  blockType\n  id\n  matches {\n    __typename\n    id\n    pickemMatchConfig {\n      __typename\n      baselinePoints\n    }\n    sectionId\n  }\n  pickCloseTime\n  pickOpenTime\n  pickType\n  sections {\n    __typename\n    id\n    scoringConfiguration {\n      __typename\n      ...PickemsScoringConfig\n    }\n  }\n  slug\n  state\n  tournamentId\n}\n\nfragment PickemsScoringConfig on ScoringConfiguration {\n  __typename\n  setting {\n    __typename\n    numberAdvancing\n    numberOfTeams\n    pointsForPerfectPick\n    pointsPerCorrectAdvancing\n    pointsPerExactAdvancingPlacement\n    ... on GroupScoringAdvancingWithTopNSetting {\n      __typename\n      numberOfTopNTeamsToScore\n      pointsPerCorrectTopNTeams\n    }\n    ... on GroupScoringSettingV1 {\n      __typename\n      pointsPerExactNonAdvancing\n    }\n    ... on SwissRecordScoringSetting {\n      __typename\n      recordGroups {\n        __typename\n        ...SwissRecordGroup\n      }\n    }\n  }\n  type\n}\n\nfragment PickemsSectionResult on SectionResult {\n  __typename\n  id\n  lineup {\n    __typename\n    placement\n    teamId\n  }\n}\n\nfragment PickemsTournament on Tournament {\n  __typename\n  eldsLeagueId\n  eldsTournamentId\n  endTime\n  hl\n  id\n  isInteractive: interactive\n  league {\n    __typename\n    ...PickemsLeague\n  }\n  name\n  pickBlocks {\n    __typename\n    ...PickemsPickBlock\n  }\n  pickemTournamentConfig {\n    __typename\n    crystalBallCloseTime\n    crystalBallOpenTime\n    crystalBallState\n    pickemCloseTime\n    pickemOpenTime\n  }\n  pickemTournamentState\n  stages {\n    __typename\n    displayState\n    id\n    name\n    sections {\n      __typename\n      ...PickemsTournamentSection\n    }\n    slug\n  }\n  startTime\n  state\n  tournamentName\n  tournamentResult {\n    __typename\n    matchResults {\n      __typename\n      id\n      winningTeamId\n    }\n    sectionResults {\n      __typename\n      ...PickemsSectionResult\n    }\n  }\n}\n\nfragment PickemsTournamentMatch on Match {\n  __typename\n  description\n  destinations {\n    __typename\n    loss {\n      __typename\n      slot\n      structuralId\n      type\n    }\n    win {\n      __typename\n      slot\n      structuralId\n      type\n    }\n  }\n  id\n  matchTeams(orderBy: $orderBy) {\n    __typename\n    ...PickemsTournamentTeam\n  }\n  state\n  structuralId\n}\n\nfragment PickemsTournamentSection on Section {\n  __typename\n  columns {\n    __typename\n    cells {\n      __typename\n      matches {\n        __typename\n        ...PickemsTournamentMatch\n      }\n      name\n      slug\n    }\n  }\n  id\n  name\n  name\n  slug\n  standings {\n    __typename\n    index\n    placement\n    team {\n      __typename\n      code\n      id\n      image\n    }\n  }\n  type\n  type\n}\n\nfragment PickemsTournamentTeam on MatchTeam {\n  __typename\n  code\n  image\n  name\n  result {\n    __typename\n    gameWins\n    outcome\n  }\n  slug\n  teamId\n}\n\nfragment SwissRecordGroup on SwissRecordPickGroupSetting {\n  __typename\n  losses\n  numberOfTeams\n  points\n  wins\n}"
+  },
+  {
+   "id": "3c3cc0cc1eaa27bb2ae8514ad53364eb738686820e2a45bb43e5690d6c0fce19",
+   "name": "GetPickemsRewardTiers",
+   "type": "query",
+   "body": "query GetPickemsRewardTiers($gameType: GameType, $locale: Locale, $tournamentId: ID!) {\n  __typename\n  rewardTiers(locale: $locale, tournamentId: $tournamentId, gameType: $gameType) {\n    __typename\n    id\n    ...PickemsRewardTiers\n  }\n}\n\nfragment PickemsRewardTiers on RewardTiers {\n  __typename\n  scoreHistogram {\n    __typename\n    count\n    score\n  }\n  tiers {\n    __typename\n    gameType\n    id\n    reward {\n      __typename\n      id\n    }\n    tierLevel\n    ... on ParticipationTierCriteria {\n      __typename\n      id\n    }\n    ... on PercentilePerformanceTierCriteria {\n      __typename\n      minScore\n      playerCount\n      threshold\n    }\n    ... on PerfectTierCriteria {\n      __typename\n      playerCount\n      score\n    }\n    ... on RankedPerformanceTierCriteria {\n      __typename\n      minScore\n      playerCount\n      threshold\n    }\n  }\n}"
+  },
+  {
+   "id": "7fc4e6e6d78666dc44142633013fcd8b0487f3e6bee0ff1fa98476f3b0ba6e5f",
+   "name": "GetPickemsRewards",
+   "type": "query",
+   "body": "query GetPickemsRewards($locale: String!, $site: String!, $tournamentId: String!) {\n  __typename\n  earnableReward(locale: $locale, tournament: $tournamentId, site: $site) {\n    __typename\n    ...PickemsPickemReward\n  }\n}\n\nfragment PickemsPickemReward on EarnableReward {\n  __typename\n  dropsetDescription\n  dropsetTitle\n  id\n  localizedInventory {\n    __typename\n    description {\n      __typename\n      locale\n      localizationString\n    }\n    inventory {\n      __typename\n      id\n      imageUrl\n      quantity\n      status\n    }\n    title {\n      __typename\n      locale\n      localizationString\n    }\n  }\n  rarity {\n    __typename\n    isRare\n    type\n  }\n}"
+  },
+  {
+   "id": "b1f707ab7448d0669b1e3726a19d560a7cbbfd172c3ee5cdb70da5f50ca786cc",
+   "name": "GetPickemsTournament",
+   "type": "query",
+   "body": "query GetPickemsTournament($hl: Locale!, $orderBy: TeamOrder, $tournamentId: [ID!]!) {\n  __typename\n  tournaments(hl: $hl, id: $tournamentId) {\n    __typename\n    ...PickemsTournament\n  }\n}\n\nfragment PickemsLeague on League {\n  __typename\n  id\n  name\n  slug\n}\n\nfragment PickemsPickBlock on PickBlock {\n  __typename\n  blockType\n  id\n  matches {\n    __typename\n    id\n    pickemMatchConfig {\n      __typename\n      baselinePoints\n    }\n    sectionId\n  }\n  pickCloseTime\n  pickOpenTime\n  pickType\n  sections {\n    __typename\n    id\n    scoringConfiguration {\n      __typename\n      ...PickemsScoringConfig\n    }\n  }\n  slug\n  state\n  tournamentId\n}\n\nfragment PickemsScoringConfig on ScoringConfiguration {\n  __typename\n  setting {\n    __typename\n    numberAdvancing\n    numberOfTeams\n    pointsForPerfectPick\n    pointsPerCorrectAdvancing\n    pointsPerExactAdvancingPlacement\n    ... on GroupScoringAdvancingWithTopNSetting {\n      __typename\n      numberOfTopNTeamsToScore\n      pointsPerCorrectTopNTeams\n    }\n    ... on GroupScoringSettingV1 {\n      __typename\n      pointsPerExactNonAdvancing\n    }\n    ... on SwissRecordScoringSetting {\n      __typename\n      recordGroups {\n        __typename\n        ...SwissRecordGroup\n      }\n    }\n  }\n  type\n}\n\nfragment PickemsSectionResult on SectionResult {\n  __typename\n  id\n  lineup {\n    __typename\n    placement\n    teamId\n  }\n}\n\nfragment PickemsTournament on Tournament {\n  __typename\n  eldsLeagueId\n  eldsTournamentId\n  endTime\n  hl\n  id\n  isInteractive: interactive\n  league {\n    __typename\n    ...PickemsLeague\n  }\n  name\n  pickBlocks {\n    __typename\n    ...PickemsPickBlock\n  }\n  pickemTournamentConfig {\n    __typename\n    crystalBallCloseTime\n    crystalBallOpenTime\n    crystalBallState\n    pickemCloseTime\n    pickemOpenTime\n  }\n  pickemTournamentState\n  stages {\n    __typename\n    displayState\n    id\n    name\n    sections {\n      __typename\n      ...PickemsTournamentSection\n    }\n    slug\n  }\n  startTime\n  state\n  tournamentName\n  tournamentResult {\n    __typename\n    matchResults {\n      __typename\n      id\n      winningTeamId\n    }\n    sectionResults {\n      __typename\n      ...PickemsSectionResult\n    }\n  }\n}\n\nfragment PickemsTournamentMatch on Match {\n  __typename\n  description\n  destinations {\n    __typename\n    loss {\n      __typename\n      slot\n      structuralId\n      type\n    }\n    win {\n      __typename\n      slot\n      structuralId\n      type\n    }\n  }\n  id\n  matchTeams(orderBy: $orderBy) {\n    __typename\n    ...PickemsTournamentTeam\n  }\n  state\n  structuralId\n}\n\nfragment PickemsTournamentSection on Section {\n  __typename\n  columns {\n    __typename\n    cells {\n      __typename\n      matches {\n        __typename\n        ...PickemsTournamentMatch\n      }\n      name\n      slug\n    }\n  }\n  id\n  name\n  name\n  slug\n  standings {\n    __typename\n    index\n    placement\n    team {\n      __typename\n      code\n      id\n      image\n    }\n  }\n  type\n  type\n}\n\nfragment PickemsTournamentTeam on MatchTeam {\n  __typename\n  code\n  image\n  name\n  result {\n    __typename\n    gameWins\n    outcome\n  }\n  slug\n  teamId\n}\n\nfragment SwissRecordGroup on SwissRecordPickGroupSetting {\n  __typename\n  losses\n  numberOfTeams\n  points\n  wins\n}"
+  },
+  {
+   "id": "f1b0fd82aab3f02ab9133cf35e1c45b7a3010a613f4ff9608a5e6d8d0526f79e",
+   "name": "GetPickemsTournamentEvents",
+   "type": "query",
+   "body": "query GetPickemsTournamentEvents($hl: Locale!, $sport: [Sport]!, $tournamentId: [ID!]!) {\n  __typename\n  esports(hl: $hl, sport: $sport, tournamentId: $tournamentId) {\n    __typename\n    events {\n      __typename\n      ...PickemsTournamentEvent\n    }\n  }\n}\n\nfragment PickemsTournamentEvent on ScheduledEvent {\n  __typename\n  ... on EventMatch {\n    __typename\n    match {\n      __typename\n      id\n    }\n    startTime\n  }\n}"
+  },
+  {
+   "id": "9f4bbd9ce8a54d8fb8a76241bbf5445e56ee767f2ec2acde74261913d9538985",
+   "name": "GetPickemsTournamentTeams",
+   "type": "query",
+   "body": "query GetPickemsTournamentTeams($hl: Locale!, $tournamentId: [ID]!) {\n  __typename\n  tournaments(id: $tournamentId, hl: $hl) {\n    __typename\n    teams {\n      __typename\n      ...PickemsSimpleTournamentTeam\n    }\n  }\n}\n\nfragment PickemsSimpleTournamentTeam on Team {\n  __typename\n  code\n  id\n  image\n  name\n}"
+  },
+  {
+   "id": "6569ab7eb01403a85e526c9ca169591c33a9fa2b5d42da0e026ef435699ad154",
+   "name": "GetPickemsTournaments",
+   "type": "query",
+   "body": "query GetPickemsTournaments($eldsLeagueIds: [String!], $eldsTournamentIds: [String!], $hl: Locale, $orderBy: TeamOrder, $pickemSport: [PickemSport!]) {\n  __typename\n  pickemTournaments(\n    hl: $hl\n    pickemSport: $pickemSport\n    eldsLeagueIds: $eldsLeagueIds\n    eldsTournamentIds: $eldsTournamentIds\n  ) {\n    __typename\n    ...PickemsTournament\n  }\n}\n\nfragment PickemsLeague on League {\n  __typename\n  id\n  name\n  slug\n}\n\nfragment PickemsPickBlock on PickBlock {\n  __typename\n  blockType\n  id\n  matches {\n    __typename\n    id\n    pickemMatchConfig {\n      __typename\n      baselinePoints\n    }\n    sectionId\n  }\n  pickCloseTime\n  pickOpenTime\n  pickType\n  sections {\n    __typename\n    id\n    scoringConfiguration {\n      __typename\n      ...PickemsScoringConfig\n    }\n  }\n  slug\n  state\n  tournamentId\n}\n\nfragment PickemsScoringConfig on ScoringConfiguration {\n  __typename\n  setting {\n    __typename\n    numberAdvancing\n    numberOfTeams\n    pointsForPerfectPick\n    pointsPerCorrectAdvancing\n    pointsPerExactAdvancingPlacement\n    ... on GroupScoringAdvancingWithTopNSetting {\n      __typename\n      numberOfTopNTeamsToScore\n      pointsPerCorrectTopNTeams\n    }\n    ... on GroupScoringSettingV1 {\n      __typename\n      pointsPerExactNonAdvancing\n    }\n    ... on SwissRecordScoringSetting {\n      __typename\n      recordGroups {\n        __typename\n        ...SwissRecordGroup\n      }\n    }\n  }\n  type\n}\n\nfragment PickemsSectionResult on SectionResult {\n  __typename\n  id\n  lineup {\n    __typename\n    placement\n    teamId\n  }\n}\n\nfragment PickemsTournament on Tournament {\n  __typename\n  eldsLeagueId\n  eldsTournamentId\n  endTime\n  hl\n  id\n  isInteractive: interactive\n  league {\n    __typename\n    ...PickemsLeague\n  }\n  name\n  pickBlocks {\n    __typename\n    ...PickemsPickBlock\n  }\n  pickemTournamentConfig {\n    __typename\n    crystalBallCloseTime\n    crystalBallOpenTime\n    crystalBallState\n    pickemCloseTime\n    pickemOpenTime\n  }\n  pickemTournamentState\n  stages {\n    __typename\n    displayState\n    id\n    name\n    sections {\n      __typename\n      ...PickemsTournamentSection\n    }\n    slug\n  }\n  startTime\n  state\n  tournamentName\n  tournamentResult {\n    __typename\n    matchResults {\n      __typename\n      id\n      winningTeamId\n    }\n    sectionResults {\n      __typename\n      ...PickemsSectionResult\n    }\n  }\n}\n\nfragment PickemsTournamentMatch on Match {\n  __typename\n  description\n  destinations {\n    __typename\n    loss {\n      __typename\n      slot\n      structuralId\n      type\n    }\n    win {\n      __typename\n      slot\n      structuralId\n      type\n    }\n  }\n  id\n  matchTeams(orderBy: $orderBy) {\n    __typename\n    ...PickemsTournamentTeam\n  }\n  state\n  structuralId\n}\n\nfragment PickemsTournamentSection on Section {\n  __typename\n  columns {\n    __typename\n    cells {\n      __typename\n      matches {\n        __typename\n        ...PickemsTournamentMatch\n      }\n      name\n      slug\n    }\n  }\n  id\n  name\n  name\n  slug\n  standings {\n    __typename\n    index\n    placement\n    team {\n      __typename\n      code\n      id\n      image\n    }\n  }\n  type\n  type\n}\n\nfragment PickemsTournamentTeam on MatchTeam {\n  __typename\n  code\n  image\n  name\n  result {\n    __typename\n    gameWins\n    outcome\n  }\n  slug\n  teamId\n}\n\nfragment SwissRecordGroup on SwissRecordPickGroupSetting {\n  __typename\n  losses\n  numberOfTeams\n  points\n  wins\n}"
+  },
+  {
+   "id": "7fe559a7fe693582d28ff1eb444696b3ee21dd94f19b7cd2cc1bc466e60e2d1f",
+   "name": "GetPickemsTournamentsSimple",
+   "type": "query",
+   "body": "query GetPickemsTournamentsSimple($eldsLeagueIds: [String!], $eldsTournamentIds: [String!], $hl: Locale, $pickemSport: [PickemSport!]) {\n  __typename\n  pickemTournaments(\n    hl: $hl\n    pickemSport: $pickemSport\n    eldsLeagueIds: $eldsLeagueIds\n    eldsTournamentIds: $eldsTournamentIds\n  ) {\n    __typename\n    ...PickemsTournamentSimple\n  }\n}\n\nfragment PickemsTournamentSimple on Tournament {\n  __typename\n  endTime\n  hl\n  id\n  isInteractive: interactive\n  league {\n    __typename\n    slug\n  }\n  name\n  pickemTournamentConfig {\n    __typename\n    crystalBallCloseTime\n    crystalBallOpenTime\n    crystalBallState\n    pickemCloseTime\n    pickemOpenTime\n  }\n  pickemTournamentState\n  startTime\n  state\n}"
+  },
+  {
+   "id": "0100b89216207a98cb67ead391dccfc32db93e5a93f018bd14107746ab73c4cc",
+   "name": "GetPlayer",
+   "type": "query",
+   "body": "query GetPlayer($id: String!) {\n  __typename\n  pickemPlayer(playerId: $id) {\n    __typename\n    ...PickemsPlayer\n  }\n}\n\nfragment PickemsPlayer on Picker {\n  __typename\n  avatarUrl\n  displayName\n  id\n  ... on CelebrityPlayer {\n    __typename\n    externalUrl\n  }\n}"
+  },
+  {
+   "id": "2baa21822e3682767667185aea8124d288a66e671a490ab69013c42058a9ffe2",
+   "name": "GetPlayerBracketPicks",
+   "type": "query",
+   "body": "query GetPlayerBracketPicks($pickBlockId: String!, $playerId: String!) {\n  __typename\n  bracketPicks: bracketPicksForPickBlockAndPlayer(\n    pickBlockId: $pickBlockId\n    playerId: $playerId\n  ) {\n    __typename\n    id\n    picks {\n      __typename\n      ...PickemsMatchPick\n    }\n    player {\n      __typename\n      ...PickemsPlayer\n    }\n  }\n}\n\nfragment PickemsMatchPick on MatchPick {\n  __typename\n  correctTeamId\n  id\n  latePenalty\n  matchId\n  pickSource\n  pickedTeamId\n  score\n  state\n}\n\nfragment PickemsPlayer on Picker {\n  __typename\n  avatarUrl\n  displayName\n  id\n  ... on CelebrityPlayer {\n    __typename\n    externalUrl\n  }\n}"
+  },
+  {
+   "id": "2363bc1ab6de84343012a08aec61db3293c6915990f423361a2a8d4b4949eaa8",
+   "name": "GetPlayerRegisteredPickemsTournaments",
+   "type": "query",
+   "body": "query GetPlayerRegisteredPickemsTournaments($hl: Locale!, $pickemSport: [PickemSport!]) {\n  __typename\n  registeredPlayerTournaments(hl: $hl, pickemSport: $pickemSport) {\n    __typename\n    eldsTournamentId\n    hl\n    id\n    sport\n    tournamentName\n  }\n}"
+  },
+  {
+   "id": "f039193e5614a9c18646464643deaf7fc00b2ad7d7b4134b6b1620b579cdfeab",
+   "name": "GetPlayerSectionPicks",
+   "type": "query",
+   "body": "query GetPlayerSectionPicks($pickBlockId: String!, $playerId: String!) {\n  __typename\n  sectionPicks: sectionPicksForPickBlockAndPlayer(\n    pickBlockId: $pickBlockId\n    playerId: $playerId\n  ) {\n    __typename\n    id\n    picks {\n      __typename\n      ...PickemsSectionPick\n    }\n    player {\n      __typename\n      ...PickemsPlayer\n    }\n  }\n}\n\nfragment PickemsPlayer on Picker {\n  __typename\n  avatarUrl\n  displayName\n  id\n  ... on CelebrityPlayer {\n    __typename\n    externalUrl\n  }\n}\n\nfragment PickemsSectionPick on SectionPick {\n  __typename\n  lineup {\n    __typename\n    index\n    pickedTeamId\n  }\n  result {\n    __typename\n    entries {\n      __typename\n      isCorrect\n      pointsAwarded\n      rank\n      teamId\n    }\n    isPerfect\n    perfectPickPoints\n    totalPointsAwarded\n    totalPointsPossible\n  }\n  sectionId\n}"
+  },
+  {
+   "id": "f45eaa1738e0369211e783e856ee1e9697a169b4c600182330d32977fc8be48f",
+   "name": "GetRbDocument",
+   "type": "query",
+   "body": "query GetRbDocument($documentType: String!, $hl: String!) {\n  __typename\n  allRbEsportsDocument(\n    limit: 1\n    where: {documentType: {eq: $documentType}, language: {eq: $hl}}\n    sort: {documentVersion: DESC}\n  ) {\n    __typename\n    documentContent\n    documentType\n    documentVersion\n  }\n  fallbackAllRbEsportsDocument: allRbEsportsDocument(\n    limit: 1\n    where: {documentType: {eq: $documentType}, language: {eq: \"en-us\"}}\n    sort: {documentVersion: DESC}\n  ) {\n    __typename\n    documentContent\n    documentType\n    documentVersion\n  }\n}"
+  },
+  {
+   "id": "61adcfc37e8f6c373fecd44913b8317eaa31b2f430555ecf89bb1f0c0a01445b",
+   "name": "GetRegionalFinalsQualifyingTournament",
+   "type": "query",
+   "body": "query GetRegionalFinalsQualifyingTournament($hl: Locale!, $tournamentIds: [ID]) {\n  __typename\n  tournaments(hl: $hl, id: $tournamentIds) {\n    __typename\n    id\n    league {\n      __typename\n      name\n    }\n    name\n    split {\n      __typename\n      id\n      name\n    }\n    startTime\n  }\n}"
+  },
+  {
+   "id": "90715aea51221ea4414a2da61ddc2b4b4d41704d2d5244530f5f2354cf97d668",
+   "name": "GetRewardsOpting",
+   "type": "query",
+   "body": "query GetRewardsOpting {\n  __typename\n  opting {\n    __typename\n    isOptedOut\n  }\n}"
+  },
+  {
+   "id": "3c772b2d427bdc5659abac775f25659321e38547941ee3eba229a687fe528570",
+   "name": "GetSeason",
+   "type": "query",
+   "body": "query GetSeason($hl: Locale!, $seasonIds: [ID!]!) {\n  __typename\n  seasons(hl: $hl, id: $seasonIds) {\n    __typename\n    id\n    splits {\n      __typename\n      tournaments {\n        __typename\n        id\n        stages {\n          __typename\n          id\n        }\n      }\n    }\n  }\n}"
+  },
+  {
+   "id": "50ee1bb2239cf8e11c89480f54e3bba3c24ac83944e9d80b7a2b1293d8a5f2a4",
+   "name": "GetSeasonForChampionshipPoints",
+   "type": "query",
+   "body": "query GetSeasonForChampionshipPoints($hl: Locale!, $seasonIds: [ID!]) {\n  __typename\n  seasons(hl: $hl, id: $seasonIds) {\n    __typename\n    ...ChampionshipPointsSeason\n  }\n}\n\nfragment ChampionshipPointsHomeLeague on HomeLeague {\n  __typename\n  id\n  name\n}\n\nfragment ChampionshipPointsScore on Score {\n  __typename\n  points\n  team {\n    __typename\n    ...ChampionshipPointsScoreTeam\n  }\n}\n\nfragment ChampionshipPointsScoreTeam on Team {\n  __typename\n  code\n  homeLeague {\n    __typename\n    ...ChampionshipPointsHomeLeague\n  }\n  id\n  image\n  name\n  slug\n}\n\nfragment ChampionshipPointsSeason on Season {\n  __typename\n  splits {\n    __typename\n    ...ChampionshipPointsSplit\n  }\n}\n\nfragment ChampionshipPointsSplit on Split {\n  __typename\n  endTime\n  id\n  name\n  startTime\n  tournaments {\n    __typename\n    ...ChampionshipPointsTournament\n  }\n}\n\nfragment ChampionshipPointsTournament on Tournament {\n  __typename\n  id\n  name\n  scores {\n    __typename\n    ...ChampionshipPointsScore\n  }\n}"
+  },
+  {
+   "id": "648eb6b8cb2f354748640315e16aadd1afacf78e47ca5507c1160cfa44d5d42f",
+   "name": "GetSeasonForNavigation",
+   "type": "query",
+   "body": "query GetSeasonForNavigation($hl: Locale!, $seasonId: [ID!]) {\n  __typename\n  seasons(hl: $hl, id: $seasonId) {\n    __typename\n    description\n    splits {\n      __typename\n      ...NavigationSplit\n    }\n  }\n}\n\nfragment NavigationSplit on Split {\n  __typename\n  endTime\n  id\n  name\n  region\n  slug\n  startTime\n  tournaments {\n    __typename\n    endTime\n    id\n    league {\n      __typename\n      displayPriority {\n        __typename\n        position\n        status\n      }\n      id\n      image\n      name\n      region\n      regionSlug\n    }\n    name\n    startTime\n  }\n}"
+  },
+  {
+   "id": "8ab1eaac8b86ac529ce6fe76cd8b84a896dc23ee6b96551685107bb592bd9e56",
+   "name": "GetSeasonLeagues",
+   "type": "query",
+   "body": "query GetSeasonLeagues($hl: Locale!, $seasonId: ID!) {\n  __typename\n  seasons(hl: $hl, id: [$seasonId]) {\n    __typename\n    splits {\n      __typename\n      tournaments {\n        __typename\n        id\n        league {\n          __typename\n          id\n          region\n          regionSlug\n        }\n      }\n    }\n  }\n}"
+  },
+  {
+   "id": "b7c6bbd6a890c76a9592f2df26ca32a28399b79beceee85ca2d5fefb4f083756",
+   "name": "GetSeasonPoints",
+   "type": "query",
+   "body": "query GetSeasonPoints($hl: String!, $seasonId: String!) {\n  __typename\n  allTftEsportsSeason(limit: 1, where: {id: {eq: $seasonId}, language: {eq: $hl}}) {\n    __typename\n    ...SeasonPointsFragment\n  }\n}\n\nfragment SeasonPointsFragment on TftEsportsSeason {\n  __typename\n  name\n  pointsAboutDescription\n  pointsAboutName\n  pointsHeaderDescription\n  pointsHeaderName\n  pointsSeedingDescription\n  pointsSeedingName\n  pointsTableDescription\n  pointsTableName\n  proPointsTableOrder\n  seedingGroups {\n    __typename\n    description\n    startPosition\n    title\n  }\n}"
+  },
+  {
+   "id": "1b5a17d767e7b415b56d2319238468791089bc25cb782138697ae5eefbbea668",
+   "name": "GetSeasonStage",
+   "type": "query",
+   "body": "query GetSeasonStage($hl: Locale!, $orderBy: TeamOrder, $stageIds: [ID!]!) {\n  __typename\n  stages(hl: $hl, id: $stageIds) {\n    __typename\n    ...SeasonTournamentStage\n  }\n}\n\nfragment SeasonStageDestination on StageDestination {\n  __typename\n  slot\n  structuralId\n  type\n}\n\nfragment SeasonTournamentMatch on Match {\n  __typename\n  description\n  destinations {\n    __typename\n    loss {\n      __typename\n      slot\n      structuralId\n      type\n    }\n    win {\n      __typename\n      slot\n      structuralId\n      type\n    }\n  }\n  flags\n  id\n  matchTeams(orderBy: $orderBy) {\n    __typename\n    ...SeasonTournamentTeam\n  }\n  state\n  structuralId\n  type\n}\n\nfragment SeasonTournamentRankingTeam on Team {\n  __typename\n  code\n  id\n  image\n  name\n  record {\n    __typename\n    losses\n    ties\n    wins\n  }\n  slug\n}\n\nfragment SeasonTournamentSection on Section {\n  __typename\n  columns {\n    __typename\n    cells {\n      __typename\n      matches {\n        __typename\n        ...SeasonTournamentMatch\n      }\n      name\n      slug\n    }\n  }\n  id\n  name\n  name\n  rankings {\n    __typename\n    ordinal\n    teams {\n      __typename\n      ...SeasonTournamentRankingTeam\n    }\n  }\n  slug\n  standings {\n    __typename\n    index\n    placement\n    team {\n      __typename\n      code\n      id\n      image\n      name\n      record {\n        __typename\n        losses\n        ties\n        wins\n      }\n      result {\n        __typename\n        gameWins\n        outcome\n      }\n      slug\n    }\n  }\n  type\n  type\n}\n\nfragment SeasonTournamentStage on Stage {\n  __typename\n  destinations {\n    __typename\n    ...SeasonStageDestination\n  }\n  displayState\n  id\n  name\n  sections {\n    __typename\n    ...SeasonTournamentSection\n  }\n  slug\n}\n\nfragment SeasonTournamentTeam on MatchTeam {\n  __typename\n  code\n  image\n  name\n  result {\n    __typename\n    gameWins\n    outcome\n  }\n  slug\n  teamId\n}"
+  },
+  {
+   "id": "dd3ce612ef6eaa0abc8b8b255a9ae45cc8c363f21107472a334e0bd428f4fc00",
+   "name": "GetSeasonTournament",
+   "type": "query",
+   "body": "query GetSeasonTournament($hl: Locale!, $tournamentId: [ID!]) {\n  __typename\n  tournaments(hl: $hl, id: $tournamentId) {\n    __typename\n    awards {\n      __typename\n      description\n      placement\n      points\n      title\n    }\n    awardsDescription\n    description\n    endTime\n    id\n    league {\n      __typename\n      id\n      image\n      name\n      region\n      slug\n    }\n    name\n    phases {\n      __typename\n      description\n      title\n    }\n    phasesDescription\n    players {\n      __typename\n      ...HandbookPlayer\n    }\n    scores {\n      __typename\n      points\n      team {\n        __typename\n        code\n        id\n        image\n        name\n      }\n    }\n    season {\n      __typename\n      id\n    }\n    split {\n      __typename\n      id\n      name\n      region\n      regionSlug\n      slug\n      tournaments {\n        __typename\n        id\n        name\n      }\n    }\n    stages {\n      __typename\n      displayState\n      id\n      name\n      sections {\n        __typename\n        matches {\n          __typename\n          id\n          state\n        }\n        name\n        type\n      }\n      slug\n    }\n    startTime\n    state\n    teams {\n      __typename\n      ...HandbookTeam\n    }\n  }\n}\n\nfragment HandbookPlayer on Player {\n  __typename\n  handle\n  id\n  image\n}\n\nfragment HandbookTeam on Team {\n  __typename\n  code\n  homeLeague {\n    __typename\n    id\n    image\n    name\n    slug\n  }\n  id\n  image\n  name\n  slug\n}"
+  },
+  {
+   "id": "708d9dedda96c2a21518f4bf7a548b40e750f96394dc72135c2cace7086babfd",
+   "name": "GetSeasonTournamentDisplay",
+   "type": "query",
+   "body": "query GetSeasonTournamentDisplay($hl: Locale!, $orderBy: TeamOrder, $tournamentId: [ID!]!) {\n  __typename\n  tournaments(hl: $hl, id: $tournamentId) {\n    __typename\n    ...SeasonTournament\n  }\n}\n\nfragment SeasonStageDestination on StageDestination {\n  __typename\n  slot\n  structuralId\n  type\n}\n\nfragment SeasonTournament on Tournament {\n  __typename\n  endTime\n  hl\n  id\n  league {\n    __typename\n    id\n    name\n  }\n  name\n  sport\n  stages {\n    __typename\n    ...SeasonTournamentStage\n  }\n  startTime\n  state\n  tournamentResult {\n    __typename\n    matchResults {\n      __typename\n      id\n      winningTeamId\n    }\n  }\n}\n\nfragment SeasonTournamentMatch on Match {\n  __typename\n  description\n  destinations {\n    __typename\n    loss {\n      __typename\n      slot\n      structuralId\n      type\n    }\n    win {\n      __typename\n      slot\n      structuralId\n      type\n    }\n  }\n  flags\n  id\n  matchTeams(orderBy: $orderBy) {\n    __typename\n    ...SeasonTournamentTeam\n  }\n  state\n  structuralId\n  type\n}\n\nfragment SeasonTournamentRankingTeam on Team {\n  __typename\n  code\n  id\n  image\n  name\n  record {\n    __typename\n    losses\n    ties\n    wins\n  }\n  slug\n}\n\nfragment SeasonTournamentSection on Section {\n  __typename\n  columns {\n    __typename\n    cells {\n      __typename\n      matches {\n        __typename\n        ...SeasonTournamentMatch\n      }\n      name\n      slug\n    }\n  }\n  id\n  name\n  name\n  rankings {\n    __typename\n    ordinal\n    teams {\n      __typename\n      ...SeasonTournamentRankingTeam\n    }\n  }\n  slug\n  standings {\n    __typename\n    index\n    placement\n    team {\n      __typename\n      code\n      id\n      image\n      name\n      record {\n        __typename\n        losses\n        ties\n        wins\n      }\n      result {\n        __typename\n        gameWins\n        outcome\n      }\n      slug\n    }\n  }\n  type\n  type\n}\n\nfragment SeasonTournamentStage on Stage {\n  __typename\n  destinations {\n    __typename\n    ...SeasonStageDestination\n  }\n  displayState\n  id\n  name\n  sections {\n    __typename\n    ...SeasonTournamentSection\n  }\n  slug\n}\n\nfragment SeasonTournamentTeam on MatchTeam {\n  __typename\n  code\n  image\n  name\n  result {\n    __typename\n    gameWins\n    outcome\n  }\n  slug\n  teamId\n}"
+  },
+  {
+   "id": "e134ea3594614159596e195260451574b67d8eb9e5a75fc5f044108a64d2988c",
+   "name": "GetSeasonTournamentEvents",
+   "type": "query",
+   "body": "query GetSeasonTournamentEvents($hl: Locale!, $sport: [Sport]!, $tournamentId: [ID!]!) {\n  __typename\n  esports(hl: $hl, sport: $sport, tournamentId: $tournamentId) {\n    __typename\n    events {\n      __typename\n      ...SeasonTournamentEvent\n    }\n  }\n}\n\nfragment SeasonTournamentEvent on ScheduledEvent {\n  __typename\n  ... on EventMatch {\n    __typename\n    match {\n      __typename\n      id\n    }\n    startTime\n  }\n}"
+  },
+  {
+   "id": "4788f5d2862b5ec22fd0f662e4aed463797728dc485b7aa2fc28c8301e5479db",
+   "name": "GetSeasonTournaments",
+   "type": "query",
+   "body": "query GetSeasonTournaments($hl: Locale!, $seasonIds: [ID!]!) {\n  __typename\n  seasons(hl: $hl, id: $seasonIds) {\n    __typename\n    id\n    splits {\n      __typename\n      id\n      tournaments {\n        __typename\n        id\n        league {\n          __typename\n          slug\n        }\n        split {\n          __typename\n          id\n        }\n      }\n    }\n  }\n}"
+  },
+  {
+   "id": "e296f2ad2074fa70b00fdddde3eb2b0265415d4238146286598f22086d861fe7",
+   "name": "GetSplitLeague",
+   "type": "query",
+   "body": "query GetSplitLeague($hl: Locale!, $seasonIds: [ID!]!) {\n  __typename\n  seasons(hl: $hl, id: $seasonIds) {\n    __typename\n    splits {\n      __typename\n      ...SplitLeague\n    }\n  }\n}\n\nfragment SplitLeague on Split {\n  __typename\n  id\n  name\n  region\n  tournaments {\n    __typename\n    awards {\n      __typename\n      description\n      placement\n      points\n      title\n    }\n    description\n    endTime\n    id\n    league {\n      __typename\n      id\n      image\n      name\n    }\n    name\n    phases {\n      __typename\n      description\n      title\n    }\n    phasesDescription\n    stages {\n      __typename\n      displayState\n      id\n      name\n      sections {\n        __typename\n        matches {\n          __typename\n          id\n          state\n        }\n        name\n        type\n      }\n    }\n    startTime\n    state\n    teams {\n      __typename\n      code\n      id\n      image\n      name\n    }\n  }\n}"
+  },
+  {
+   "id": "e78a5ea15c7db3a2e0e2b031206ac7a323934ade1509eca524017ebb36bdb5c3",
+   "name": "GetSuperlativeTeams",
+   "type": "query",
+   "body": "query GetSuperlativeTeams($hl: Locale!, $teamIds: [ID], $tournamentId: [ID]) {\n  __typename\n  teams(hl: $hl, id: $teamIds) {\n    __typename\n    ...SuperlativeTeam\n  }\n  tournaments(hl: $hl, id: $tournamentId) {\n    __typename\n    id\n    league {\n      __typename\n      id\n      name\n    }\n    name\n  }\n}\n\nfragment SuperlativeTeam on Team {\n  __typename\n  code\n  id\n  image\n  name\n  primaryColor\n}"
+  },
+  {
+   "id": "4f01c66ae51fd3ceda6f69c3a625e911f286c97d0fecd466c881f312384554ee",
+   "name": "GetTacticiansCrownQualifyingTournaments",
+   "type": "query",
+   "body": "query GetTacticiansCrownQualifyingTournaments($esportsTournamentIds: [String]!, $hl: Locale!, $tournamentIds: [ID]) {\n  __typename\n  competeTournaments(esportsTournamentIds: $esportsTournamentIds) {\n    __typename\n    competeType\n    id\n    shards\n  }\n  tournaments(hl: $hl, id: $tournamentIds) {\n    __typename\n    id\n    league {\n      __typename\n      name\n    }\n    name\n    split {\n      __typename\n      id\n      name\n    }\n    startTime\n  }\n}"
+  },
+  {
+   "id": "4597f76e634ed6ce19c4c5c2f64213e26742e299f43e5174a7143c04ae780424",
+   "name": "GetTeamEvents",
+   "type": "query",
+   "body": "query GetTeamEvents($eventDateEnd: Date, $eventDateStart: Date, $eventState: [EventState], $eventType: EventType, $hl: Locale!, $pageSize: Int, $sport: [Sport], $teamId: [ID]) {\n  __typename\n  esports(\n    hl: $hl\n    sport: $sport\n    teamId: $teamId\n    eventState: $eventState\n    eventType: $eventType\n    eventDateStart: $eventDateStart\n    eventDateEnd: $eventDateEnd\n    pageSize: $pageSize\n  ) {\n    __typename\n    events {\n      __typename\n      ...TeamEventMatch\n    }\n  }\n}\n\nfragment MatchTeamOverview on MatchTeam {\n  __typename\n  code\n  id\n  image\n  name\n  record {\n    __typename\n    losses\n    wins\n  }\n  result {\n    __typename\n    gameWins\n    outcome\n  }\n  slug\n  teamId\n}\n\nfragment TeamEventMatch on EventMatch {\n  __typename\n  id\n  match {\n    __typename\n    id\n  }\n  matchTeams {\n    __typename\n    ...MatchTeamOverview\n  }\n  startTime\n  state\n  tournament {\n    __typename\n    id\n    name\n  }\n}"
+  },
+  {
+   "id": "9411e88d02eb7f7ea8516ed9f206cb557d150208d6654c06f044781f8d9789ba",
+   "name": "GetTeamGpr",
+   "type": "query",
+   "body": "query GetTeamGpr($endDate: String, $hl: Locale!, $sport: Sport, $startDate: String, $step: Int) {\n  __typename\n  teamGPR(\n    step: $step\n    startDate: $startDate\n    endDate: $endDate\n    hl: $hl\n    sport: $sport\n  ) {\n    __typename\n    ...TeamGpr\n  }\n}\n\nfragment GprTeamTournamentResult on TeamTournamentRecord {\n  __typename\n  id\n  tournament {\n    __typename\n    endTime\n    id\n    league {\n      __typename\n      id\n      name\n      regionSlug\n    }\n    name\n    slug\n    standings {\n      __typename\n      index\n      placement\n      team {\n        __typename\n        id\n      }\n    }\n    startTime\n    state\n    teams {\n      __typename\n      id\n    }\n  }\n  tournamentRecord {\n    __typename\n    losses\n    wins\n  }\n}\n\nfragment TeamGpr on TeamGPR {\n  __typename\n  averageOpponentGPR\n  currentTeamGPR {\n    __typename\n    dateCalculated\n    elo\n    gprScore\n    rank\n  }\n  id\n  previousTeamGPR {\n    __typename\n    dateCalculated\n    elo\n    gprScore\n    rank\n  }\n  team {\n    __typename\n    code\n    homeLeague {\n      __typename\n      id\n      image\n      name\n      slug\n    }\n    id\n    image\n    name\n    slug\n  }\n  teamGPRHistory {\n    __typename\n    dateCalculated\n    elo\n    gprScore\n    rank\n  }\n  teamGameRecord {\n    __typename\n    losses\n    wins\n  }\n  teamMatchRecord {\n    __typename\n    losses\n    wins\n  }\n  tournaments {\n    __typename\n    ...GprTeamTournamentResult\n  }\n}"
+  },
+  {
+   "id": "5142cdd37ce083939013440a2ef4317f7b02ad57b4f8bda0084ef2877ea32021",
+   "name": "GetTeams",
+   "type": "query",
+   "body": "query GetTeams($hl: Locale!, $sport: [Sport], $teamId: [ID]) {\n  __typename\n  teams(hl: $hl, sport: $sport, id: $teamId) {\n    __typename\n    ...TeamOverview\n  }\n}\n\nfragment TeamOverview on Team {\n  __typename\n  code\n  homeLeague {\n    __typename\n    id\n    image\n    name\n  }\n  id\n  image\n  name\n  players {\n    __typename\n    ...TeamPlayer\n  }\n  primaryColor\n  slug\n}\n\nfragment TeamPlayer on Player {\n  __typename\n  handle\n  homeTeam {\n    __typename\n    id\n    slug\n  }\n  id\n  image\n  positions {\n    __typename\n    name\n    slug\n  }\n  status\n}"
+  },
+  {
+   "id": "501d8199475498d464b0137564cfc8d1d7cd687ac5c8512489dec8109f45d0df",
+   "name": "GetTftDocument",
+   "type": "query",
+   "body": "query GetTftDocument($documentType: String!, $hl: String!) {\n  __typename\n  allTftEsportsDocument(\n    limit: 1\n    where: {documentType: {eq: $documentType}, language: {eq: $hl}}\n    sort: {documentVersion: DESC}\n  ) {\n    __typename\n    documentContent\n    documentType\n    documentVersion\n  }\n  fallbackAllTftEsportsDocument: allTftEsportsDocument(\n    limit: 1\n    where: {documentType: {eq: $documentType}, language: {eq: \"en-us\"}}\n    sort: {documentVersion: DESC}\n  ) {\n    __typename\n    documentContent\n    documentType\n    documentVersion\n  }\n}"
+  },
+  {
+   "id": "2a7aae801d7529d11c3659279112c9a2217e123fb08fdd66756152c656124c2b",
+   "name": "GetTftEsportsTheOpen",
+   "type": "query",
+   "body": "query GetTftEsportsTheOpen($fallbackWhere: TftEsportsTheOpenFilter, $where: TftEsportsTheOpenFilter) {\n  __typename\n  content: allTftEsportsTheOpen(limit: 1, where: $where) {\n    __typename\n    ...TftOpenContentFragment\n  }\n  fallback: allTftEsportsTheOpen(limit: 1, where: $fallbackWhere) {\n    __typename\n    ...TftOpenContentFragment\n  }\n}\n\nfragment TftOpenContentFragment on TftEsportsTheOpen {\n  __typename\n  _id\n  _updatedAt\n  aboutDescription\n  aboutImage {\n    __typename\n    asset {\n      __typename\n      url\n    }\n  }\n  aboutSubtitle\n  aboutTitle\n  competitionInquiriesEmail\n  competitionInquiriesSubtitle\n  competitionInquiriesTitle\n  countdownTargetDate\n  countdownTitle\n  dateRange\n  eventInquiriesEmail\n  eventInquiriesSubtitle\n  eventInquiriesTitle\n  faq {\n    __typename\n    answer\n    question\n  }\n  faqTitle\n  heroBannerCta {\n    __typename\n    label\n    url\n  }\n  heroBannerText\n  homeFaq {\n    __typename\n    answer\n    question\n  }\n  homeFaqCta {\n    __typename\n    label\n    url\n  }\n  homeFaqTitle\n  howToQualifyDescription\n  howToQualifyImage1 {\n    __typename\n    asset {\n      __typename\n      url\n    }\n  }\n  howToQualifyImage2 {\n    __typename\n    asset {\n      __typename\n      url\n    }\n  }\n  howToQualifySubtitle1\n  howToQualifySubtitle2\n  howToQualifyTitle\n  howToQualifyTitle1\n  howToQualifyTitle2\n  language\n  passes {\n    __typename\n    cta {\n      __typename\n      label\n      url\n    }\n    description\n    features\n    image {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    title\n  }\n  purchasePassCta {\n    __typename\n    label\n    url\n  }\n  rules\n  rulesTitle\n  salesDates {\n    __typename\n    date\n    tierName\n  }\n  salesTimeText\n  salesTimeZones\n  schedule {\n    __typename\n    doorsCloseTitle\n    doorsOpenDate\n    doorsOpenTitle\n    gameStartsDate\n    gameStartsTitle\n  }\n  scheduleMessage\n  scheduleSubtitle\n  scheduleTitle\n  supportTitle\n  waysToPlayDescription\n  waysToPlayItems {\n    __typename\n    description\n    image {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    title\n  }\n  waysToPlayTitle\n}"
+  },
+  {
+   "id": "c7db4c5e704044d7da76ce447f732e7fd2ed9bfedbecc2815bbd6111c72ae630",
+   "name": "GetTftHomeCompeteTournaments",
+   "type": "query",
+   "body": "query GetTftHomeCompeteTournaments($esportsTournamentIds: [String]!) {\n  __typename\n  competeTournaments(esportsTournamentIds: $esportsTournamentIds) {\n    __typename\n    id\n    shards\n  }\n}"
+  },
+  {
+   "id": "9f50439e37ec06e4f63681fa9a3c84f9281d082adee01f15c9afbd2bef0ab5a6",
+   "name": "GetTftHomeSeasonTournaments",
+   "type": "query",
+   "body": "query GetTftHomeSeasonTournaments($hl: Locale!, $seasonsId: [ID!]!) {\n  __typename\n  seasons(hl: $hl, id: $seasonsId) {\n    __typename\n    id\n    splits {\n      __typename\n      id\n      tournaments {\n        __typename\n        ...CompeteTournament\n      }\n    }\n  }\n}\n\nfragment CompeteTournament on Tournament {\n  __typename\n  awards {\n    __typename\n    description\n    placement\n    points\n    title\n  }\n  awardsDescription\n  competeType\n  description\n  endTime\n  id\n  league {\n    __typename\n    id\n    name\n    slug\n  }\n  name\n  phases {\n    __typename\n    description\n    title\n  }\n  phasesDescription\n  registrationEndAt\n  registrationStartAt\n  season {\n    __typename\n    id\n  }\n  shards\n  split {\n    __typename\n    id\n    name\n    slug\n    tournaments {\n      __typename\n      id\n      name\n    }\n  }\n  stages {\n    __typename\n    displayState\n    id\n    name\n    sections {\n      __typename\n      matches {\n        __typename\n        id\n        state\n      }\n      name\n      type\n    }\n    slug\n  }\n  startTime\n  state\n  participants: tournamentParticipants {\n    __typename\n    ...TournamentParticipant\n  }\n}\n\nfragment TournamentParticipant on CompeteTournamentParticipant {\n  __typename\n  id\n  player {\n    __typename\n    displayName\n    id\n    shard\n    tagLine\n    trDisplayName: tournamentRealmDisplayNameCurrent\n    type\n  }\n  points\n  position\n  qualifierEsportsId\n  qualifierType\n  type\n}"
+  },
+  {
+   "id": "99af40f35b6d250b766bf3c3308d15e310665a19911ebb2dfd9204134a7dd50f",
+   "name": "GetTftSeasonContent",
+   "type": "query",
+   "body": "query GetTftSeasonContent($hl: String!, $seasonId: String!) {\n  __typename\n  allTftEsportsSeason(limit: 1, where: {id: {eq: $seasonId}, language: {eq: $hl}}) {\n    __typename\n    id\n    splits {\n      __typename\n      id\n      tournaments {\n        __typename\n        id\n        qualifyingContent: qualifyingTournaments {\n          __typename\n          description\n          details {\n            __typename\n            description\n            title\n          }\n          id\n        }\n        shards {\n          __typename\n          ladderQualificationGroups {\n            __typename\n            bannerTitle\n            description\n          }\n          shard\n        }\n      }\n    }\n  }\n}"
+  },
+  {
+   "id": "55efcd17fcd52c6c087822a357e897fc8ee17421d389c377512a55820787026a",
+   "name": "GetTournamentsForSchedule",
+   "type": "query",
+   "body": "query GetTournamentsForSchedule($hl: Locale!, $seasonIds: [ID!]!) {\n  __typename\n  seasons(hl: $hl, id: $seasonIds) {\n    __typename\n    id\n    splits {\n      __typename\n      id\n      tournaments {\n        __typename\n        ...TournamentForSchedule\n      }\n    }\n  }\n}\n\nfragment TournamentForSchedule on Tournament {\n  __typename\n  id\n  league {\n    __typename\n    slug\n  }\n  name\n  registrationEndAt\n  registrationStartAt\n  slug\n  split {\n    __typename\n    name\n  }\n  stages {\n    __typename\n    id\n    name\n  }\n}"
+  },
+  {
+   "id": "1d58b47d72e9219827e919300f4350183277e00cc338573bd8568111f4a65efc",
+   "name": "GetValCompeteUser",
+   "type": "query",
+   "body": "query GetValCompeteUser {\n  __typename\n  competeUser(sport: val) {\n    __typename\n    displayName\n    esportsRegion\n    tagLine\n  }\n}"
+  },
+  {
+   "id": "126e5b28f9a3f94cafdec362b158837e2b17d229a2d47e5a58c08f5d8a593a3c",
+   "name": "GetValCountryRegion",
+   "type": "query",
+   "body": "query GetValCountryRegion($countryCode: String!) {\n  __typename\n  esportsRegion(countryCode: $countryCode, sport: val)\n}"
+  },
+  {
+   "id": "5d86702e0186fe35f46d8283b741968155080c649d4f7cb5620402db0058cb62",
+   "name": "GetValEsportsEventBranding",
+   "type": "query",
+   "body": "query GetValEsportsEventBranding($locale: String!) {\n  __typename\n  allValEsportsFeaturedContent(limit: 1, where: {language: {eq: $locale}}) {\n    __typename\n    entries {\n      __typename\n      events {\n        __typename\n        tournament {\n          __typename\n          brand {\n            __typename\n            combinationMarkImage {\n              __typename\n              asset {\n                __typename\n                url\n              }\n            }\n            headerBackgroundImage {\n              __typename\n              asset {\n                __typename\n                url\n              }\n            }\n          }\n          id\n        }\n      }\n      hasSpotlight\n      name\n    }\n  }\n}"
+  },
+  {
+   "id": "54d5b447d94a5071257e3206c64d11b9af655a954b35d85576783fc6c7ac19f9",
+   "name": "GetValEsportsEventTimeline",
+   "type": "query",
+   "body": "query GetValEsportsEventTimeline($locale: String!) {\n  __typename\n  allValEsportsFeaturedContent(limit: 1, where: {language: {eq: $locale}}) {\n    __typename\n    entries {\n      __typename\n      _key\n      events {\n        __typename\n        tournament {\n          __typename\n          id\n        }\n      }\n      hasSpotlight\n      name\n    }\n  }\n}"
+  },
+  {
+   "id": "9ef24fa2ee99df6241b92f046b6bdbde15085cff232a7c1032a729f7b453ac52",
+   "name": "GetValEsportsEventTimelineTournaments",
+   "type": "query",
+   "body": "query GetValEsportsEventTimelineTournaments($locale: Locale!, $tournamentIds: [ID]) {\n  __typename\n  tournaments(hl: $locale, id: $tournamentIds, sport: [val]) {\n    __typename\n    id\n    startTime\n  }\n}"
+  },
+  {
+   "id": "b6006bff9f73cc3fef3b00b99e7c4c58615b9f6b48cfa9e89340d352001101b1",
+   "name": "GetValEsportsTournamentBrand",
+   "type": "query",
+   "body": "query GetValEsportsTournamentBrand($locale: String!, $seasonId: String!) {\n  __typename\n  allValEsportsSeason(\n    where: {language: {eq: $locale}, id: {eq: $seasonId}}\n    limit: 1\n  ) {\n    __typename\n    splits {\n      __typename\n      tournaments {\n        __typename\n        brand {\n          __typename\n          ...ValEsportsTournamentBranding\n        }\n        id\n      }\n    }\n  }\n}\n\nfragment ValEsportsTournamentBranding on ValEsportsTournamentBrand {\n  __typename\n  headerBackgroundImage {\n    __typename\n    asset {\n      __typename\n      url\n    }\n  }\n}"
+  },
+  {
+   "id": "b0db589d3dbcd70fae1d076f91f03f5a73e81d9bfd487b341e57e8c7ad3b5faa",
+   "name": "GetValEvent",
+   "type": "query",
+   "body": "query GetValEvent($hl: Locale!, $tournamentId: [ID!]!) {\n  __typename\n  tournaments(hl: $hl, id: $tournamentId, sport: [val]) {\n    __typename\n    description\n    endTime\n    id\n    league {\n      __typename\n      id\n      image\n      name\n      primaryColor\n    }\n    name\n    season {\n      __typename\n      id\n    }\n    split {\n      __typename\n      id\n      regionSlug\n    }\n    stages {\n      __typename\n      id\n      name\n      sections {\n        __typename\n        matches {\n          __typename\n          id\n          state\n        }\n        slug\n        type\n      }\n    }\n    startTime\n    state\n  }\n}"
+  },
+  {
+   "id": "ac206997a44c3af89ea325d6947330139aef81d1b09e5970d383e9965d556c85",
+   "name": "GetValPartnerTeams",
+   "type": "query",
+   "body": "query GetValPartnerTeams($hl: Locale!, $ids: [ID]) {\n  __typename\n  teams(hl: $hl, sport: [val], id: $ids) {\n    __typename\n    code\n    id\n    image\n    lightImage\n    name\n    slug\n  }\n}"
+  },
+  {
+   "id": "e23423510245e60a83490698719f0fbf19f45759081163380c1f0c6948317a1a",
+   "name": "GetValSeason",
+   "type": "query",
+   "body": "query GetValSeason($hl: Locale!, $leagueIds: [ID!]!, $seasonId: ID!) {\n  __typename\n  leagues(hl: $hl, sport: [val], id: $leagueIds) {\n    __typename\n    ...ValLeague\n  }\n  seasons(hl: $hl, sport: [val], id: [$seasonId]) {\n    __typename\n    id\n    splits {\n      __typename\n      ...ValSplit\n    }\n  }\n}\n\nfragment ValEvent on Tournament {\n  __typename\n  endTime\n  esportsRegions\n  id\n  league {\n    __typename\n    id\n    ...ValLeague\n  }\n  name\n  registrationEndAt\n  registrationStartAt\n  season {\n    __typename\n    id\n  }\n  split {\n    __typename\n    id\n  }\n  standings {\n    __typename\n    index\n    placement\n    team {\n      __typename\n      code\n      id\n      image\n      lightImage\n      name\n      slug\n    }\n  }\n  startTime\n  state\n}\n\nfragment ValLeague on League {\n  __typename\n  id\n  image\n  name\n  primaryColor\n  slug\n}\n\nfragment ValSplit on Split {\n  __typename\n  endTime\n  id\n  name\n  parentSplit {\n    __typename\n    id\n    name\n  }\n  slug\n  startTime\n  tournaments {\n    __typename\n    ...ValEvent\n  }\n}"
+  },
+  {
+   "id": "30f7e14d720c5e7fb85b0ad19c6990516286a6493feb6899d9d10d93922338a1",
+   "name": "GetValTeamHubMatchRecords",
+   "type": "query",
+   "body": "query GetValTeamHubMatchRecords($eventDateEnd: Date!, $eventDateStart: Date!, $hl: Locale!, $pageToken: Token, $teamId: [ID!]!, $tournamentId: [ID!]!) {\n  __typename\n  esports(\n    hl: $hl\n    sport: [val]\n    teamId: $teamId\n    tournamentId: $tournamentId\n    eventType: match\n    eventState: [completed]\n    eventDateStart: $eventDateStart\n    eventDateEnd: $eventDateEnd\n    pageToken: $pageToken\n    pageSize: 1000\n  ) {\n    __typename\n    events {\n      __typename\n      ... on EventMatch {\n        __typename\n        match {\n          __typename\n          id\n        }\n        matchTeams {\n          __typename\n          result {\n            __typename\n            outcome\n          }\n          teamId\n        }\n        tournament {\n          __typename\n          id\n        }\n      }\n    }\n    pages {\n      __typename\n      newer\n    }\n  }\n}"
+  },
+  {
+   "id": "cbfe607d72639d6f0b754dead69347143576a5176f8c3b8fea52effd17d763d4",
+   "name": "GetValTeamHubPowerRanks",
+   "type": "query",
+   "body": "query GetValTeamHubPowerRanks($endDate: String!, $hl: Locale!, $startDate: String!, $step: Int!) {\n  __typename\n  teamGPR(\n    hl: $hl\n    sport: val\n    startDate: $startDate\n    endDate: $endDate\n    step: $step\n  ) {\n    __typename\n    currentTeamGPR {\n      __typename\n      dateCalculated\n      rank\n    }\n    team {\n      __typename\n      id\n    }\n  }\n}"
+  },
+  {
+   "id": "c75302c6f9bb0474f3e75ef5ef20f6e104ff09c8b30680e4379fe02161698284",
+   "name": "GetValTeamHubSeasons",
+   "type": "query",
+   "body": "query GetValTeamHubSeasons($hl: Locale!, $seasonIds: [ID!]!) {\n  __typename\n  seasons(hl: $hl, sport: [val], id: $seasonIds) {\n    __typename\n    id\n    splits {\n      __typename\n      tournaments {\n        __typename\n        endTime\n        id\n        league {\n          __typename\n          image\n          name\n          slug\n        }\n        name\n        scores {\n          __typename\n          points\n          team {\n            __typename\n            id\n          }\n        }\n        standings {\n          __typename\n          placement\n          team {\n            __typename\n            id\n          }\n        }\n        startTime\n        state\n        teams {\n          __typename\n          id\n        }\n      }\n    }\n    ...GprSeason\n  }\n}\n\nfragment GprSeason on Season {\n  __typename\n  endTime\n  id\n  name\n  slug\n  splits {\n    __typename\n    endTime\n    id\n    name\n    slug\n    startTime\n  }\n  sport\n  startTime\n}"
+  },
+  {
+   "id": "24022a037a40470c69528144edac6ff3e294bd28c9ed0f0fbee98999db09d337",
+   "name": "GetWatchStats",
+   "type": "query",
+   "body": "query GetWatchStats($sport: String!) {\n  __typename\n  stats(sport: $sport) {\n    __typename\n    statName\n    statValue\n  }\n}"
+  },
+  {
+   "id": "23e4a94b5ba7da2afc16aeb6b0c7b597cf25b5cb950ef99fdca974f2f3805585",
+   "name": "InviteOrganizerStaff",
+   "type": "mutation",
+   "body": "mutation InviteOrganizerStaff($input: InviteOrganizerStaffInput!) {\n  __typename\n  inviteOrganizerStaff(input: $input)\n}"
+  },
+  {
+   "id": "4cee3da0a88ed34149a940d1438755b5bd5fbe1737b5c1f1943f258185f5d17b",
+   "name": "JoinFaction",
+   "type": "mutation",
+   "body": "mutation JoinFaction($factionId: ID!) {\n  __typename\n  joinFaction(factionId: $factionId) {\n    __typename\n    faction {\n      __typename\n      id\n      name\n    }\n  }\n}"
+  },
+  {
+   "id": "f939d2443de932929662a3b68c0706cd3a69bc2c0c978b11c85b86667b257675",
+   "name": "JoinPickemsCustomLeaderboard",
+   "type": "mutation",
+   "body": "mutation JoinPickemsCustomLeaderboard($invitationId: String!) {\n  __typename\n  joinCustomLeaderboard(invitationId: $invitationId) {\n    __typename\n    displayName\n    id\n    state\n  }\n}"
+  },
+  {
+   "id": "602849da98f543aae3f54c715474de0f9d6dda4426dde7066d89e6b4c85af5bf",
+   "name": "LinkTwitchAccount",
+   "type": "mutation",
+   "body": "mutation LinkTwitchAccount($twitchLink: TwitchLinkInput!) {\n  __typename\n  linkTwitchAccount(twitchLink: $twitchLink) {\n    __typename\n    linked\n  }\n}"
+  },
+  {
+   "id": "790cc5ed50dd93011f92b3ed1bfcb98c70b5353f5fb718e90590e08a2e9124ff",
+   "name": "LoadMoreNewsList",
+   "type": "query",
+   "body": "query LoadMoreNewsList($limit: Int, $offset: Int, $sort: [ArticleSorting!], $where: ArticleFilter) {\n  __typename\n  allArticle(limit: $limit, offset: $offset, where: $where, sort: $sort) {\n    __typename\n    ...ListArticle\n  }\n}\n\nfragment ListArticle on Article {\n  __typename\n  _id\n  authors {\n    __typename\n    ...ListAuthors\n  }\n  bannerMedia {\n    __typename\n    ...ListBannerMedia\n  }\n  description\n  externalTitle\n  externalUrl\n  path {\n    __typename\n    current\n  }\n  publishingDates {\n    __typename\n    displayedPublishDate\n  }\n}\n\nfragment ListAuthors on Author {\n  __typename\n  externalTitle\n}\n\nfragment ListBannerMedia on MultimediaAsset {\n  __typename\n  sanityImage {\n    __typename\n    asset {\n      __typename\n      description\n      label\n      title\n      url\n    }\n  }\n}"
+  },
+  {
+   "id": "bb9e0cad50e40c5fe33c4396203df4c1a3dd6c1b74e5fccc90a02c8d54f0a8a4",
+   "name": "LolHomeSponsors",
+   "type": "query",
+   "body": "query LolHomeSponsors($where: LolEsportsHomepageMultisiteFilter) {\n  __typename\n  homepage: allLolEsportsHomepageMultisite(where: $where) {\n    __typename\n    sponsorsList {\n      __typename\n      ...HomeSponsors\n    }\n  }\n}\n\nfragment HomeSponsors on EsportsSponsor {\n  __typename\n  sponsorImage {\n    __typename\n    asset {\n      __typename\n      url\n    }\n  }\n  sponsorUrl\n}"
+  },
+  {
+   "id": "05bb181b5ef7961ea8517e21803580f752b446b54c473a1a27faaed81d06fa63",
+   "name": "MakeBracketPicks",
+   "type": "mutation",
+   "body": "mutation MakeBracketPicks($bracketPicks: [MatchPickInput], $pickBlockId: String!) {\n  __typename\n  makeBracketPicks(pickBlockId: $pickBlockId, bracketPicks: $bracketPicks) {\n    __typename\n    id\n    picks {\n      __typename\n      ...PickemsMatchPick\n    }\n  }\n}\n\nfragment PickemsMatchPick on MatchPick {\n  __typename\n  correctTeamId\n  id\n  latePenalty\n  matchId\n  pickSource\n  pickedTeamId\n  score\n  state\n}"
+  },
+  {
+   "id": "95f869573f712f66e8947468fcb765a59d38a34b22bd7561ed3122633fad9737",
+   "name": "MakeCrystalBallPick",
+   "type": "mutation",
+   "body": "mutation MakeCrystalBallPick($pick: CrystalBallPromptPickInput!) {\n  __typename\n  makeCrystalBallPick(pick: $pick) {\n    __typename\n    playerPromptChoice {\n      __typename\n      choiceTierPoints\n      promptChoiceId\n      promptId\n    }\n    prompt {\n      __typename\n      promptId\n    }\n  }\n}"
+  },
+  {
+   "id": "741a8855ec93f2d05edeab064a0056a9e923231f1ba9947aeb2021b3cf9345af",
+   "name": "MakeSectionPicks",
+   "type": "mutation",
+   "body": "mutation MakeSectionPicks($pickBlockId: String!, $sectionPicks: [SectionPickInput]) {\n  __typename\n  makeSectionPicks(pickBlockId: $pickBlockId, sectionPicks: $sectionPicks) {\n    __typename\n    id\n    picks {\n      __typename\n      ...PickemsSectionPick\n    }\n  }\n}\n\nfragment PickemsSectionPick on SectionPick {\n  __typename\n  lineup {\n    __typename\n    index\n    pickedTeamId\n  }\n  result {\n    __typename\n    entries {\n      __typename\n      isCorrect\n      pointsAwarded\n      rank\n      teamId\n    }\n    isPerfect\n    perfectPickPoints\n    totalPointsAwarded\n    totalPointsPossible\n  }\n  sectionId\n}"
+  },
+  {
+   "id": "18204b5da66c3b817994c02abaacc775f8d4d3b2e05388d76c8eff5e7bb1a1eb",
+   "name": "NewsList",
+   "type": "query",
+   "body": "query NewsList($limit: Int, $offset: Int, $sort: [ArticleSorting!], $where: ArticleFilter) {\n  __typename\n  allArticle(limit: $limit, offset: $offset, where: $where, sort: $sort) {\n    __typename\n    ...ListArticle\n  }\n}\n\nfragment ListArticle on Article {\n  __typename\n  _id\n  authors {\n    __typename\n    ...ListAuthors\n  }\n  bannerMedia {\n    __typename\n    ...ListBannerMedia\n  }\n  description\n  externalTitle\n  externalUrl\n  path {\n    __typename\n    current\n  }\n  publishingDates {\n    __typename\n    displayedPublishDate\n  }\n}\n\nfragment ListAuthors on Author {\n  __typename\n  externalTitle\n}\n\nfragment ListBannerMedia on MultimediaAsset {\n  __typename\n  sanityImage {\n    __typename\n    asset {\n      __typename\n      description\n      label\n      title\n      url\n    }\n  }\n}"
+  },
+  {
+   "id": "9142e18241bb86a3b4c2692d899b31aaf61d11065ca8a259191aa9cc0a06ed57",
+   "name": "OrganizerSummary",
+   "type": "query",
+   "body": "query OrganizerSummary($id: ID!) {\n  __typename\n  organizerSummary(id: $id) {\n    __typename\n    email\n    id\n    name\n    phone {\n      __typename\n      countryDialingCode\n      number\n    }\n    physicalAddress {\n      __typename\n      formattedAddress\n      googlePlaceId\n      latitude\n      longitude\n    }\n    type\n    website\n  }\n}"
+  },
+  {
+   "id": "b224261bf00cb424c12a30d914d6216f898e665fefc4550d89cf02679b629b29",
+   "name": "PlayerRegisteredTournamentIds",
+   "type": "query",
+   "body": "query PlayerRegisteredTournamentIds($first: Int) {\n  __typename\n  playerTournaments {\n    __typename\n    upcoming(first: $first) {\n      __typename\n      edges {\n        __typename\n        node {\n          __typename\n          ... on RbPlayerTournamentResult {\n            __typename\n            tournament {\n              __typename\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+  },
+  {
+   "id": "b210fdb2100186e794cb96a3cd72b294dcc7ca9ae5733ad540141ac6a390be4d",
+   "name": "PlayerTournaments",
+   "type": "query",
+   "body": "query PlayerTournaments($pastAfter: String, $pastFirst: Int, $upcomingAfter: String, $upcomingFirst: Int) {\n  __typename\n  playerTournaments {\n    __typename\n    past(first: $pastFirst, after: $pastAfter) {\n      __typename\n      edges {\n        __typename\n        cursor\n        node {\n          __typename\n          ... on RbPlayerTournamentResult {\n            __typename\n            organizer {\n              __typename\n              id\n              isFavorited\n              name\n              physicalAddress {\n                __typename\n                adminArea1\n                city\n              }\n            }\n            tournament {\n              __typename\n              config {\n                __typename\n                ... on RiftboundTournamentConfig {\n                  __typename\n                  format\n                  participantCapacity\n                  playerFormat\n                  tournamentType\n                }\n              }\n              entryFee {\n                __typename\n                currency\n                minorUnits\n              }\n              id\n              name\n              pricing\n              registrantCounts {\n                __typename\n                count\n                status\n              }\n              startsAt\n            }\n          }\n        }\n      }\n      pageInfo {\n        __typename\n        endCursor\n        hasNextPage\n      }\n    }\n    upcoming(first: $upcomingFirst, after: $upcomingAfter) {\n      __typename\n      edges {\n        __typename\n        cursor\n        node {\n          __typename\n          ... on RbPlayerTournamentResult {\n            __typename\n            organizer {\n              __typename\n              id\n              isFavorited\n              name\n              physicalAddress {\n                __typename\n                adminArea1\n                city\n              }\n            }\n            tournament {\n              __typename\n              config {\n                __typename\n                ... on RiftboundTournamentConfig {\n                  __typename\n                  format\n                  participantCapacity\n                  playerFormat\n                  tournamentType\n                }\n              }\n              entryFee {\n                __typename\n                currency\n                minorUnits\n              }\n              id\n              name\n              pricing\n              registrantCounts {\n                __typename\n                count\n                status\n              }\n              startsAt\n            }\n          }\n        }\n      }\n      pageInfo {\n        __typename\n        endCursor\n        hasNextPage\n      }\n    }\n  }\n}"
+  },
+  {
+   "id": "d5b649d99b9f63cd3fa46bf145161d1c04d796f5d984241450ad98955049414d",
+   "name": "PromoteWaitlistTeam",
+   "type": "mutation",
+   "body": "mutation PromoteWaitlistTeam($input: PromoteWaitlistedTeamInput!) {\n  __typename\n  promoteWaitlistedTeam(input: $input) {\n    __typename\n    promotedTeamIds\n  }\n}"
+  },
+  {
+   "id": "370fa8635c2ed67a831fa5f18d4540404baff6646cfd29f765b66561f3692ee4",
+   "name": "PublishPairings",
+   "type": "mutation",
+   "body": "mutation PublishPairings($input: PublishPairingsInput!) {\n  __typename\n  publishPairings(input: $input) {\n    __typename\n    esportsStageId\n    esportsTournamentId\n    gameMappingCount\n    matchIds\n    pairingsPublished\n    publishedAt\n    reportableMatchCount\n    roundNumber\n    state\n  }\n}"
+  },
+  {
+   "id": "7372d50ddebea493bd6aefdfce20666c7030d272252c0714fdcb2f63a92f9089",
+   "name": "RegisterCompetePlayer",
+   "type": "mutation",
+   "body": "mutation RegisterCompetePlayer($esportsTournamentId: String!) {\n  __typename\n  registerCompetePlayerForTournament(esportsTournamentId: $esportsTournamentId) {\n    __typename\n    acceptedTermsAt\n    esportsTournamentId\n    id\n  }\n}"
+  },
+  {
+   "id": "3dea691ccc8372f8ad8b18759bbbf75e9e8c329b667f65c15098f642b7b8707d",
+   "name": "RegisterPlayerForPickemsTournament",
+   "type": "mutation",
+   "body": "mutation RegisterPlayerForPickemsTournament($subscribeToEmail: Boolean, $tournamentId: String!) {\n  __typename\n  registerPlayerForTournament(\n    eldsTournamentId: $tournamentId\n    subscribeToEmail: $subscribeToEmail\n  ) {\n    __typename\n    ...PickemsPlayer\n  }\n}\n\nfragment PickemsPlayer on Picker {\n  __typename\n  avatarUrl\n  displayName\n  id\n  ... on CelebrityPlayer {\n    __typename\n    externalUrl\n  }\n}"
+  },
+  {
+   "id": "9b7ded3856087354061c629c9ce718b71f2e4ccb8df19bb1bef2a774d12beb99",
+   "name": "RegisterTournamentRegistrants",
+   "type": "mutation",
+   "body": "mutation RegisterTournamentRegistrants($esportsTournamentId: String!, $riotIds: [String!]!) {\n  __typename\n  registerTournamentRegistrants(\n    input: {esportsTournamentId: $esportsTournamentId, riotIds: $riotIds}\n  ) {\n    __typename\n    registeredRiotIds\n  }\n}"
+  },
+  {
+   "id": "2ad6f206d0ff9ec5e7d362a8f6d1fca9876860755ce3ec895e09c20eb5fc8f3e",
+   "name": "RegisterTournamentTeams",
+   "type": "mutation",
+   "body": "mutation RegisterTournamentTeams($input: RegisterTournamentTeamsInput!) {\n  __typename\n  registerTournamentTeams(input: $input) {\n    __typename\n    registrants {\n      __typename\n      id\n      status\n      waitlistPosition\n    }\n  }\n}"
+  },
+  {
+   "id": "65e60239f3ba215db65ac29242e82197d87da25be3d10159ecd64819f301b8c3",
+   "name": "RemoveOrganizerStaff",
+   "type": "mutation",
+   "body": "mutation RemoveOrganizerStaff($organizerStaffId: ID!) {\n  __typename\n  removeOrganizerStaff(organizerStaffId: $organizerStaffId)\n}"
+  },
+  {
+   "id": "2a4ecfa83f34299e7c4dfa139640343936628176a2fc20a010d8c24953ba4c43",
+   "name": "RespondToOrganizerInvite",
+   "type": "mutation",
+   "body": "mutation RespondToOrganizerInvite($organizerId: ID!, $response: OrganizerInviteResponse!) {\n  __typename\n  respondToOrganizerInvite(organizerId: $organizerId, response: $response)\n}"
+  },
+  {
+   "id": "c29e26374a7f65fe0417337b39fda981a5fcdc6dfce4e232e49fbc759eda53a1",
+   "name": "SaveOrganizerApplicationDraft",
+   "type": "mutation",
+   "body": "mutation SaveOrganizerApplicationDraft($input: SaveOrganizerApplicationDraftInput!) {\n  __typename\n  saveOrganizerApplicationDraft(input: $input) {\n    __typename\n    application {\n      __typename\n      id\n      orgId\n    }\n    id\n    status\n  }\n}"
+  },
+  {
+   "id": "5c4feba077fd496f7fa6a7d47a7410685226b590283f8ea1d464c6eb68e3c4a0",
+   "name": "Season",
+   "type": "query",
+   "body": "query Season($hl: Locale!, $seasonIds: [ID!]) {\n  __typename\n  seasons(hl: $hl, id: $seasonIds) {\n    __typename\n    ...HandbookSeason\n  }\n}\n\nfragment HandbookPlayer on Player {\n  __typename\n  handle\n  id\n  image\n}\n\nfragment HandbookSeason on Season {\n  __typename\n  description\n  endTime\n  id\n  name\n  slug\n  splits {\n    __typename\n    ...HandbookSplit\n  }\n  startTime\n}\n\nfragment HandbookSplit on Split {\n  __typename\n  description\n  endTime\n  id\n  name\n  region\n  slug\n  startTime\n  tournaments {\n    __typename\n    ...HandbookTournament\n  }\n}\n\nfragment HandbookTeam on Team {\n  __typename\n  code\n  homeLeague {\n    __typename\n    id\n    image\n    name\n    slug\n  }\n  id\n  image\n  name\n  slug\n}\n\nfragment HandbookTournament on Tournament {\n  __typename\n  awards {\n    __typename\n    ...TournamentAward\n  }\n  awardsDescription\n  description\n  endTime\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    image\n    name\n  }\n  name\n  phases {\n    __typename\n    ...TournamentPhase\n  }\n  phasesDescription\n  players {\n    __typename\n    ...HandbookPlayer\n  }\n  startTime\n  teams {\n    __typename\n    ...HandbookTeam\n  }\n}\n\nfragment TournamentAward on Award {\n  __typename\n  description\n  placement\n  points\n  title\n}\n\nfragment TournamentPhase on Phase {\n  __typename\n  description\n  title\n}"
+  },
+  {
+   "id": "a5c329a87ea6da45bcfc148e97888067ca9bad0544a5e3142677119d15185d43",
+   "name": "SendOrganizerStaffInviteEmail",
+   "type": "mutation",
+   "body": "mutation SendOrganizerStaffInviteEmail($organizerStaffId: ID!) {\n  __typename\n  sendOrganizerStaffInviteEmail(organizerStaffId: $organizerStaffId)\n}"
+  },
+  {
+   "id": "9f7a344d8623676a8cba3f25e3bca0c6d9e18d471edebf3ed2618197fee1a9ca",
+   "name": "SettingsLeagues",
+   "type": "query",
+   "body": "query SettingsLeagues($flags: [LeagueFlags!], $hl: Locale!, $sport: [Sport!]) {\n  __typename\n  leagues(hl: $hl, sport: $sport, flags: $flags) {\n    __typename\n    ...SettingsLeague\n  }\n}\n\nfragment SettingsLeague on League {\n  __typename\n  displayPriority {\n    __typename\n    status\n  }\n  id\n  image\n  name\n}"
+  },
+  {
+   "id": "135ba91ad68ed123082e8310698dd76a9960b3eb18b3b7a23cff33236dabdd6a",
+   "name": "SettingsTeams",
+   "type": "query",
+   "body": "query SettingsTeams($hl: Locale!, $sport: [Sport!]) {\n  __typename\n  teams(hl: $hl, sport: $sport) {\n    __typename\n    ...SettingsTeam\n  }\n}\n\nfragment SettingsTeam on Team {\n  __typename\n  code\n  homeLeague {\n    __typename\n    name\n  }\n  id\n  image\n  status\n}"
+  },
+  {
+   "id": "c7004f2a5218ba7630a5e7e037c7fb11394e9775ba2450d8cf1532c4a649c217",
+   "name": "StartRound",
+   "type": "mutation",
+   "body": "mutation StartRound($input: StartRoundInput!) {\n  __typename\n  startRound(input: $input) {\n    __typename\n    esportsTournamentId\n    roundNumber\n    status\n  }\n}"
+  },
+  {
+   "id": "4f304b3a523f27d1abde2291d1b9e836e7b524f9e455d70b548680170e91c430",
+   "name": "SubmitGameResults",
+   "type": "mutation",
+   "body": "mutation SubmitGameResults($input: SubmitGameResultsInput!) {\n  __typename\n  submitGameResults(input: $input) {\n    __typename\n    submittedGameIds\n  }\n}"
+  },
+  {
+   "id": "8c1c386a401bf41443b2616ea7b5394d79bcc3510ad059fc542d70f72f1a52ad",
+   "name": "SubmitGameResultsAsOrganizer",
+   "type": "mutation",
+   "body": "mutation SubmitGameResultsAsOrganizer($input: OrganizerSubmitGameResultsInput!) {\n  __typename\n  submitGameResultsAsOrganizer(input: $input) {\n    __typename\n    submittedGameIds\n  }\n}"
+  },
+  {
+   "id": "a54c1a3335f688468da4369d874ca169b64ebbfd11f38c3e6e2d737cd64841a7",
+   "name": "SubmitOrganizerApplication",
+   "type": "mutation",
+   "body": "mutation SubmitOrganizerApplication($input: SubmitOrganizerApplicationInput!) {\n  __typename\n  submitOrganizerApplication(input: $input) {\n    __typename\n    application {\n      __typename\n      acceptedTermsVersion\n      id\n      orgId\n    }\n    id\n    status\n  }\n}"
+  },
+  {
+   "id": "8e20642289398a5a26a552089dd25ea5c8d81f3e197d4f0f3bd9d33f845b7fdf",
+   "name": "UnfavoriteOrganizer",
+   "type": "mutation",
+   "body": "mutation UnfavoriteOrganizer($organizerId: ID!) {\n  __typename\n  unfavoriteOrganizer(organizerId: $organizerId)\n}"
+  },
+  {
+   "id": "6072e71d0fec10400ba6a00e821a1a86d85ded90d8d0423dd3414fb9741ca280",
+   "name": "UpdateCompetePlayer",
+   "type": "mutation",
+   "body": "mutation UpdateCompetePlayer($input: CompetePlayerInput!) {\n  __typename\n  updateCompetePlayer(input: $input) {\n    __typename\n    assets {\n      __typename\n      id\n      playerId\n      type\n      value\n    }\n    id\n    tournamentRealmDisplayNameCurrent\n    tournamentRealmDisplayNameRequested\n  }\n}"
+  },
+  {
+   "id": "a4e746ac2bfd3f4076e1765f7e344f6831724abecb5761763a6bdfa0b8a110e3",
+   "name": "UpdateOrganizerStaff",
+   "type": "mutation",
+   "body": "mutation UpdateOrganizerStaff($organizerStaffId: ID!, $role: OrganizerStaffRole!) {\n  __typename\n  updateOrganizerStaffRole(organizerStaffId: $organizerStaffId, role: $role)\n}"
+  },
+  {
+   "id": "c035e6b39f5252c9db7a62d90d44a06c1473662bec5aab7cd0f1dfe4d09efcf0",
+   "name": "UpdateOrganizerTournament",
+   "type": "mutation",
+   "body": "mutation UpdateOrganizerTournament($input: UpdateOrganizerTournamentInput!) {\n  __typename\n  updateOrganizerTournament(input: $input) {\n    __typename\n    competeType\n    config {\n      __typename\n      ... on RiftboundTournamentConfig {\n        __typename\n        deckSubmissionPolicy\n        format\n        matchFormat\n        participantCapacity\n        playerFormat\n        roundCount\n        structure\n        tournamentType\n        waitlistCapacity\n        waitlistPromotionPolicy\n      }\n    }\n    endsAt\n    entryFee {\n      __typename\n      currency\n      minorUnits\n    }\n    id\n    name\n    pricing\n    registrationEndAt\n    registrationPolicy\n    registrationStartAt\n    shards\n    sport\n    startsAt\n    visibility\n  }\n}"
+  },
+  {
+   "id": "38843c6c521aebe54bd9b16acfd4d6bd9c68b31de71701cd441a636b3675bd45",
+   "name": "UpdateOrganizerTournamentCheckIn",
+   "type": "mutation",
+   "body": "mutation UpdateOrganizerTournamentCheckIn($input: UpdateOrganizerTournamentCheckInInput!) {\n  __typename\n  updateOrganizerTournamentCheckIn(input: $input) {\n    __typename\n    applied\n    blockers {\n      __typename\n      reason\n      riotId\n    }\n    checkIn {\n      __typename\n      accessCode\n      mode\n    }\n  }\n}"
+  },
+  {
+   "id": "2c2c7e7c595a3441050d0aeb2c5463b88127c37a96c64255ee8a7d32be8b10ea",
+   "name": "UpdateRewardsOpting",
+   "type": "mutation",
+   "body": "mutation UpdateRewardsOpting($optOut: Boolean!) {\n  __typename\n  setOpting(optOut: $optOut) {\n    __typename\n    isOptedOut\n  }\n}"
+  },
+  {
+   "id": "6ed6aaed15d52b2752e011274de0a6a9b32c70de812a794254f830fb7524a8c2",
+   "name": "UpdateTournamentRegistrantCheckIn",
+   "type": "mutation",
+   "body": "mutation UpdateTournamentRegistrantCheckIn($input: UpdateTournamentRegistrantCheckInInput!) {\n  __typename\n  updateTournamentRegistrantCheckIn(input: $input)\n}"
+  },
+  {
+   "id": "9eebe4e83b6a139e671bd9fbf85613d5d83e70806b6669f7e1d2450cee5c3436",
+   "name": "ValHomeNewsArticles",
+   "type": "query",
+   "body": "query ValHomeNewsArticles($where: ArticleFilter) {\n  __typename\n  articles: allArticle(\n    limit: 3\n    sort: [{publishingDates: {displayedPublishDate: DESC}}]\n    where: $where\n  ) {\n    __typename\n    ...ValHomeNewsItem\n  }\n}\n\nfragment ValHomeNewsItem on Article {\n  __typename\n  _id\n  bannerMedia {\n    __typename\n    sanityImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n  }\n  externalTitle\n  externalUrl\n  path {\n    __typename\n    current\n  }\n  publishingDates {\n    __typename\n    displayedPublishDate\n  }\n}"
+  },
+  {
+   "id": "b5675456e933b4fb2a701976be126e390cfd2a57a9cffc20c9ad8a817701194b",
+   "name": "ValHomeScheduleTeams",
+   "type": "query",
+   "body": "query ValHomeScheduleTeams($hl: Locale!, $teamIds: [ID]) {\n  __typename\n  teams(hl: $hl, sport: [val], id: $teamIds) {\n    __typename\n    id\n    slug\n  }\n}"
+  },
+  {
+   "id": "57085390ad2afb38892f744972a21e1a58e6a0507e760bf01088a866935b0509",
+   "name": "ValHomeSponsors",
+   "type": "query",
+   "body": "query ValHomeSponsors($where: ValEsportsHomepageMultisiteFilter) {\n  __typename\n  homepage: allValEsportsHomepageMultisite(where: $where) {\n    __typename\n    sponsorsList {\n      __typename\n      ...HomeSponsors\n    }\n  }\n}\n\nfragment HomeSponsors on EsportsSponsor {\n  __typename\n  sponsorImage {\n    __typename\n    asset {\n      __typename\n      url\n    }\n  }\n  sponsorUrl\n}"
+  },
+  {
+   "id": "369ad312826ae75a63193df840160bea663b0c13c63c7b6435ccb806c7f0c865",
+   "name": "ValidateAccount",
+   "type": "query",
+   "body": "query ValidateAccount($displayName: String!, $hl: Locale!, $sport: Sport) {\n  __typename\n  accountValidation(hl: $hl, sport: $sport, displayName: $displayName) {\n    __typename\n    displayName\n    message\n    sport\n    status\n  }\n}"
+  },
+  {
+   "id": "6b0dd6c3cfb78f6bf2712db29496cdd8364f8c96d8a62704c5169c0ff8bd3086",
+   "name": "getLeagues",
+   "type": "query",
+   "body": "query getLeagues($hl: Locale!, $sport: [Sport!]) {\n  __typename\n  leagues(hl: $hl, sport: $sport) {\n    __typename\n    ...SportLeague\n  }\n}\n\nfragment SportLeague on League {\n  __typename\n  id\n  image\n  name\n  slug\n}"
+  },
+  {
+   "id": "7accc2b887470fc530d5441d08bdcee01a9d7c56d22cf60b46af84eae328fae8",
+   "name": "getLolPickemsBrandAssets",
+   "type": "query",
+   "body": "query getLolPickemsBrandAssets($tournamentId: String!) {\n  __typename\n  allLolEsportsPickems(limit: 1, where: {tournamentId: {eq: $tournamentId}}) {\n    __typename\n    ...LolPickemsBrandAssets\n  }\n}\n\nfragment LolPickemsBrandAssets on LolEsportsPickems {\n  __typename\n  brand {\n    __typename\n    bannerBackgroundImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n    ftuxBackgroundImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n    homepageHeaderImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n    leaderboardHeaderImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n    openGraphBackgroundImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n  }\n  pickBlocks {\n    __typename\n    brand {\n      __typename\n      cardImage {\n        __typename\n        asset {\n          __typename\n          ...PickemsSanityImageAsset\n        }\n      }\n      headerImage {\n        __typename\n        asset {\n          __typename\n          ...PickemsSanityImageAsset\n        }\n      }\n    }\n    id\n  }\n  tournamentId\n}\n\nfragment PickemsSanityImageAsset on SanityImageAsset {\n  __typename\n  metadata {\n    __typename\n    lqip\n  }\n  url\n}"
+  },
+  {
+   "id": "83469c2e43fdb2e71a3ab35c17b7748bb71253f07ad162acd4666c496e119605",
+   "name": "getUserFaction",
+   "type": "query",
+   "body": "query getUserFaction($eldsTournamentId: String!, $playerId: String!) {\n  __typename\n  playerFaction(playerId: $playerId, eldsTournamentId: $eldsTournamentId) {\n    __typename\n    ...Faction\n  }\n}\n\nfragment Faction on Faction {\n  __typename\n  host {\n    __typename\n    ...FactionHost\n  }\n  iconUrl\n  id\n  name\n  playerCount\n  region\n  rewardId\n  teamId\n}\n\nfragment FactionHost on CelebrityPlayer {\n  __typename\n  avatarUrl\n  displayName\n  externalUrl\n  id\n}"
+  },
+  {
+   "id": "95c72d54ec22ac93577691babacb46f67fd3b05157187632396594009d878c4d",
+   "name": "getValPickemsBrandAssets",
+   "type": "query",
+   "body": "query getValPickemsBrandAssets($tournamentId: String!) {\n  __typename\n  allValEsportsPickems(limit: 1, where: {tournamentId: {eq: $tournamentId}}) {\n    __typename\n    ...ValPickemsBrandAssets\n  }\n}\n\nfragment PickemsSanityImageAsset on SanityImageAsset {\n  __typename\n  metadata {\n    __typename\n    lqip\n  }\n  url\n}\n\nfragment ValPickemsBrandAssets on ValEsportsPickems {\n  __typename\n  brand {\n    __typename\n    bannerBackgroundImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n    ftuxBackgroundImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n    homepageHeaderImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n    leaderboardHeaderImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n    openGraphBackgroundImage {\n      __typename\n      asset {\n        __typename\n        ...PickemsSanityImageAsset\n      }\n    }\n  }\n  pickBlocks {\n    __typename\n    brand {\n      __typename\n      cardImage {\n        __typename\n        asset {\n          __typename\n          ...PickemsSanityImageAsset\n        }\n      }\n      headerImage {\n        __typename\n        asset {\n          __typename\n          ...PickemsSanityImageAsset\n        }\n      }\n    }\n    id\n  }\n  tournamentId\n}"
+  },
+  {
+   "id": "a4ca0434b4c3af4f3f95b4d7b03fe2a3fcdda0a36887d4f181da99cf3786f664",
+   "name": "homeEvents",
+   "type": "query",
+   "body": "query homeEvents($eventDateEnd: Date, $eventDateStart: Date, $eventState: [EventState], $eventType: EventType, $hl: Locale!, $leagues: [ID], $pageSize: Int, $pageToken: Token, $sport: [Sport], $tournamentIds: [ID], $vodType: [VodType]) {\n  __typename\n  esports(\n    hl: $hl\n    sport: $sport\n    leagueId: $leagues\n    tournamentId: $tournamentIds\n    eventDateStart: $eventDateStart\n    eventDateEnd: $eventDateEnd\n    eventState: $eventState\n    eventType: $eventType\n    pageSize: $pageSize\n    pageToken: $pageToken\n  ) {\n    __typename\n    events {\n      __typename\n      ...HomeEventMatch\n      ...HomeEventShow\n    }\n    pages {\n      __typename\n      newer\n      older\n    }\n  }\n}\n\nfragment HomeEventMatch on EventMatch {\n  __typename\n  blockName\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    image\n    name\n    slug\n  }\n  match {\n    __typename\n    flags\n    games {\n      __typename\n      id\n      number\n      state\n      vods {\n        __typename\n        endMillis\n        id\n        parameter\n        startMillis\n      }\n      recaps: vods(type: $vodType) {\n        __typename\n        endMillis\n        id\n        parameter\n        startMillis\n      }\n    }\n    id\n    state\n    strategy {\n      __typename\n      count\n      type\n    }\n    type\n  }\n  matchTeams {\n    __typename\n    code\n    homeLeague {\n      __typename\n      image\n      regionSlug\n    }\n    id\n    image\n    lightImage\n    name\n    result {\n      __typename\n      gameWins\n      outcome\n    }\n    teamId\n  }\n  startTime\n  state\n  streams {\n    __typename\n    countries\n    id\n    mediaLocale {\n      __typename\n      englishName\n      locale\n      translatedName\n    }\n    offset\n    parameter\n    provider\n  }\n  tournament {\n    __typename\n    id\n    name\n  }\n  type\n}\n\nfragment HomeEventShow on EventShow {\n  __typename\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    image\n    name\n    slug\n  }\n  startTime\n  state\n  streams {\n    __typename\n    countries\n    id\n    mediaLocale {\n      __typename\n      englishName\n      locale\n      translatedName\n    }\n    offset\n    parameter\n    provider\n  }\n  tournament {\n    __typename\n    id\n    name\n  }\n  type\n}"
+  },
+  {
+   "id": "47a15b362554c95b9b0cc3789e59661bc87ed6e5c6d5738712a409e384457c5e",
+   "name": "homeLeagues",
+   "type": "query",
+   "body": "query homeLeagues($flags: [LeagueFlags], $hl: Locale!, $sport: [Sport]) {\n  __typename\n  leagues(hl: $hl, sport: $sport, flags: $flags) {\n    __typename\n    ...HomeLeague\n  }\n}\n\nfragment HomeLeague on League {\n  __typename\n  displayPriority {\n    __typename\n    position\n    status\n  }\n  id\n  image\n  name\n  region\n  slug\n}"
+  },
+  {
+   "id": "c52b154b8675a5ea89df0289d9b8af068c81beb24de68865336b061244fd74bc",
+   "name": "lolHomepageWidgets",
+   "type": "query",
+   "body": "query lolHomepageWidgets($fallbackWhere: LolEsportsHomepageMultisiteFilter, $where: LolEsportsHomepageMultisiteFilter) {\n  __typename\n  widgets: allLolEsportsHomepageMultisite(where: $where) {\n    __typename\n    _updatedAt\n    language\n    seasonEventList {\n      __typename\n      ...HomeSeasonEvent\n    }\n    seasonHeaderImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    seasonTopImageDefault {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    title\n  }\n  fallback: allLolEsportsHomepageMultisite(where: $fallbackWhere) {\n    __typename\n    _updatedAt\n    language\n    seasonEventList {\n      __typename\n      ...HomeSeasonEvent\n    }\n    seasonHeaderImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    seasonTopImageDefault {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    title\n  }\n}\n\nfragment HomeSeasonEvent on EsportsSeasonEvent {\n  __typename\n  seasonDateEnd\n  seasonDateFormat\n  seasonDateStart\n  seasonEyebrown\n  seasonTitle\n  seasonTopImage {\n    __typename\n    asset {\n      __typename\n      url\n    }\n  }\n}"
+  },
+  {
+   "id": "f5a7bb64c62eca0f19b048a5835197e8f322b47170a1772ba47bffc0945310ce",
+   "name": "scheduleEvents",
+   "type": "query",
+   "body": "query scheduleEvents($eventDateEnd: Date, $eventDateStart: Date, $eventState: [EventState], $eventType: EventType, $hl: Locale!, $leagues: [ID], $leaguesExclude: [ID], $pageSize: Int, $pageToken: Token, $sport: [Sport], $vodType: [VodType]) {\n  __typename\n  esports(\n    hl: $hl\n    sport: $sport\n    leagueId: $leagues\n    leagueIdExclude: $leaguesExclude\n    eventDateStart: $eventDateStart\n    eventDateEnd: $eventDateEnd\n    eventState: $eventState\n    eventType: $eventType\n    pageSize: $pageSize\n    pageToken: $pageToken\n  ) {\n    __typename\n    events {\n      __typename\n      ...HomeEventMatch\n      ...HomeEventShow\n    }\n    pages {\n      __typename\n      newer\n      older\n    }\n  }\n}\n\nfragment HomeEventMatch on EventMatch {\n  __typename\n  blockName\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    image\n    name\n    slug\n  }\n  match {\n    __typename\n    flags\n    games {\n      __typename\n      id\n      number\n      state\n      vods {\n        __typename\n        endMillis\n        id\n        parameter\n        startMillis\n      }\n      recaps: vods(type: $vodType) {\n        __typename\n        endMillis\n        id\n        parameter\n        startMillis\n      }\n    }\n    id\n    state\n    strategy {\n      __typename\n      count\n      type\n    }\n    type\n  }\n  matchTeams {\n    __typename\n    code\n    homeLeague {\n      __typename\n      image\n      regionSlug\n    }\n    id\n    image\n    lightImage\n    name\n    result {\n      __typename\n      gameWins\n      outcome\n    }\n    teamId\n  }\n  startTime\n  state\n  streams {\n    __typename\n    countries\n    id\n    mediaLocale {\n      __typename\n      englishName\n      locale\n      translatedName\n    }\n    offset\n    parameter\n    provider\n  }\n  tournament {\n    __typename\n    id\n    name\n  }\n  type\n}\n\nfragment HomeEventShow on EventShow {\n  __typename\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    image\n    name\n    slug\n  }\n  startTime\n  state\n  streams {\n    __typename\n    countries\n    id\n    mediaLocale {\n      __typename\n      englishName\n      locale\n      translatedName\n    }\n    offset\n    parameter\n    provider\n  }\n  tournament {\n    __typename\n    id\n    name\n  }\n  type\n}"
+  },
+  {
+   "id": "55e810173bac6bfdb5e7b41b1844adea442842cef068a12ac08e2927485d0412",
+   "name": "valHomepageWidgets",
+   "type": "query",
+   "body": "query valHomepageWidgets($fallbackWhere: ValEsportsHomepageMultisiteFilter, $where: ValEsportsHomepageMultisiteFilter) {\n  __typename\n  widgets: allValEsportsHomepageMultisite(where: $where) {\n    __typename\n    _updatedAt\n    language\n    seasonEventList {\n      __typename\n      ...HomeSeasonEvent\n    }\n    seasonHeaderImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    seasonTopImageDefault {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    title\n  }\n  fallback: allValEsportsHomepageMultisite(where: $fallbackWhere) {\n    __typename\n    _updatedAt\n    language\n    seasonEventList {\n      __typename\n      ...HomeSeasonEvent\n    }\n    seasonHeaderImage {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    seasonTopImageDefault {\n      __typename\n      asset {\n        __typename\n        url\n      }\n    }\n    title\n  }\n}\n\nfragment HomeSeasonEvent on EsportsSeasonEvent {\n  __typename\n  seasonDateEnd\n  seasonDateFormat\n  seasonDateStart\n  seasonEyebrown\n  seasonTitle\n  seasonTopImage {\n    __typename\n    asset {\n      __typename\n      url\n    }\n  }\n}"
+  },
+  {
+   "id": "40a17f2e4a262c9d5afc78c250b71806e2f68d32b8b0bb6f5ae939c46fa7335b",
+   "name": "watchLiveLeaguesQuery",
+   "type": "query",
+   "body": "query watchLiveLeaguesQuery($flags: [LeagueFlags], $hl: Locale!, $sport: [Sport]) {\n  __typename\n  leagues(hl: $hl, sport: $sport, flags: $flags) {\n    __typename\n    ...WatchLiveLeague\n  }\n}\n\nfragment WatchLiveLeague on League {\n  __typename\n  id\n  name\n  slug\n}"
+  },
+  {
+   "id": "b67230b177d865a4ca5bd9c876fa884745f8fd2696e63c7214c9b5b718608ff0",
+   "name": "watchLiveQuery",
+   "type": "query",
+   "body": "query watchLiveQuery($eventState: [EventState], $eventType: EventType, $hl: Locale!, $pageSize: Int, $sport: [Sport]) {\n  __typename\n  esports(\n    hl: $hl\n    sport: $sport\n    eventState: $eventState\n    eventType: $eventType\n    pageSize: $pageSize\n  ) {\n    __typename\n    events {\n      __typename\n      ...WatchLiveEventMatch\n      ...WatchLiveEventShow\n    }\n  }\n}\n\nfragment WatchLiveEventMatch on EventMatch {\n  __typename\n  blockName\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    image\n    name\n    region\n    slug\n  }\n  match {\n    __typename\n    games {\n      __typename\n      id\n      number\n      state\n      teams {\n        __typename\n        id\n        side\n      }\n    }\n    id\n    matchTeams {\n      __typename\n      code\n      id\n      image\n      name\n      record {\n        __typename\n        losses\n        wins\n      }\n      result {\n        __typename\n        gameWins\n        outcome\n      }\n    }\n    strategy {\n      __typename\n      count\n      type\n    }\n  }\n  startTime\n  streams {\n    __typename\n    ...WatchLiveStream\n  }\n  tournament {\n    __typename\n    id\n  }\n  type\n}\n\nfragment WatchLiveEventShow on EventShow {\n  __typename\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    image\n    name\n    region\n    slug\n  }\n  startTime\n  streams {\n    __typename\n    ...WatchLiveStream\n  }\n  tournament {\n    __typename\n    id\n  }\n  type\n}\n\nfragment WatchLiveStream on Stream {\n  __typename\n  countries\n  id\n  mediaLocale {\n    __typename\n    englishName\n    locale\n    translatedName\n  }\n  offset\n  parameter\n  provider\n}"
+  },
+  {
+   "id": "ad88c14eaed96ae0c82c852c5acdc632708a051fada6c0a27401d247164ea327",
+   "name": "watchSingleLiveEventByLeagueQuery",
+   "type": "query",
+   "body": "query watchSingleLiveEventByLeagueQuery($eventState: [EventState], $eventType: EventType, $hl: Locale!, $leagueId: [ID!]!, $pageSize: Int, $sport: [Sport]) {\n  __typename\n  esports(\n    hl: $hl\n    sport: $sport\n    leagueId: $leagueId\n    eventState: $eventState\n    eventType: $eventType\n    pageSize: $pageSize\n  ) {\n    __typename\n    events {\n      __typename\n      ... on EventMatch {\n        __typename\n        id\n      }\n      ... on EventShow {\n        __typename\n        id\n      }\n    }\n  }\n}"
+  },
+  {
+   "id": "7e607daa5563255b3233551b81ab664827542ce52daeb38a36e1177ce514e67c",
+   "name": "watchVodQuery",
+   "type": "query",
+   "body": "query watchVodQuery($eventId: ID!, $hl: Locale!, $vodType: [VodType]) {\n  __typename\n  scheduledEvent(hl: $hl, id: $eventId) {\n    __typename\n    ...WatchVodEventMatch\n    ...WatchVodEventShow\n  }\n}\n\nfragment WatchVodEventMatch on EventMatch {\n  __typename\n  blockName\n  id\n  league {\n    __typename\n    displayPriority {\n      __typename\n      position\n      status\n    }\n    id\n    image\n    name\n    slug\n  }\n  match {\n    __typename\n    games {\n      __typename\n      ...WatchVodGame\n    }\n    id\n    matchTeams {\n      __typename\n      code\n      id\n      image\n      name\n      record {\n        __typename\n        losses\n        wins\n      }\n      result {\n        __typename\n        gameWins\n        outcome\n      }\n    }\n    strategy {\n      __typename\n      count\n      type\n    }\n  }\n  startTime\n  streams {\n    __typename\n    ...WatchVodStream\n  }\n  tournament {\n    __typename\n    id\n  }\n  type\n}\n\nfragment WatchVodEventShow on EventShow {\n  __typename\n  id\n  league {\n    __typename\n    id\n    image\n    name\n    slug\n  }\n  streams {\n    __typename\n    ...WatchVodStream\n  }\n  tournament {\n    __typename\n    id\n  }\n  type\n}\n\nfragment WatchVodGame on Game {\n  __typename\n  id\n  number\n  state\n  teams {\n    __typename\n    id\n    side\n  }\n  vods {\n    __typename\n    ...WatchVodVod\n  }\n  recaps: vods(type: $vodType) {\n    __typename\n    ...WatchVodVod\n  }\n}\n\nfragment WatchVodStream on Stream {\n  __typename\n  countries\n  id\n  mediaLocale {\n    __typename\n    englishName\n    locale\n    translatedName\n  }\n  offset\n  parameter\n  provider\n}\n\nfragment WatchVodVod on Vod {\n  __typename\n  endMillis\n  firstFrameTime\n  id\n  mediaLocale {\n    __typename\n    englishName\n    locale\n    translatedName\n  }\n  offset\n  offset\n  parameter\n  provider\n  startMillis\n  type\n}"
+  }
+ ],
+ "_meta": {
+  "client_version": "acab248",
+  "operations": 164,
+  "id_is_sha256_of_body": true,
+  "mismatches": []
+ }
+}

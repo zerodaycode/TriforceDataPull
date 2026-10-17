@@ -7,6 +7,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `canyon.toml.example` template, copy it to `canyon.toml`.
 - README, roadmap, development workflow, decisions and investigations in `docs/`.
+- Investigations of the old LoL Esports API, the live feed and the new lolesports.com GraphQL API, with a migration map, a live check and a data comparison between both APIs, and [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (proposed).
+- `tools/lolesports-explorer/`: Python tools to call and record both APIs, the query manifest and a Bruno collection.
 
 ### Changed
 - Rust edition 2021 → 2024.
