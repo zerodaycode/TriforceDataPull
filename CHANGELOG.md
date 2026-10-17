@@ -9,9 +9,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - README, roadmap, development workflow, decisions and investigations in `docs/`.
 - Investigations of the old LoL Esports API, the live feed and the new lolesports.com GraphQL API, with a migration map, a live check and a data comparison between both APIs, and [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (proposed).
 - `tools/lolesports-explorer/`: Python tools to call and record both APIs, the query manifest and a Bruno collection.
+- Leagues and tournaments can come from the lolesports.com GraphQL API (`TRIFORCE_SOURCE_LEAGUES=new`), one call instead of 52.
+- GraphQL query manifest kept in `gql-manifest.json`, downloaded again when a query hash stops working, or with `cargo run -- refresh-manifest`.
 
 ### Changed
 - Rust edition 2021 → 2024.
+- New dependency: sha2 0.11.1, to check the manifest hashes.
 - Dependencies updated: serde 1.0.229, serde_json 1.0.154, reqwest 0.13.5, color-eyre 0.6.5, itertools 0.15.0, chrono 0.4.45, cron 0.17.0, tokio 1.53.3.
 - Canyon-SQL 0.4.2 → `develop` branch, pinned to commit `1c81b3b` with `rev`. See [ADR 0001](docs/decisions/0001-use-canyon-sql-develop-branch.md).
 - Data access ported to the new Canyon API (`Crud` derive, `Read`/`Insert`/`Update`/`Delete` traits, query builder with `where_value`).

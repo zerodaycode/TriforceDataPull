@@ -5,8 +5,21 @@ use crate::client::legacy::{
         LolesportsId, Player, ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper,
     },
 };
+use crate::client::{
+    self, Source,
+    adapters::leagues::from_other_leagues,
+    gql::{
+        Gql,
+        manifest::{Store, path_from_env},
+        ops::other_leagues::GetOtherLeagues,
+    },
+};
 use chrono::Local;
-use color_eyre::{Result, eyre::Context};
+use color_eyre::{
+    Result,
+    eyre::{Context, eyre},
+};
+use std::sync::Arc;
 
 /**
  * This type alias are just a communist joke. They are the Lolesports tournaments only?
@@ -28,14 +41,57 @@ pub struct DataPull {
     pub live: Vec<EventDetails>,
     pub previous_live: Vec<EventDetails>,
     pub events_with_recent_changes: Vec<EventDetails>,
+    pub leagues_source: Source,
+    pub gql: Option<Arc<Gql>>,
 }
 
 impl DataPull {
+    pub fn new() -> Result<Self> {
+        let leagues_source = Source::from_env("TRIFORCE_SOURCE_LEAGUES")?;
+        println!(
+            "{} - Leagues and tournaments from the {} API",
+            Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
+            if leagues_source == Source::New {
+                "new"
+            } else {
+                "old"
+            }
+        );
+        Ok(Self {
+            leagues_source,
+            gql: (leagues_source == Source::New)
+                .then(|| Arc::new(Gql::new(client::http(), Store::open(path_from_env())))),
+            ..Default::default()
+        })
+    }
+
+    /// One call has every league and its tournaments
+    async fn fetch_other_leagues(&self) -> Result<(Leagues, OurTournaments)> {
+        let gql = self
+            .gql
+            .as_ref()
+            .ok_or_else(|| eyre!("GraphQL client not set up"))?;
+        let answer = gql
+            .call::<GetOtherLeagues>(&Default::default())
+            .await
+            .with_context(|| "A failure happened retrieving GetOtherLeagues from lolesports.com")?;
+        // the CDN can serve an older copy, the time helps to spot it
+        client::log(format!("GetOtherLeagues answer made at {}", answer.made_at));
+        from_other_leagues(answer.data)
+    }
+
     pub async fn fetch_leagues(&mut self) -> Result<()> {
         println!(
             "{} - Fetching Leagues from The LoLEsports API",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
+        if self.leagues_source == Source::New {
+            // one call has both, fetch_tournaments has nothing left to do
+            let (leagues, tournaments) = self.fetch_other_leagues().await?;
+            self.leagues = leagues;
+            self.tournaments = tournaments;
+            return Ok(());
+        }
         let response = legacy::get::<&[()]>(endpoints::LEAGUES_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the Leagues from Lolesports");
@@ -50,6 +106,10 @@ impl DataPull {
             "{} - Tournaments Leagues from The LoLEsports API",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
+        if self.leagues_source == Source::New {
+            // filled by fetch_leagues from the same answer
+            return Ok(());
+        }
         for league in &self.leagues.leagues {
             println!(
                 "{} - Fetching Tournaments for League ID: {:?}",

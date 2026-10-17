@@ -24,3 +24,7 @@ canyon.toml
 recordings/
 har_report/
 __pycache__/
+
+# GraphQL query manifest, written by Triforce (`refresh-manifest` or an unknown hash)
+gql-manifest.json
+gql-manifest.json.tmp

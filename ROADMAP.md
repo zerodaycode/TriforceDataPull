@@ -8,7 +8,7 @@ See [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (propos
 - [ ] [High] Leagues and tournaments from `GetOtherLeagues` (one call instead of 51), tournament dates = UTC date of `startTime`/`endTime`
 - [ ] [Medium] Teams and players from `GetLoLTeamOverview`, use `homeLeague.id` instead of the name lookup
 - [ ] [Medium] Schedule from `scheduleEvents`, use league and team ids instead of slug/name lookups
-- [ ] [Medium] Keep the query manifest up to date and alert when a hash stops working
+- [x] [Medium] Keep the query manifest up to date and alert when a hash stops working
 - [ ] [Low] Live and event details from `watchLiveQuery` + `watchVodQuery` (checked live on 2026-10-16), the adapter sets `state` itself
 
 ## Reliability

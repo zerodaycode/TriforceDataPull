@@ -26,7 +26,7 @@ Move the reads to the GraphQL API, one data set at a time, keeping the old API a
 3. Schedule: `scheduleEvents`.
 4. Live and event details: `watchLiveQuery` + `watchVodQuery` (checked live on 2026-10-16). The adapter sets the event `state` itself.
 
-The query hashes are kept in a manifest file in the repo, with a way to refresh it (to decide, see the open points) and an alert when a call fails because of an unknown hash. If we need live in-game stats later, they come from the old feed.
+The query hashes are kept in a manifest file next to Triforce (not in the repo). Triforce downloads it again from the site when a hash is unknown, and logs `GQL_MANIFEST:` when that fails or when a query we use changed. If we need live in-game stats later, they come from the old feed.
 
 The adapters keep the time each answer was made (Netlify: `Date - Age`) per operation and match, in memory in the live loop, and ignore answers older than the newest one. The old API served an older copy after a newer one during the live check, so this applies to both APIs. Two operations can disagree with the same answer time, so state and score never go back whatever the operation. Live wins are copied by team id, not by position in the array.
 
@@ -43,8 +43,8 @@ Triforce sends an identifying `User-Agent` (`TriforceDataPull/<version>`) next t
 
 ## Open before accepting
 - [x] `watchLiveQuery` during a live match: same data as `getLive`, no `state`, cache 120 s + 60 s stale, game 3 end seen +3 min 48 s (old) / +4 min 56 s (new) after the feed, one game (2026-10-16, [live check](../investigations/2026-10-17-old-vs-new-api-comparison.md)). Not seen: the variables of the site live page (no HAR).
-- [ ] How to refresh the hashes: manual with `tools/lolesports-explorer/gql_tool.py extract`, or automatic at start up (find the manifest chunk like the command line steps in the investigation; that means downloading and parsing the site JS on every start).
-- [ ] A spike in Rust: call one operation (e.g. `GetOtherLeagues`) from Triforce with `reqwest` and compare it with what we store today.
+- [x] How to refresh the hashes: Triforce keeps them in a file (`TRIFORCE_GQL_MANIFEST`, default `gql-manifest.json`) and downloads the manifest again from the site in Rust when a hash is unknown (once an hour at most) or with `refresh-manifest`. The Python tool stays to check things by hand (2026-10-17).
+- [x] Rust spike: `GetOtherLeagues` from Triforce, behind `TRIFORCE_SOURCE_LEAGUES=new`, gives the same leagues and tournaments we store: 51 leagues and 514 tournaments, same md5 on every column. `refresh-manifest` found build `a93ba50` with 164 operations, and a made-up hash triggered one refresh and the run went on (2026-10-17).
 - [ ] Tier 2/3 behavior (P1-P3) in the new API.
 - [x] Tournament dates: our `start_date`/`end_date` are the UTC date of `startTime`/`endTime` in all 513 (2026-10-16). Take the UTC date, no column change.
 - [ ] `team.alt_image_url`: there is no `alternativeImage` in the new API and `update()` writes the whole row. 1,325 teams have one. Keep the stored value or drop the column.

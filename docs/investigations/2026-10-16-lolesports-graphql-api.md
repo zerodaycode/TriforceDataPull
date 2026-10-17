@@ -62,6 +62,13 @@ Other ways:
   grep -l 'apollo-persisted-query-manifest' *.js
   ```
 
+### Checked again on 2026-10-17
+
+- The site was rebuilt: build `a93ba50` (was `acab248`). Same 164 operations, and the ones in the migration plan (`GetOtherLeagues`, `GetLoLTeamOverview`, `scheduleEvents`, `watchLiveQuery`, `watchVodQuery`, `homeEvents`) kept their hash and text.
+- The build id isn't in the page HTML. It's in a chunk of the page as `"getAppVersion",0,function(){return"a93ba50"}`. The manifest is in a chunk loaded by another chunk (2 levels).
+- `apollographql-client-version` isn't checked: `a93ba50`, `acab248`, `xyz` and no header all answer 200.
+- Unknown hash: HTTP 404, `{"errors":[{"message":"Persisted query '<hash>' not found in the persisted query list","extensions":{"operation_name":"GetOtherLeagues","code":"PERSISTED_QUERY_NOT_IN_LIST"}}]}`.
+
 ### Caching
 
 | Operation | `cache-control` |

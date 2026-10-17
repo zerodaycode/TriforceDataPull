@@ -16,7 +16,22 @@ use tokio::sync::Mutex;
 
 #[canyon_sql::main]
 fn main() -> Result<()> {
-    let data_pull = Arc::new(Mutex::new(service::DataPull::default()));
+    // `triforce-data-pull refresh-manifest`: download the site's query manifest and exit
+    match std::env::args().nth(1).as_deref() {
+        None => {}
+        Some("refresh-manifest") => {
+            let store = client::gql::manifest::Store::open(client::gql::manifest::path_from_env());
+            store.refresh(client::http()).await?;
+            return Ok(());
+        }
+        Some(other) => {
+            return Err(color_eyre::eyre::eyre!(
+                "unknown command {other:?}, expected refresh-manifest"
+            ));
+        }
+    }
+
+    let data_pull = Arc::new(Mutex::new(service::DataPull::new()?));
     let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
 
     println!(
@@ -130,11 +145,13 @@ fn main() -> Result<()> {
                     sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
                 }
                 let _ = data_pull.lock().await.fetch_leagues().await;
-                let _ = database_ops
-                    .lock()
-                    .await
-                    .bulk_leagues_in_database(&data_pull.lock().await.leagues)
-                    .await;
+                let mut db = database_ops.lock().await;
+                let dp = data_pull.lock().await;
+                let _ = db.bulk_leagues_in_database(&dp.leagues).await;
+                if dp.leagues_source == client::Source::New {
+                    // same answer as the leagues, written right after them
+                    let _ = db.bulk_tournaments_in_database(&dp.tournaments).await;
+                }
             }
         });
     }
@@ -151,6 +168,10 @@ fn main() -> Result<()> {
                     sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
                 }
                 let _ = data_pull.lock().await.fetch_tournaments().await;
+                // under the new API the leagues loop writes them
+                if data_pull.lock().await.leagues_source == client::Source::New {
+                    continue;
+                }
 
                 let _ = database_ops
                     .lock()

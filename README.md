@@ -39,6 +39,15 @@ If you drop or recreate the tables, force a rebuild before running:
 touch src/main.rs && cargo run
 ```
 
+## Settings
+
+| Variable | Default | Use |
+|---|---|---|
+| `TRIFORCE_SOURCE_LEAGUES` | `old` | `new` takes leagues and tournaments from the lolesports.com GraphQL API |
+| `TRIFORCE_GQL_MANIFEST` | `gql-manifest.json` | Where the GraphQL query manifest is kept |
+
+`cargo run -- refresh-manifest` downloads the manifest again and exits (it connects to the DB and applies pending Canyon migrations first).
+
 ## What runs when
 
 On start everything is fetched and saved once (live events are saved from the first 2 minutes tick), then:
