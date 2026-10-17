@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use super::leagues::League;
 use super::teams::Team;
-use crate::data_pull;
+use crate::client::legacy::models as api;
 
 #[derive(Debug, Clone, Crud, Fields, CanyonMapper, Serialize)]
 #[canyon_entity]
@@ -26,8 +26,8 @@ pub struct Schedule {
     team_right_wins: Option<i64>,
 }
 
-impl From<&data_pull::serde_models::Event> for Schedule {
-    fn from(value: &data_pull::serde_models::Event) -> Self {
+impl From<&api::Event> for Schedule {
+    fn from(value: &api::Event) -> Self {
         Self {
             id: Default::default(),
             start_time: Some(value.start_time.into()),
@@ -52,8 +52,8 @@ impl From<&data_pull::serde_models::Event> for Schedule {
     }
 }
 
-impl From<&data_pull::serde_models::EventDetails> for Schedule {
-    fn from(value: &data_pull::serde_models::EventDetails) -> Self {
+impl From<&api::EventDetails> for Schedule {
+    fn from(value: &api::EventDetails) -> Self {
         Self {
             id: Default::default(),
             start_time: value.start_time.map(|ldt| ldt.into()),
@@ -82,10 +82,7 @@ impl From<&data_pull::serde_models::EventDetails> for Schedule {
 }
 
 impl Schedule {
-    pub fn merge_with_event_details(
-        &mut self,
-        event_details: &data_pull::serde_models::EventDetails,
-    ) {
+    pub fn merge_with_event_details(&mut self, event_details: &api::EventDetails) {
         if let Some(first_team) = event_details
             .r#match
             .as_ref()

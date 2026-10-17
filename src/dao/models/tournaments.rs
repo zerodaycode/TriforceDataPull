@@ -1,7 +1,7 @@
 use canyon_sql::{date_time::NaiveDate, macros::*};
 use serde::Serialize;
 
-use crate::data_pull;
+use crate::client::legacy::models as api;
 
 use super::leagues::League;
 
@@ -18,8 +18,8 @@ pub struct Tournament {
     league: i32,
 }
 
-impl From<data_pull::serde_models::Tournament> for Tournament {
-    fn from(value: data_pull::serde_models::Tournament) -> Self {
+impl From<api::Tournament> for Tournament {
+    fn from(value: api::Tournament) -> Self {
         Self {
             id: Default::default(),
             ext_id: value.id.into(),
@@ -31,8 +31,8 @@ impl From<data_pull::serde_models::Tournament> for Tournament {
     }
 }
 
-impl From<&data_pull::serde_models::Tournament> for Tournament {
-    fn from(value: &data_pull::serde_models::Tournament) -> Self {
+impl From<&api::Tournament> for Tournament {
+    fn from(value: &api::Tournament) -> Self {
         Self {
             id: Default::default(),
             ext_id: value.id.into(),

@@ -1,9 +1,8 @@
 extern crate canyon_sql;
 
+mod client;
 mod dao;
-mod data_pull;
 mod service;
-mod utils;
 
 use canyon_sql::date_time::Utc;
 use chrono::Local;

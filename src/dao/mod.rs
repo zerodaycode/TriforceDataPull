@@ -9,10 +9,7 @@ use self::models::{
     teams::Team,
     tournaments::Tournament,
 };
-use crate::{
-    data_pull::{self, serde_models::Leagues},
-    service::OurTournaments,
-};
+use crate::{client::legacy::models as api, service::OurTournaments};
 use canyon_sql::{
     crud::{Delete, Insert, Read, Update},
     query::{operators::Operator, querybuilder::QueryBuilderOps},
@@ -32,7 +29,7 @@ pub struct DatabaseOps {
 }
 
 impl DatabaseOps {
-    pub async fn bulk_leagues_in_database(&mut self, leagues: &Leagues) -> Result<()> {
+    pub async fn bulk_leagues_in_database(&mut self, leagues: &api::Leagues) -> Result<()> {
         println!(
             "{} - Processing leagues to insert or update on database",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -113,10 +110,7 @@ impl DatabaseOps {
         }
     }
 
-    pub async fn bulk_teams_in_database(
-        &mut self,
-        teams: &Vec<data_pull::serde_models::Team>,
-    ) -> Result<()> {
+    pub async fn bulk_teams_in_database(&mut self, teams: &Vec<api::Team>) -> Result<()> {
         println!(
             "{} - Processing teams to insert or update on database",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -168,10 +162,7 @@ impl DatabaseOps {
         }
     }
 
-    pub async fn bulk_players_in_database(
-        &mut self,
-        players: &Vec<data_pull::serde_models::Player>,
-    ) -> Result<()> {
+    pub async fn bulk_players_in_database(&mut self, players: &Vec<api::Player>) -> Result<()> {
         println!(
             "{} - Processing players to insert or update on database",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -210,7 +201,7 @@ impl DatabaseOps {
 
     pub async fn bulk_team_player_in_database(
         &mut self,
-        fetched_teams: &Vec<data_pull::serde_models::Team>,
+        fetched_teams: &Vec<api::Team>,
     ) -> Result<()> {
         println!(
             "{} - Processing players and teams to insert on database",
@@ -286,10 +277,7 @@ impl DatabaseOps {
         }
     }
 
-    pub async fn bulk_schedule_in_database(
-        &mut self,
-        events: &Vec<data_pull::serde_models::Event>,
-    ) -> Result<()> {
+    pub async fn bulk_schedule_in_database(&mut self, events: &Vec<api::Event>) -> Result<()> {
         println!(
             "{} - Processing schedule data to insert/update on database",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -396,7 +384,7 @@ impl DatabaseOps {
 
     pub async fn bulk_eventdetails_in_database(
         &mut self,
-        events: &Vec<data_pull::serde_models::EventDetails>,
+        events: &Vec<api::EventDetails>,
     ) -> Result<()> {
         let db_leagues = League::find_all().await;
         let db_events = Schedule::select_query()?

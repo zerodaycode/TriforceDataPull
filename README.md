@@ -58,10 +58,9 @@ Schedules are in `src/main.rs`.
 | Path | What |
 |---|---|
 | `src/main.rs` | Start up and scheduled loops |
-| `src/service/` | LoL Esports API client |
-| `src/data_pull/` | API models |
+| `src/client/` | LoL Esports HTTP client (`legacy/`: old API calls, endpoints and models) |
+| `src/service/` | `DataPull`: fetches and keeps the API data |
 | `src/dao/` | Database models and writes |
-| `src/utils/` | Constants (API base URL and endpoints) |
 | `docker/` | Postgres for local development |
 | `bash_alias.sh` | Docker aliases (`. ./bash_alias.sh`) |
 | `docs/` | Workflow, decisions and investigations |

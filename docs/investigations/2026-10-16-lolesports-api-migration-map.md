@@ -8,7 +8,7 @@ Every old call has a new equivalent, all called from a script (test 3). All of t
 
 ## What Triforce reads today
 
-`DataPull` is in `src/service/mod.rs`, the API models in `src/data_pull/`, the HTTP call in `src/service/caller.rs` and the endpoints in `src/utils/constants.rs`.
+`DataPull` is in `src/service/mod.rs`, the API models in `src/data_pull/`, the HTTP call in `src/service/caller.rs` and the endpoints in `src/utils/constants.rs`. Since 2026-10-17 they are in `src/client/legacy/` (`models.rs`, `mod.rs`, `endpoints.rs`).
 
 | `DataPull` method | Old endpoint | Params | Used for |
 |---|---|---|---|

@@ -1,7 +1,7 @@
 use canyon_sql::macros::*;
 use serde::Serialize;
 
-use crate::data_pull;
+use crate::client::legacy::models as api;
 
 #[derive(Debug, Clone, Crud, CanyonMapper, Serialize)]
 #[canyon_entity]
@@ -15,8 +15,8 @@ pub struct League {
     image_url: String,
 }
 
-impl From<data_pull::serde_models::League> for League {
-    fn from(value: data_pull::serde_models::League) -> Self {
+impl From<api::League> for League {
+    fn from(value: api::League) -> Self {
         Self {
             id: Default::default(),
             ext_id: value.id.into(),
@@ -28,8 +28,8 @@ impl From<data_pull::serde_models::League> for League {
     }
 }
 
-impl From<&data_pull::serde_models::League> for League {
-    fn from(value: &data_pull::serde_models::League) -> Self {
+impl From<&api::League> for League {
+    fn from(value: &api::League) -> Self {
         Self {
             id: Default::default(),
             ext_id: value.id.into(),

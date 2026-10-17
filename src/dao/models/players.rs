@@ -1,7 +1,7 @@
 use canyon_sql::macros::*;
 use serde::Serialize;
 
-use crate::data_pull;
+use crate::client::legacy::models as api;
 
 #[derive(Debug, Clone, Crud, CanyonMapper, Serialize)]
 #[canyon_entity]
@@ -16,8 +16,8 @@ pub struct Player {
     role: String,
 }
 
-impl From<&data_pull::serde_models::Player> for Player {
-    fn from(value: &data_pull::serde_models::Player) -> Self {
+impl From<&api::Player> for Player {
+    fn from(value: &api::Player) -> Self {
         Self {
             id: Default::default(),
             ext_id: value.id.into(),

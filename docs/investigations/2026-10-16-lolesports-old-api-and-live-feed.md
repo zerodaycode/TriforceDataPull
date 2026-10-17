@@ -30,7 +30,7 @@ The tools are in [`tools/lolesports-explorer/`](../../tools/lolesports-explorer/
 
 All endpoints:
 
-- Header `x-api-key: 0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z` (public key of the web client, same as `src/service/caller.rs`)
+- Header `x-api-key: 0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z` (public key of the web client, same as `src/service/caller.rs`, now `src/client/legacy/mod.rs`)
 - Param `hl=en-US`
 - Response: `cache-control: max-age=60, public, stale-while-revalidate=60`, `access-control-allow-origin: *`
 

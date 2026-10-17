@@ -1,27 +1,28 @@
+//! Old LoL Esports API (esports-api.lolesports.com/persisted/gw)
+
+pub mod endpoints;
+pub mod models;
+
 use chrono::Local;
+use color_eyre::{Result, eyre::Context};
 use reqwest::Response;
 use serde::Serialize;
 use std::fmt::Debug;
 use std::time::Duration;
-
-use crate::utils::constants::lolesports;
-use color_eyre::{Result, eyre::Context};
 use tokio::time::sleep;
 
-pub async fn make_get_request<T>(endpoint: &str, args: Option<&T>) -> Result<Response>
+pub async fn get<T>(endpoint: &str, args: Option<&T>) -> Result<Response>
 where
     T: Serialize + Debug,
 {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()?;
+    let client = super::http();
 
     let mut attempts = 2;
     let retry_duration = Duration::from_secs(5);
 
     loop {
         let mut b = client
-            .get(format!("{}{}", lolesports::BASE_URL, endpoint))
+            .get(format!("{}{}", endpoints::BASE_URL, endpoint))
             .header("x-api-key", "0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z");
 
         if let Some(arguments) = args {

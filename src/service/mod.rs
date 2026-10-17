@@ -1,11 +1,9 @@
-pub mod caller;
-
-use crate::{
-    data_pull::serde_models::{
+use crate::client::legacy::{
+    self, endpoints,
+    models::{
         Event, EventDetails, EventOutter, LeagueForTournaments, Leagues, LiveScheduleOutter,
         LolesportsId, Player, ScheduleOutter, Team, TeamsPlayers, Tournament, Wrapper,
     },
-    utils::constants::lolesports,
 };
 use chrono::Local;
 use color_eyre::{Result, eyre::Context};
@@ -38,7 +36,7 @@ impl DataPull {
             "{} - Fetching Leagues from The LoLEsports API",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
-        let response = caller::make_get_request::<&[()]>(lolesports::LEAGUES_ENDPOINT, None)
+        let response = legacy::get::<&[()]>(endpoints::LEAGUES_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the Leagues from Lolesports");
 
@@ -58,8 +56,8 @@ impl DataPull {
                 Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
                 &league.id
             );
-            let response = caller::make_get_request(
-                lolesports::TOURNAMENTS_ENDPOINT,
+            let response = legacy::get(
+                endpoints::TOURNAMENTS_ENDPOINT,
                 Some(&[("leagueId", &league.id)]),
             )
             .await
@@ -85,12 +83,9 @@ impl DataPull {
             "{} - Fetching Teams and Players from The LoLEsports API",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
-        let response =
-            caller::make_get_request::<&[()]>(lolesports::TEAMS_AND_LEAGUES_ENDPOINT, None)
-                .await
-                .with_context(
-                    || "A failure happened retrieving the Teams and players from Lolesports",
-                );
+        let response = legacy::get::<&[()]>(endpoints::TEAMS_AND_LEAGUES_ENDPOINT, None)
+            .await
+            .with_context(|| "A failure happened retrieving the Teams and players from Lolesports");
 
         serde_json::from_str::<Wrapper<TeamsPlayers>>(&response?.text().await.unwrap())
             .map(|parsed| {
@@ -110,7 +105,7 @@ impl DataPull {
             "{} - Fetching current page of schedule from The LoLEsports API",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
-        let response = caller::make_get_request::<&[()]>(lolesports::SCHEDULE_ENDPOINT, None)
+        let response = legacy::get::<&[()]>(endpoints::SCHEDULE_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the schedule from Lolesports");
 
@@ -141,7 +136,7 @@ impl DataPull {
     }
 
     async fn fetch_full_schedule(&mut self) -> Result<()> {
-        let first_response = caller::make_get_request::<&[()]>(lolesports::SCHEDULE_ENDPOINT, None)
+        let first_response = legacy::get::<&[()]>(endpoints::SCHEDULE_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the schedule from Lolesports");
 
@@ -162,8 +157,8 @@ impl DataPull {
             if total_old_entries > 25 {
                 break;
             }
-            let r = caller::make_get_request(
-                lolesports::SCHEDULE_ENDPOINT,
+            let r = legacy::get(
+                endpoints::SCHEDULE_ENDPOINT,
                 Some(&[("pageToken", older_events)]),
             )
             .await
@@ -182,8 +177,8 @@ impl DataPull {
 
         // While the API returns a key with newer entries, we will continue fetching the calendar
         while let Some(newer_events) = &newer_entry_sentinel {
-            let r = caller::make_get_request(
-                lolesports::SCHEDULE_ENDPOINT,
+            let r = legacy::get(
+                endpoints::SCHEDULE_ENDPOINT,
                 Some(&[("pageToken", newer_events)]),
             )
             .await
@@ -219,7 +214,7 @@ impl DataPull {
         );
         self.events_with_recent_changes.clear();
 
-        let response = caller::make_get_request::<&[()]>(lolesports::LIVE_ENDPOINT, None)
+        let response = legacy::get::<&[()]>(endpoints::LIVE_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the Live Events from Lolesports");
 
@@ -301,8 +296,8 @@ impl DataPull {
                         "\n{} - Calling EventDetails endpoint \n",
                         Local::now().format("%Y-%m-%d %H:%M:%S.%f")
                     );
-                    let response = caller::make_get_request(
-                        lolesports::EVENT_DETAILS_ENDPOINT,
+                    let response = legacy::get(
+                        endpoints::EVENT_DETAILS_ENDPOINT,
                         Some(&[("id", event_with_changes.id)]),
                     )
                     .await

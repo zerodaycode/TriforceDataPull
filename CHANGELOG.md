@@ -24,6 +24,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   ```sh
   docker compose -f docker/docker-compose.yml exec -T postgres psql -U postgres < dump.sql
   ```
+- One HTTP client for all LoL Esports calls instead of one per request. Connections are reused and HTTP/2 pings drop the dead ones.
+- Old API code moved to `src/client/legacy/` (`data_pull` and `utils` are gone).
 
 ### Fixed
 - Cron schedules rejected by cron 0.17 (`*/120` and `*/90` minute steps). Leagues and tournaments now really run every 2 hours (before they ran every hour). Teams and players run every hour.
