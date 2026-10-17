@@ -77,11 +77,12 @@ fn main() -> Result<()> {
         "{} - Initial teams and players db update",
         Local::now().format("%Y-%m-%d %H:%M:%S.%f")
     );
-    database_ops
-        .lock()
-        .await
-        .bulk_teams_in_database(&data_pull.lock().await.teams)
-        .await?;
+    {
+        let mut db = database_ops.lock().await;
+        let dp = data_pull.lock().await;
+        db.bulk_teams_in_database(&dp.teams, dp.teams_source == client::Source::New)
+            .await?;
+    }
     database_ops
         .lock()
         .await
@@ -144,7 +145,12 @@ fn main() -> Result<()> {
                     let delay = next - now;
                     sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
                 }
-                let _ = data_pull.lock().await.fetch_leagues().await;
+                if let Err(e) = data_pull.lock().await.fetch_leagues().await {
+                    client::log(format!(
+                        "Leagues and tournaments fetch failed, skipped this run: {e:#}"
+                    ));
+                    continue;
+                }
                 let mut db = database_ops.lock().await;
                 let dp = data_pull.lock().await;
                 let _ = db.bulk_leagues_in_database(&dp.leagues).await;
@@ -194,13 +200,20 @@ fn main() -> Result<()> {
                     let delay = next - now;
                     sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
                 }
-                let _ = data_pull.lock().await.fetch_teams_and_players().await;
+                if let Err(e) = data_pull.lock().await.fetch_teams_and_players().await {
+                    client::log(format!(
+                        "Teams and players fetch failed, skipped this run: {e:#}"
+                    ));
+                    continue;
+                }
 
-                let _ = database_ops
-                    .lock()
-                    .await
-                    .bulk_teams_in_database(&data_pull.lock().await.teams)
-                    .await;
+                {
+                    let mut db = database_ops.lock().await;
+                    let dp = data_pull.lock().await;
+                    let _ = db
+                        .bulk_teams_in_database(&dp.teams, dp.teams_source == client::Source::New)
+                        .await;
+                }
                 let _ = database_ops
                     .lock()
                     .await

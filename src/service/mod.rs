@@ -7,11 +7,11 @@ use crate::client::legacy::{
 };
 use crate::client::{
     self, Source,
-    adapters::leagues::from_other_leagues,
+    adapters::{leagues::from_other_leagues, teams::from_team_overview},
     gql::{
         Gql,
         manifest::{Store, path_from_env},
-        ops::other_leagues::GetOtherLeagues,
+        ops::{lol_team_overview::GetLoLTeamOverview, other_leagues::GetOtherLeagues},
     },
 };
 use chrono::Local;
@@ -42,42 +42,60 @@ pub struct DataPull {
     pub previous_live: Vec<EventDetails>,
     pub events_with_recent_changes: Vec<EventDetails>,
     pub leagues_source: Source,
+    pub teams_source: Source,
     pub gql: Option<Arc<Gql>>,
 }
 
 impl DataPull {
     pub fn new() -> Result<Self> {
         let leagues_source = Source::from_env("TRIFORCE_SOURCE_LEAGUES")?;
-        println!(
-            "{} - Leagues and tournaments from the {} API",
-            Local::now().format("%Y-%m-%d %H:%M:%S.%f"),
-            if leagues_source == Source::New {
-                "new"
-            } else {
-                "old"
-            }
-        );
+        client::log(format!(
+            "Leagues and tournaments from the {leagues_source} API"
+        ));
+        let teams_source = Source::from_env("TRIFORCE_SOURCE_TEAMS")?;
+        client::log(format!("Teams and players from the {teams_source} API"));
         Ok(Self {
             leagues_source,
-            gql: (leagues_source == Source::New)
+            teams_source,
+            gql: (leagues_source == Source::New || teams_source == Source::New)
                 .then(|| Arc::new(Gql::new(client::http(), Store::open(path_from_env())))),
             ..Default::default()
         })
     }
 
+    fn gql(&self) -> Result<&Gql> {
+        self.gql
+            .as_deref()
+            .ok_or_else(|| eyre!("GraphQL client not set up"))
+    }
+
     /// One call has every league and its tournaments
     async fn fetch_other_leagues(&self) -> Result<(Leagues, OurTournaments)> {
-        let gql = self
-            .gql
-            .as_ref()
-            .ok_or_else(|| eyre!("GraphQL client not set up"))?;
-        let answer = gql
+        let answer = self
+            .gql()?
             .call::<GetOtherLeagues>(&Default::default())
             .await
             .with_context(|| "A failure happened retrieving GetOtherLeagues from lolesports.com")?;
         // the CDN can serve an older copy, the time helps to spot it
         client::log(format!("GetOtherLeagues answer made at {}", answer.made_at));
         from_other_leagues(answer.data)
+    }
+
+    /// One call has every team with its players
+    async fn fetch_team_overview(&self) -> Result<(Vec<Team>, Vec<Player>)> {
+        let answer = self
+            .gql()?
+            .call::<GetLoLTeamOverview>(&Default::default())
+            .await
+            .with_context(
+                || "A failure happened retrieving GetLoLTeamOverview from lolesports.com",
+            )?;
+        client::log(format!(
+            "GetLoLTeamOverview answer made at {}",
+            answer.made_at
+        ));
+        from_team_overview(answer.data)
+            .wrap_err("GetLoLTeamOverview answer doesn't fit the old Team/Player")
     }
 
     pub async fn fetch_leagues(&mut self) -> Result<()> {
@@ -143,6 +161,11 @@ impl DataPull {
             "{} - Fetching Teams and Players from The LoLEsports API",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
+        if self.teams_source == Source::New {
+            // replaced, not extended (the old path keeps adding copies, ROADMAP)
+            (self.teams, self.players) = self.fetch_team_overview().await?;
+            return Ok(());
+        }
         let response = legacy::get::<&[()]>(endpoints::TEAMS_AND_LEAGUES_ENDPOINT, None)
             .await
             .with_context(|| "A failure happened retrieving the Teams and players from Lolesports");

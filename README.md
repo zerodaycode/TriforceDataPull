@@ -44,6 +44,7 @@ touch src/main.rs && cargo run
 | Variable | Default | Use |
 |---|---|---|
 | `TRIFORCE_SOURCE_LEAGUES` | `old` | `new` takes leagues and tournaments from the lolesports.com GraphQL API |
+| `TRIFORCE_SOURCE_TEAMS` | `old` | `new` takes teams and players from `GetLoLTeamOverview` |
 | `TRIFORCE_GQL_MANIFEST` | `gql-manifest.json` | Where the GraphQL query manifest is kept |
 
 `cargo run -- refresh-manifest` downloads the manifest again and exits (it connects to the DB and applies pending Canyon migrations first).

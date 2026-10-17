@@ -1,10 +1,11 @@
 //! `GetOtherLeagues` → what `getLeagues` + `getTournamentsForLeague` gave us
 
-use color_eyre::{Result, eyre::eyre};
+use color_eyre::Result;
 
+use super::parse_id;
 use crate::client::{
     gql::ops::other_leagues::Data,
-    legacy::models::{League, Leagues, LolesportsId, Tournament},
+    legacy::models::{League, Leagues, Tournament},
     log,
 };
 
@@ -39,12 +40,6 @@ pub fn from_other_leagues(data: Data) -> Result<(Leagues, Vec<Tournament>)> {
         });
     }
     Ok((Leagues { leagues }, tournaments))
-}
-
-fn parse_id(id: &str) -> Result<LolesportsId> {
-    id.parse::<i64>()
-        .map(LolesportsId)
-        .map_err(|e| eyre!("bad lolesports id {id:?}: {e}"))
 }
 
 #[cfg(test)]

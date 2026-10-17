@@ -35,3 +35,42 @@ impl From<&api::Team> for Team {
         }
     }
 }
+
+impl Team {
+    /// The new API has no `alternativeImage`: keep the one we have instead of writing NULL (only used with the new API)
+    pub fn keep_alt_image_from(&mut self, stored: &Team) {
+        if self.alt_image_url.is_none() {
+            self.alt_image_url.clone_from(&stored.alt_image_url);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Team;
+
+    fn team(alt: Option<&str>) -> Team {
+        Team {
+            id: 1,
+            ext_id: 2,
+            name: "T1".into(),
+            slug: "t1".into(),
+            code: "T1".into(),
+            image_url: "img".into(),
+            alt_image_url: alt.map(String::from),
+            bg_image_url: None,
+            home_league: None,
+        }
+    }
+
+    #[test]
+    fn keeps_the_stored_alt_image() {
+        let mut fetched = team(None);
+        fetched.keep_alt_image_from(&team(Some("alt")));
+        assert_eq!(fetched.alt_image_url.as_deref(), Some("alt"));
+        // a new one from the old API wins
+        let mut fetched = team(Some("new"));
+        fetched.keep_alt_image_from(&team(Some("alt")));
+        assert_eq!(fetched.alt_image_url.as_deref(), Some("new"));
+    }
+}

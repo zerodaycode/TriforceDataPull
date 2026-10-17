@@ -54,6 +54,15 @@ impl Source {
     }
 }
 
+impl std::fmt::Display for Source {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Old => "old",
+            Self::New => "new",
+        })
+    }
+}
+
 pub fn log(msg: impl std::fmt::Display) {
     println!(
         "{} - {msg}",

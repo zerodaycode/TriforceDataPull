@@ -110,7 +110,11 @@ impl DatabaseOps {
         }
     }
 
-    pub async fn bulk_teams_in_database(&mut self, teams: &Vec<api::Team>) -> Result<()> {
+    pub async fn bulk_teams_in_database(
+        &mut self,
+        teams: &Vec<api::Team>,
+        keep_alt_image: bool,
+    ) -> Result<()> {
         println!(
             "{} - Processing teams to insert or update on database",
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
@@ -147,6 +151,9 @@ impl DatabaseOps {
                     match db_team {
                         Some(t) => {
                             fetched_team.id = t.id;
+                            if keep_alt_image {
+                                fetched_team.keep_alt_image_from(t);
+                            }
                             let _ = fetched_team.update().await;
                         }
                         None => {

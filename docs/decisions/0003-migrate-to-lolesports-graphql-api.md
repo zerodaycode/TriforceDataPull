@@ -45,9 +45,11 @@ Triforce sends an identifying `User-Agent` (`TriforceDataPull/<version>`) next t
 - [x] `watchLiveQuery` during a live match: same data as `getLive`, no `state`, cache 120 s + 60 s stale, game 3 end seen +3 min 48 s (old) / +4 min 56 s (new) after the feed, one game (2026-10-16, [live check](../investigations/2026-10-17-old-vs-new-api-comparison.md)). Not seen: the variables of the site live page (no HAR).
 - [x] How to refresh the hashes: Triforce keeps them in a file (`TRIFORCE_GQL_MANIFEST`, default `gql-manifest.json`) and downloads the manifest again from the site in Rust when a hash is unknown (once an hour at most) or with `refresh-manifest`. The Python tool stays to check things by hand (2026-10-17).
 - [x] Rust spike: `GetOtherLeagues` from Triforce, behind `TRIFORCE_SOURCE_LEAGUES=new`, gives the same leagues and tournaments we store: 51 leagues and 514 tournaments, same md5 on every column. `refresh-manifest` found build `a93ba50` with 164 operations, and a made-up hash triggered one refresh and the run went on (2026-10-17).
+- [x] Rust spike: `GetLoLTeamOverview` from Triforce, behind `TRIFORCE_SOURCE_TEAMS=new`, wrote the same 1,586 teams and 4,526 players as the old API (same md5 on every column). It kept all 1,325 stored alternative images, and `team_player` stayed at 5,431 rows with no duplicates (2026-10-17).
 - [ ] Tier 2/3 behavior (P1-P3) in the new API.
 - [x] Tournament dates: our `start_date`/`end_date` are the UTC date of `startTime`/`endTime` in all 513 (2026-10-16). Take the UTC date, no column change.
 - [ ] `team.alt_image_url`: there is no `alternativeImage` in the new API and `update()` writes the whole row. 1,325 teams have one. Keep the stored value or drop the column.
+  Until we find another source, Triforce keeps the stored value when it reads teams from the new API (2026-10-17).
 - [ ] TBD slots: the new schedule sends `teamId: "0"` there, today we link a "TBD" team. Decide: NULL (and remove the TBD rows) or keep a placeholder. Removing them means: the teams sync skips them (`GetLoLTeamOverview` returns 3 TBD teams), both schedule team columns set to NULL first, and `team_right_id` gets the foreign key `team_left_id` already has.
 - [ ] Shows: check that `EventShow.startTime` gives the same values we match on today, or add an `ext_id` to `schedule`.
 
