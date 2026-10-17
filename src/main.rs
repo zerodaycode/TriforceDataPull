@@ -14,6 +14,17 @@ use tokio::time::{Duration, sleep};
 use color_eyre::Result;
 use tokio::sync::Mutex;
 
+/// Sleep until the next tick of `schedule`
+async fn sleep_until_next(schedule: &Schedule) {
+    let now = Utc::now();
+    if let Some(next) = schedule.upcoming(Utc).next() {
+        sleep(Duration::from_millis(
+            (next - now).num_milliseconds().max(0) as u64,
+        ))
+        .await;
+    }
+}
+
 #[canyon_sql::main]
 fn main() -> Result<()> {
     // `triforce-data-pull refresh-manifest`: download the site's query manifest and exit
@@ -31,7 +42,46 @@ fn main() -> Result<()> {
         }
     }
 
-    let data_pull = Arc::new(Mutex::new(service::DataPull::new()?));
+    // one GraphQL client for the v1 sources set to new and the v2 loop
+    let v2 = service::v2::v2_enabled()?;
+    client::log(format!("v2 tables: {}", if v2 { "on" } else { "off" }));
+    let v1_new = client::Source::from_env("TRIFORCE_SOURCE_LEAGUES")? == client::Source::New
+        || client::Source::from_env("TRIFORCE_SOURCE_TEAMS")? == client::Source::New;
+    let gql = (v2 || v1_new).then(|| {
+        Arc::new(client::gql::Gql::new(
+            client::http(),
+            client::gql::manifest::Store::open(client::gql::manifest::path_from_env()),
+        ))
+    });
+
+    // Loop for v2 reference tables, no DataPull or DatabaseOps lock. Spawned first so a slow
+    // or failing v1 startup fetch doesn't delay it
+    let v2_reference_schedule = Schedule::from_str("0 15 */2 ? * *")?; // every 2 hours at :15, away from the v1 loops
+    // with TRIFORCE_SOURCE_* = new, v1 and v2 send the same queries: accepted while v1 lives (ADR 0004)
+    if v2 && let Some(gql) = gql.clone() {
+        let locales = service::v2::locales_from_env();
+        tokio::spawn(async move {
+            let mut schema_ok = false;
+            loop {
+                if !schema_ok {
+                    match dao::v2::schema::apply().await {
+                        Ok(()) => schema_ok = true,
+                        Err(e) => {
+                            client::log(format!("v2 schema failed, retry in 5 min: {e:#}"));
+                            sleep(Duration::from_secs(300)).await;
+                            continue;
+                        }
+                    }
+                }
+                if let Err(e) = service::v2::reference_once(&gql, &locales).await {
+                    client::log(format!("v2 reference failed, skipped this run: {e:#}"));
+                }
+                sleep_until_next(&v2_reference_schedule).await;
+            }
+        });
+    }
+
+    let data_pull = Arc::new(Mutex::new(service::DataPull::new(gql.clone())?));
     let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
 
     println!(
@@ -140,11 +190,7 @@ fn main() -> Result<()> {
         let database_ops = database_ops.clone();
         tokio::spawn(async move {
             loop {
-                let now = Utc::now();
-                if let Some(next) = leagues_schedule.upcoming(Utc).next() {
-                    let delay = next - now;
-                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-                }
+                sleep_until_next(&leagues_schedule).await;
                 if let Err(e) = data_pull.lock().await.fetch_leagues().await {
                     client::log(format!(
                         "Leagues and tournaments fetch failed, skipped this run: {e:#}"
@@ -168,11 +214,7 @@ fn main() -> Result<()> {
         let database_ops = database_ops.clone();
         tokio::spawn(async move {
             loop {
-                let now = Utc::now();
-                if let Some(next) = tournaments_schedule.upcoming(Utc).next() {
-                    let delay = next - now;
-                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-                }
+                sleep_until_next(&tournaments_schedule).await;
                 let _ = data_pull.lock().await.fetch_tournaments().await;
                 // under the new API the leagues loop writes them
                 if data_pull.lock().await.leagues_source == client::Source::New {
@@ -195,11 +237,7 @@ fn main() -> Result<()> {
 
         tokio::spawn(async move {
             loop {
-                let now = Utc::now();
-                if let Some(next) = teams_and_players_schedule.upcoming(Utc).next() {
-                    let delay = next - now;
-                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-                }
+                sleep_until_next(&teams_and_players_schedule).await;
                 if let Err(e) = data_pull.lock().await.fetch_teams_and_players().await {
                     client::log(format!(
                         "Teams and players fetch failed, skipped this run: {e:#}"
@@ -234,11 +272,7 @@ fn main() -> Result<()> {
         let database_ops = database_ops.clone();
         tokio::spawn(async move {
             loop {
-                let now = Utc::now();
-                if let Some(next) = lolschedule_current_page.upcoming(Utc).next() {
-                    let delay = next - now;
-                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-                }
+                sleep_until_next(&lolschedule_current_page).await;
                 let _ = data_pull.lock().await.fetch_current_page_schedule().await;
 
                 let _ = database_ops
@@ -255,11 +289,7 @@ fn main() -> Result<()> {
         let data_pull = data_pull.clone();
         tokio::spawn(async move {
             loop {
-                let now = Utc::now();
-                if let Some(next) = live_schedule.upcoming(Utc).next() {
-                    let delay = next - now;
-                    sleep(Duration::from_millis(delay.num_milliseconds() as u64)).await;
-                }
+                sleep_until_next(&live_schedule).await;
                 data_pull.lock().await.fetch_live().await;
 
                 data_pull.lock().await.fetch_change_in_events().await;

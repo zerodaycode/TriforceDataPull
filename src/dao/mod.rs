@@ -18,6 +18,7 @@ use chrono::{Days, Local, Utc};
 use color_eyre::Result;
 use itertools::Itertools;
 mod models;
+pub mod v2;
 
 #[derive(Debug, Default)]
 pub struct DatabaseOps {

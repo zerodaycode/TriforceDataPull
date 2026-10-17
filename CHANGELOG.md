@@ -12,6 +12,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Leagues and tournaments can come from the lolesports.com GraphQL API (`TRIFORCE_SOURCE_LEAGUES=new`), one call instead of 52.
 - Teams and players can come from the lolesports.com GraphQL API (`TRIFORCE_SOURCE_TEAMS=new`). The stored alternative image is kept, the new API doesn't have it.
 - GraphQL query manifest kept in `gql-manifest.json`, downloaded again when a query hash stops working, or with `cargo run -- refresh-manifest`.
+- v2 reference tables (`v2_*`), created by the Canyon migrations and filled from the new API at start and every 2 hours. On by default, `TRIFORCE_V2=off` stops the filling and the startup SQL. Names in `en-US` plus `TRIFORCE_LOCALES` (like `es-ES,ko-KR`). Unique indexes and checks Canyon can't create are in `src/dao/v2/schema.sql`. See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
 
 ### Changed
 - Rust edition 2021 → 2024.

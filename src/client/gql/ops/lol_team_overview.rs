@@ -66,6 +66,8 @@ pub struct HomeLeague {
 #[serde(rename_all = "camelCase")]
 pub struct Player {
     pub id: String,
+    #[serde(default)]
+    pub handle: Option<String>,
     pub first_name: String,
     pub last_name: String,
     pub summoner_name: String,

@@ -2,6 +2,7 @@
 
 pub mod leagues;
 pub mod teams;
+pub mod v2;
 
 use crate::client::legacy::models::LolesportsId;
 

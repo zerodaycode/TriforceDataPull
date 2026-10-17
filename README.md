@@ -39,12 +39,18 @@ If you drop or recreate the tables, force a rebuild before running:
 touch src/main.rs && cargo run
 ```
 
+## Tests
+
+`cargo test` runs the unit tests. The DB tests are ignored by default and write to the DB in `canyon.toml`: run `cargo test -- --ignored` against the dev DB, after the app ran once (the tables must exist).
+
 ## Settings
 
 | Variable | Default | Use |
 |---|---|---|
 | `TRIFORCE_SOURCE_LEAGUES` | `old` | `new` takes leagues and tournaments from the lolesports.com GraphQL API |
 | `TRIFORCE_SOURCE_TEAMS` | `old` | `new` takes teams and players from `GetLoLTeamOverview` |
+| `TRIFORCE_V2` | `on` | `off` stops filling the `v2_*` tables and skips their startup SQL. Canyon still creates the tables |
+| `TRIFORCE_LOCALES` | `en-US` | Extra locales for the v2 names, comma list like `es-ES,ko-KR`. `en-US` is always pulled. A locale the API doesn't know comes back in English and is skipped |
 | `TRIFORCE_GQL_MANIFEST` | `gql-manifest.json` | Where the GraphQL query manifest is kept |
 
 `cargo run -- refresh-manifest` downloads the manifest again and exits (it connects to the DB and applies pending Canyon migrations first).
@@ -60,6 +66,7 @@ On start everything is fetched and saved once (live events are saved from the fi
 | Teams and players | 1 hour |
 | Schedule (current page) | 30 minutes |
 | Live events | 2 minutes |
+| v2 reference tables (`GetOtherLeagues` per locale + `GetLoLTeamOverview` → `v2_*`) | 2 hours at :15 (first run at start) |
 
 Schedules are in `src/main.rs`.
 
@@ -70,7 +77,10 @@ Schedules are in `src/main.rs`.
 | `src/main.rs` | Start up and scheduled loops |
 | `src/client/` | LoL Esports HTTP client (`legacy/`: old API calls, endpoints and models) |
 | `src/service/` | `DataPull`: fetches and keeps the API data |
+| `src/service/v2.rs` | v2 loop: fetches the new API and fills the `v2_*` tables |
+| `src/client/adapters/v2/` | New API answers → v2 rows |
 | `src/dao/` | Database models and writes |
+| `src/dao/v2/` | v2 entities, startup SQL and upserts |
 | `docker/` | Postgres for local development |
 | `bash_alias.sh` | Docker aliases (`. ./bash_alias.sh`) |
 | `docs/` | Workflow, decisions and investigations |

@@ -16,7 +16,7 @@ impl Operation for GetOtherLeagues {
 /// `query GetOtherLeagues($locale: Locale!, $sport: Sport)`. No flags: all 51 leagues, hidden ones too, like `getLeagues`
 #[derive(Debug, Serialize)]
 pub struct Vars {
-    pub locale: &'static str,
+    pub locale: String,
     pub sport: &'static str,
 }
 
@@ -24,7 +24,7 @@ impl Default for Vars {
     fn default() -> Self {
         // en-US keeps `region` like we store it today
         Self {
-            locale: "en-US",
+            locale: "en-US".into(),
             sport: "lol",
         }
     }
@@ -36,12 +36,17 @@ pub struct Data {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct League {
     pub id: String,
     pub slug: String,
     pub name: String,
     pub region: String,
     pub image: String,
+    #[serde(default)]
+    pub dark_image: Option<String>,
+    #[serde(default)]
+    pub display_priority: Option<DisplayPriority>,
     #[serde(default)]
     pub tournaments: Vec<Tournament>,
 }
@@ -53,6 +58,36 @@ pub struct Tournament {
     pub slug: String,
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub season: Option<Season>,
+    #[serde(default)]
+    pub split: Option<IdOnly>,
+    #[serde(default)]
+    pub stages: Vec<IdOnly>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DisplayPriority {
+    pub position: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Season {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub start_time: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub end_time: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IdOnly {
+    pub id: String,
 }
 
 #[cfg(test)]

@@ -1,3 +1,5 @@
+pub mod v2;
+
 use crate::client::legacy::{
     self, endpoints,
     models::{
@@ -10,7 +12,6 @@ use crate::client::{
     adapters::{leagues::from_other_leagues, teams::from_team_overview},
     gql::{
         Gql,
-        manifest::{Store, path_from_env},
         ops::{lol_team_overview::GetLoLTeamOverview, other_leagues::GetOtherLeagues},
     },
 };
@@ -47,7 +48,7 @@ pub struct DataPull {
 }
 
 impl DataPull {
-    pub fn new() -> Result<Self> {
+    pub fn new(gql: Option<Arc<Gql>>) -> Result<Self> {
         let leagues_source = Source::from_env("TRIFORCE_SOURCE_LEAGUES")?;
         client::log(format!(
             "Leagues and tournaments from the {leagues_source} API"
@@ -57,8 +58,7 @@ impl DataPull {
         Ok(Self {
             leagues_source,
             teams_source,
-            gql: (leagues_source == Source::New || teams_source == Source::New)
-                .then(|| Arc::new(Gql::new(client::http(), Store::open(path_from_env())))),
+            gql,
             ..Default::default()
         })
     }
