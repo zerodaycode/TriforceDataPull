@@ -17,10 +17,6 @@ pub const GQL_URL: &str = "https://lolesports.com/api/gql";
 pub const SITE_URL: &str = "https://lolesports.com";
 pub const CLIENT_NAME: &str = "Esports Web";
 
-pub fn user_agent() -> String {
-    format!("TriforceDataPull/{}", env!("CARGO_PKG_VERSION"))
-}
-
 /// A site query we can call. The hash comes from the manifest by `NAME`
 pub trait Operation {
     const NAME: &'static str;
@@ -162,7 +158,6 @@ impl Gql {
                 .header("apollographql-client-version", &client_version)
                 .header(reqwest::header::REFERER, format!("{SITE_URL}/"))
                 .header(reqwest::header::CONTENT_TYPE, "application/json")
-                .header(reqwest::header::USER_AGENT, user_agent())
                 .send()
                 .await;
             match sent {

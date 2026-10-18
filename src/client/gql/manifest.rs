@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, RwLock};
 
-use super::{GqlError, SITE_URL, user_agent};
+use super::{GqlError, SITE_URL};
 use crate::client::log;
 
 pub const MARKER: &str = "apollo-persisted-query-manifest";
@@ -246,7 +246,6 @@ pub fn refresh_due(last: Option<Instant>, now: Instant) -> bool {
 async fn fetch_text(http: &reqwest::Client, url: &str) -> Result<String, GqlError> {
     let response = http
         .get(url)
-        .header(reqwest::header::USER_AGENT, user_agent())
         .header(reqwest::header::REFERER, format!("{SITE_URL}/"))
         .send()
         .await

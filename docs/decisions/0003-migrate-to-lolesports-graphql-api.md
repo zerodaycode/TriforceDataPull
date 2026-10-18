@@ -30,7 +30,7 @@ The query hashes are kept in a manifest file next to Triforce (not in the repo).
 
 The adapters keep the time each answer was made (Netlify: `Date - Age`) per operation and match, in memory in the live loop, and ignore answers older than the newest one. The old API served an older copy after a newer one during the live check, so this applies to both APIs. Two operations can disagree with the same answer time, so state and score never go back whatever the operation. Live wins are copied by team id, not by position in the array.
 
-Triforce sends an identifying `User-Agent` (`TriforceDataPull/<version>`) next to the site headers, and never polls an operation faster than its `cache-control: max-age` (60-120 s).
+Triforce sends the site headers only (no custom `User-Agent`, the API doesn't need it), and never polls an operation faster than its `cache-control: max-age` (60-120 s).
 
 ## Consequences
 - Good: we stop depending on an API the site doesn't use, fewer calls, better ids (no lookups by name or slug). `teamId` fixes the 24 schedule matches linked to the wrong team.

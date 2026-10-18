@@ -46,4 +46,3 @@ See [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (propos
 ## Observability & config
 - [ ] [Low] Use `tracing` instead of `println!`
 - [ ] [Low] Read the API key from config/env
-- [ ] [Low] Send an identifying `User-Agent` from the shared HTTP client (`src/client/mod.rs`)
