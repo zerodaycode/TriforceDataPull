@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn same_as_the_old_api() {
-        let body = include_str!("testdata/lol_team_overview.json");
+        let body = fixture!("gql/lol_team_overview.json");
         let (teams, players) =
             from_team_overview(parse_body::<GetLoLTeamOverview>(200, body).unwrap()).unwrap();
         assert_eq!(teams.len(), 3);
@@ -102,15 +102,14 @@ mod tests {
 
     #[test]
     fn bad_id_is_an_error() {
-        let body =
-            include_str!("testdata/lol_team_overview.json").replace("98767991853197861", "t1");
+        let body = fixture!("gql/lol_team_overview.json").replace("98767991853197861", "t1");
         let data = parse_body::<GetLoLTeamOverview>(200, &body).unwrap();
         assert!(from_team_overview(data).is_err());
     }
 
     #[test]
     fn null_players_is_empty() {
-        let body = include_str!("testdata/lol_team_overview.json")
+        let body = fixture!("gql/lol_team_overview.json")
             .replace(r#""players": []"#, r#""players": null"#);
         let data = parse_body::<GetLoLTeamOverview>(200, &body).unwrap();
         let (teams, _) = from_team_overview(data).unwrap();

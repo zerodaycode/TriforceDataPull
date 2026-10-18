@@ -50,7 +50,7 @@ mod tests {
 
     #[test]
     fn same_as_the_old_api() {
-        let body = include_str!("testdata/other_leagues.json");
+        let body = fixture!("gql/other_leagues.json");
         let data = parse_body::<GetOtherLeagues>(200, body).unwrap();
         let (leagues, tournaments) = from_other_leagues(data).unwrap();
 
@@ -86,15 +86,14 @@ mod tests {
 
     #[test]
     fn bad_id_is_an_error() {
-        let body = include_str!("testdata/other_leagues.json").replace("98767991299243165", "lcs");
+        let body = fixture!("gql/other_leagues.json").replace("98767991299243165", "lcs");
         let data = parse_body::<GetOtherLeagues>(200, &body).unwrap();
         assert!(from_other_leagues(data).is_err());
     }
 
     #[test]
     fn tournament_without_times_is_skipped() {
-        let body =
-            include_str!("testdata/other_leagues.json").replace("\"2024-01-19T23:00:00Z\"", "null");
+        let body = fixture!("gql/other_leagues.json").replace("\"2024-01-19T23:00:00Z\"", "null");
         let data = parse_body::<GetOtherLeagues>(200, &body).unwrap();
         let (leagues, tournaments) = from_other_leagues(data).unwrap();
         assert_eq!(leagues.leagues.len(), 2);

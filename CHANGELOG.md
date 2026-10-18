@@ -17,6 +17,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `TRIFORCE_CRON_<LOOP>` to change the schedule of a loop, like `TRIFORCE_CRON_V2="0 * * ? * *"` to run v2 every minute when testing.
 
 ### Changed
+- Test data moved from `src/**/testdata/` to `tests/fixtures/`.
 - Rust edition 2021 → 2024.
 - New dependency: sha2 0.11.1, to check the manifest hashes.
 - New dependency: dotenvy 0.15.7, to read the `--env` file.

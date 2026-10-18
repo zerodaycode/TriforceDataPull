@@ -263,13 +263,9 @@ mod tests {
     #[test]
     fn stage_names_per_locale() {
         let en =
-            parse_body::<GetOtherLeagues>(200, include_str!("testdata/other_leagues_v2_en.json"))
-                .unwrap();
-        let teams = parse_body::<GetLoLTeamOverview>(
-            200,
-            include_str!("../testdata/lol_team_overview.json"),
-        )
-        .unwrap();
+            parse_body::<GetOtherLeagues>(200, fixture!("gql/other_leagues_v2_en.json")).unwrap();
+        let teams =
+            parse_body::<GetLoLTeamOverview>(200, fixture!("gql/lol_team_overview.json")).unwrap();
         let mut rows = from_answers(vec![("en-US".into(), en)], teams).unwrap();
         let answer = |name: &str| {
             let body = serde_json::json!({"data": {"tournaments": [{"id": "115548681802226458", "stages": [
@@ -309,13 +305,9 @@ mod tests {
     #[test]
     fn stage_names_skip_blank_and_bad_ids() {
         let en =
-            parse_body::<GetOtherLeagues>(200, include_str!("testdata/other_leagues_v2_en.json"))
-                .unwrap();
-        let teams = parse_body::<GetLoLTeamOverview>(
-            200,
-            include_str!("../testdata/lol_team_overview.json"),
-        )
-        .unwrap();
+            parse_body::<GetOtherLeagues>(200, fixture!("gql/other_leagues_v2_en.json")).unwrap();
+        let teams =
+            parse_body::<GetLoLTeamOverview>(200, fixture!("gql/lol_team_overview.json")).unwrap();
         let mut rows = from_answers(vec![("en-US".into(), en)], teams).unwrap();
         let body =
             serde_json::json!({"data": {"tournaments": [{"id": "115548681802226458", "stages": [
@@ -398,16 +390,11 @@ mod tests {
     #[test]
     fn two_locales() {
         let en =
-            parse_body::<GetOtherLeagues>(200, include_str!("testdata/other_leagues_v2_en.json"))
-                .unwrap();
+            parse_body::<GetOtherLeagues>(200, fixture!("gql/other_leagues_v2_en.json")).unwrap();
         let es =
-            parse_body::<GetOtherLeagues>(200, include_str!("testdata/other_leagues_v2_es.json"))
-                .unwrap();
-        let teams = parse_body::<GetLoLTeamOverview>(
-            200,
-            include_str!("../testdata/lol_team_overview.json"),
-        )
-        .unwrap();
+            parse_body::<GetOtherLeagues>(200, fixture!("gql/other_leagues_v2_es.json")).unwrap();
+        let teams =
+            parse_body::<GetLoLTeamOverview>(200, fixture!("gql/lol_team_overview.json")).unwrap();
         let rows = from_answers(vec![("en-US".into(), en), ("es-ES".into(), es)], teams).unwrap();
 
         let lcs = rows.leagues.iter().find(|l| l.slug == "lcs").unwrap();
@@ -472,13 +459,9 @@ mod tests {
     #[test]
     fn missing_handle_falls_back_to_summoner_name() {
         let en =
-            parse_body::<GetOtherLeagues>(200, include_str!("testdata/other_leagues_v2_en.json"))
-                .unwrap();
-        let body = include_str!("../testdata/lol_team_overview.json").replacen(
-            "\"handle\": \"Guardian\", ",
-            "",
-            1,
-        );
+            parse_body::<GetOtherLeagues>(200, fixture!("gql/other_leagues_v2_en.json")).unwrap();
+        let body =
+            fixture!("gql/lol_team_overview.json").replacen("\"handle\": \"Guardian\", ", "", 1);
         assert!(!body.contains("\"handle\": \"Guardian\""));
         let teams = parse_body::<GetLoLTeamOverview>(200, &body).unwrap();
         let rows = from_answers(vec![("en-US".into(), en)], teams).unwrap();
@@ -493,13 +476,9 @@ mod tests {
     #[test]
     fn en_us_must_be_first() {
         let es =
-            parse_body::<GetOtherLeagues>(200, include_str!("testdata/other_leagues_v2_es.json"))
-                .unwrap();
-        let teams = parse_body::<GetLoLTeamOverview>(
-            200,
-            include_str!("../testdata/lol_team_overview.json"),
-        )
-        .unwrap();
+            parse_body::<GetOtherLeagues>(200, fixture!("gql/other_leagues_v2_es.json")).unwrap();
+        let teams =
+            parse_body::<GetLoLTeamOverview>(200, fixture!("gql/lol_team_overview.json")).unwrap();
         assert!(from_answers(vec![("es-ES".into(), es)], teams).is_err());
     }
 }

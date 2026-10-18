@@ -1,5 +1,18 @@
 extern crate canyon_sql;
 
+/// A file under `tests/fixtures/`, read at build time. Keep it above the `mod` lines: a
+/// `macro_rules!` is only seen by the code after it
+#[cfg(test)]
+macro_rules! fixture {
+    ($path:literal) => {
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/",
+            $path
+        ))
+    };
+}
+
 mod client;
 mod dao;
 mod env;

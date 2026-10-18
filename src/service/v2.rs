@@ -291,30 +291,26 @@ mod tests {
         );
     }
 
-    fn fixture(body: &str) -> other_leagues::Data {
+    fn leagues(body: &str) -> other_leagues::Data {
         crate::client::gql::parse_body::<GetOtherLeagues>(200, body).unwrap()
     }
 
     #[test]
     fn same_texts_itself_and_other_locale() {
-        let en = fixture(include_str!(
-            "../client/adapters/v2/testdata/other_leagues_v2_en.json"
-        ));
-        let es = fixture(include_str!(
-            "../client/adapters/v2/testdata/other_leagues_v2_es.json"
-        ));
+        let en = leagues(fixture!("gql/other_leagues_v2_en.json"));
+        let es = leagues(fixture!("gql/other_leagues_v2_es.json"));
         assert!(same_texts(&en, &en));
         assert!(!same_texts(&en, &es));
     }
 
     #[test]
     fn english_copies_are_dropped() {
-        let body = include_str!("../client/adapters/v2/testdata/other_leagues_v2_en.json");
-        let es = include_str!("../client/adapters/v2/testdata/other_leagues_v2_es.json");
+        let body = fixture!("gql/other_leagues_v2_en.json");
+        let es = fixture!("gql/other_leagues_v2_es.json");
         let mut v = vec![
-            ("en-US".to_string(), fixture(body)),
-            ("zz-ZZ".to_string(), fixture(body)),
-            ("es-ES".to_string(), fixture(es)),
+            ("en-US".to_string(), leagues(body)),
+            ("zz-ZZ".to_string(), leagues(body)),
+            ("es-ES".to_string(), leagues(es)),
         ];
         drop_english_copies(&mut v);
         let names: Vec<_> = v.iter().map(|(l, _)| l.as_str()).collect();

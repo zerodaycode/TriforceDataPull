@@ -408,7 +408,7 @@ mod tests {
     use super::*;
     use chrono::{TimeZone, Utc};
 
-    const CHUNK: &str = include_str!("testdata/chunk.js");
+    const CHUNK: &str = fixture!("manifest/chunk.js");
 
     fn fixture() -> Manifest {
         let at = Utc.with_ymd_and_hms(2026, 10, 17, 0, 0, 0).unwrap();

@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn parses_the_real_answer() {
-        let body = include_str!("../../adapters/testdata/other_leagues.json");
+        let body = fixture!("gql/other_leagues.json");
         let data = parse_body::<GetOtherLeagues>(200, body).unwrap();
         assert_eq!(GetOtherLeagues::NAME, "GetOtherLeagues");
         assert_eq!(data.leagues.len(), 2);

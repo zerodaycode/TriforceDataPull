@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn parses_the_real_answer() {
-        let body = include_str!("../../adapters/testdata/lol_team_overview.json");
+        let body = fixture!("gql/lol_team_overview.json");
         let data = parse_body::<GetLoLTeamOverview>(200, body).unwrap();
         assert_eq!(data.teams.len(), 3);
         let t1 = &data.teams[0];

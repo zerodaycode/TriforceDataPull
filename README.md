@@ -95,6 +95,7 @@ TRIFORCE_CRON_V2="0 * * ? * *" cargo run   # v2 every minute
 | `src/schedules.rs` | Loop schedules: defaults and `TRIFORCE_CRON_*` |
 | `src/env.rs` | Command line (`--env`, `refresh-manifest`) and settings: shell first, then the `--env` file |
 | `env/` | Settings files, only `example.env` is in git |
+| `tests/fixtures/` | Test data: saved API answers (`gql/`) and a manifest chunk (`manifest/`), read with `fixture!("<area>/<file>")` |
 | `src/client/` | LoL Esports HTTP client (`legacy/`: old API calls, endpoints and models) |
 | `src/service/` | `DataPull`: fetches and keeps the API data |
 | `src/service/v2.rs` | v2 loop: fetches the new API (alternative team images from the old `getTeams`) and fills the `v2_*` tables |
