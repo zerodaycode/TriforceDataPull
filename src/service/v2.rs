@@ -1,4 +1,5 @@
-//! v2 tables: filled only from the new API, on their own loop (no DataPull lock)
+//! v2 tables: filled from the new API (only the alternative team image comes from the old one),
+//! on their own loop (no DataPull lock)
 
 use color_eyre::{
     Result,
@@ -15,9 +16,10 @@ use crate::{
                 other_leagues::{self, GetOtherLeagues},
             },
         },
+        legacy::{self, endpoints, models::Wrapper},
         log,
     },
-    dao::v2::reference::write_reference,
+    dao::v2::reference::{write_alt_images, write_reference},
 };
 
 /// `TRIFORCE_V2` value: `on` (default when unset) or `off`
@@ -106,6 +108,46 @@ fn drop_english_copies(by_locale: &mut Vec<(String, other_leagues::Data)>) {
     }
 }
 
+/// Only what the alt images need from `getTeams`: the full v1 model panics on a bad id
+#[derive(serde::Deserialize)]
+struct AltTeams {
+    teams: Vec<AltTeam>,
+}
+
+#[derive(serde::Deserialize)]
+struct AltTeam {
+    id: String,
+    #[serde(rename = "alternativeImage")]
+    alternative_image: Option<String>,
+}
+
+fn parse_alt_images(body: &str) -> Result<Vec<(i64, Option<String>)>> {
+    let parsed: Wrapper<AltTeams> = serde_json::from_str(body)?;
+    let mut alts = Vec::with_capacity(parsed.data.teams.len());
+    let mut bad = 0;
+    for t in parsed.data.teams {
+        match t.id.parse::<i64>() {
+            Ok(id) => alts.push((id, t.alternative_image)),
+            Err(_) => bad += 1,
+        }
+    }
+    if bad > 0 {
+        log(format!(
+            "v2 reference: {bad} getTeams ids not numeric, skipped"
+        ));
+    }
+    // an old API being shut down could send them all empty: keep the stored ones
+    if !alts.iter().any(|(_, alt)| alt.is_some()) {
+        return Err(eyre!("getTeams sent no alternativeImage at all"));
+    }
+    Ok(alts)
+}
+
+/// `alternativeImage` per team from the old `getTeams`, the new API doesn't have it
+async fn old_alt_images() -> Result<Vec<(i64, Option<String>)>> {
+    parse_alt_images(&legacy::get_text(endpoints::TEAMS_AND_LEAGUES_ENDPOINT).await?)
+}
+
 pub async fn reference_once(gql: &Gql, locales: &[String]) -> Result<()> {
     let mut by_locale = Vec::new();
     for locale in locales {
@@ -141,8 +183,27 @@ pub async fn reference_once(gql: &Gql, locales: &[String]) -> Result<()> {
         ));
     }
     write_reference(&rows).await?;
+    // while the old API lives: a failure there only skips the alt images
+    let alts = match old_alt_images().await {
+        Ok(alts) => match write_alt_images(&alts).await {
+            Ok(()) => format!(
+                "{} alt images",
+                alts.iter().filter(|(_, alt)| alt.is_some()).count()
+            ),
+            Err(e) => {
+                log(format!("v2 reference: alt images not written: {e:#}"));
+                "alt images not written".to_string()
+            }
+        },
+        Err(e) => {
+            log(format!(
+                "v2 reference: alt images from the old API skipped: {e:#}"
+            ));
+            "alt images skipped".to_string()
+        }
+    };
     log(format!(
-        "v2 reference: {} leagues, {} tournaments, {} teams, {} players, {} locales",
+        "v2 reference: {} leagues, {} tournaments, {} teams, {} players, {} locales, {alts}",
         rows.leagues.len(),
         rows.tournaments.len(),
         rows.teams.len(),
@@ -155,6 +216,24 @@ pub async fn reference_once(gql: &Gql, locales: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn alt_images_skip_bad_ids() {
+        let body = r#"{"data":{"teams":[
+            {"id":"1","alternativeImage":"http://x/a.png","players":[{"id":"oops"}]},
+            {"id":"bad","alternativeImage":"http://x/b.png"},
+            {"id":"2","alternativeImage":null}]}}"#;
+        assert_eq!(
+            parse_alt_images(body).unwrap(),
+            vec![(1, Some("http://x/a.png".to_string())), (2, None)]
+        );
+    }
+
+    #[test]
+    fn no_alt_image_at_all_is_an_error() {
+        let body = r#"{"data":{"teams":[{"id":"1","alternativeImage":null},{"id":"2"}]}}"#;
+        assert!(parse_alt_images(body).is_err());
+    }
 
     #[test]
     fn locales() {

@@ -166,11 +166,13 @@ impl DataPull {
             (self.teams, self.players) = self.fetch_team_overview().await?;
             return Ok(());
         }
-        let response = legacy::get::<&[()]>(endpoints::TEAMS_AND_LEAGUES_ENDPOINT, None)
+        let body = legacy::get_text(endpoints::TEAMS_AND_LEAGUES_ENDPOINT)
             .await
-            .with_context(|| "A failure happened retrieving the Teams and players from Lolesports");
+            .with_context(
+                || "A failure happened retrieving the Teams and players from Lolesports",
+            )?;
 
-        serde_json::from_str::<Wrapper<TeamsPlayers>>(&response?.text().await.unwrap())
+        serde_json::from_str::<Wrapper<TeamsPlayers>>(&body)
             .map(|parsed| {
                 for mut team in parsed.data.teams {
                     if let Some(home_league) = &mut team.home_league {

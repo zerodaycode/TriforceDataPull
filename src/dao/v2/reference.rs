@@ -140,7 +140,7 @@ const TEAM: Upsert = Upsert {
         Col::Plain("code"),
         Col::Plain("image_url"),
         Col::Plain("bg_image_url"),
-        // light_image_url and alt_image_url are left out on purpose: no source in the new API yet
+        // light_image_url: no source yet. alt_image_url comes from the old API (write_alt_images)
         Col::ByExt {
             name: "home_league_id",
             table: "v2_league",
@@ -429,11 +429,53 @@ async fn sync_team_players(rows: &ReferenceRows) -> Result<()> {
     Ok(())
 }
 
+/// `UPDATE … FROM (VALUES …)` for `teams` pairs of (ext_id, alt image), only rows that change
+fn alt_images_sql(teams: usize) -> String {
+    let values: Vec<String> = (0..teams)
+        .map(|i| format!("(${}::bigint, ${}::text)", 2 * i + 1, 2 * i + 2))
+        .collect();
+    format!(
+        "UPDATE v2_team t SET alt_image_url = v.alt FROM (VALUES {}) AS v (ext_id, alt) \
+         WHERE t.ext_id = v.ext_id AND t.alt_image_url IS DISTINCT FROM v.alt",
+        values.join(", ")
+    )
+}
+
+/// The new API has no alternative image: it comes from the old API. Teams missing there keep theirs
+pub async fn write_alt_images(alts: &[(i64, Option<String>)]) -> Result<()> {
+    // one row per team, last one wins: `UPDATE … FROM` would pick any of the duplicates
+    let alts: Vec<(i64, Option<String>)> = alts
+        .iter()
+        .cloned()
+        .collect::<BTreeMap<_, _>>()
+        .into_iter()
+        .collect();
+    for chunk in alts.chunks(MAX_PARAMS / 2) {
+        let mut params: Vec<&dyn QueryParameter> = Vec::with_capacity(chunk.len() * 2);
+        for (team, alt) in chunk {
+            params.push(team);
+            params.push(alt);
+        }
+        "".execute(&alt_images_sql(chunk.len()), &params)
+            .await
+            .map_err(|e| eyre!(e))
+            .wrap_err("v2_team alt images")?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::dao::v2::rows::*;
     use canyon_sql::connection::DbConnection;
+
+    #[test]
+    fn alt_images_sql_numbers_pairs() {
+        let sql = alt_images_sql(2);
+        assert!(sql.contains("VALUES ($1::bigint, $2::text), ($3::bigint, $4::text)"));
+        assert!(sql.contains("IS DISTINCT FROM v.alt"));
+    }
 
     fn rows(team_players: Vec<(i64, i64)>) -> ReferenceRows {
         ReferenceRows {

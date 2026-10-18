@@ -15,7 +15,7 @@ pub struct V2Team {
     // no source in the new API yet, NULL for now (ADR 0004)
     pub light_image_url: Option<String>,
     pub bg_image_url: Option<String>,
-    // no source in the new API yet, NULL for now (ADR 0004)
+    // from the old API while it lives, the new one doesn't have it (ADR 0004)
     pub alt_image_url: Option<String>,
     #[foreign_key(table = "v2_league", column = "id")]
     pub home_league_id: Option<i32>,

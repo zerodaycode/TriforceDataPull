@@ -54,27 +54,29 @@ fn main() -> Result<()> {
         ))
     });
 
+    if v2 {
+        // unique indexes and checks the v2 upserts need: no start without them
+        dao::v2::schema::apply().await?;
+    }
+
     // Loop for v2 reference tables, no DataPull or DatabaseOps lock. Spawned first so a slow
     // or failing v1 startup fetch doesn't delay it
     let v2_reference_schedule = Schedule::from_str("0 15 */2 ? * *")?; // every 2 hours at :15, away from the v1 loops
     // with TRIFORCE_SOURCE_* = new, v1 and v2 send the same queries: accepted while v1 lives (ADR 0004)
     if v2 && let Some(gql) = gql.clone() {
-        let locales = service::v2::locales_from_env();
+        let locales = Arc::new(service::v2::locales_from_env());
         tokio::spawn(async move {
-            let mut schema_ok = false;
             loop {
-                if !schema_ok {
-                    match dao::v2::schema::apply().await {
-                        Ok(()) => schema_ok = true,
-                        Err(e) => {
-                            client::log(format!("v2 schema failed, retry in 5 min: {e:#}"));
-                            sleep(Duration::from_secs(300)).await;
-                            continue;
-                        }
+                let (gql, locales) = (gql.clone(), locales.clone());
+                // one task per run: a panic skips this run, not the loop
+                let run =
+                    tokio::spawn(async move { service::v2::reference_once(&gql, &locales).await });
+                match run.await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => {
+                        client::log(format!("v2 reference failed, skipped this run: {e:#}"))
                     }
-                }
-                if let Err(e) = service::v2::reference_once(&gql, &locales).await {
-                    client::log(format!("v2 reference failed, skipped this run: {e:#}"));
+                    Err(e) => client::log(format!("v2 reference stopped, skipped this run: {e}")),
                 }
                 sleep_until_next(&v2_reference_schedule).await;
             }

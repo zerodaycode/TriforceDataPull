@@ -83,7 +83,7 @@ FROM v2_team
 ORDER BY id;
 ```
 
-`light_image_url` and `alt_image_url` are `NULL` for now: the new API has no source for them yet (ADR 0004).
+`light_image_url` is `NULL` for now, no source yet. `alt_image_url` comes from the old API (ADR 0004). Players without a photo have `image_url` `NULL`: pick a fallback in the app.
 
 ### `/players`
 

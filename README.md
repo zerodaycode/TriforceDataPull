@@ -66,7 +66,7 @@ On start everything is fetched and saved once (live events are saved from the fi
 | Teams and players | 1 hour |
 | Schedule (current page) | 30 minutes |
 | Live events | 2 minutes |
-| v2 reference tables (`GetOtherLeagues` per locale + `GetLoLTeamOverview` → `v2_*`) | 2 hours at :15 (first run at start) |
+| v2 reference tables (`GetOtherLeagues` per locale + `GetLoLTeamOverview` → `v2_*`, alternative team images from the old `getTeams`) | 2 hours at :15 (first run at start) |
 
 Schedules are in `src/main.rs`.
 
@@ -77,7 +77,7 @@ Schedules are in `src/main.rs`.
 | `src/main.rs` | Start up and scheduled loops |
 | `src/client/` | LoL Esports HTTP client (`legacy/`: old API calls, endpoints and models) |
 | `src/service/` | `DataPull`: fetches and keeps the API data |
-| `src/service/v2.rs` | v2 loop: fetches the new API and fills the `v2_*` tables |
+| `src/service/v2.rs` | v2 loop: fetches the new API (alternative team images from the old `getTeams`) and fills the `v2_*` tables |
 | `src/client/adapters/v2/` | New API answers → v2 rows |
 | `src/dao/` | Database models and writes |
 | `src/dao/v2/` | v2 entities, startup SQL and upserts |

@@ -12,7 +12,7 @@ Found while building the v2 reference tables on Canyon-SQL `develop`, `rev 1c81b
 | 2 | Index attribute | `CREATE INDEX IF NOT EXISTS`, same file | same |
 | 3 | CHECK / enum mapping | `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT ... CHECK` at startup | `src/dao/v2/schema.sql` |
 | 4 | `timestamptz` (`DateTime<Utc>`) | `NaiveDateTime`, always UTC by convention (`naive_utc()`) | `src/dao/v2/models/*` |
-| 10 | Hook to run SQL after migrations | `dao::v2::schema::apply()` first thing in the v2 loop, retried every 5 minutes | `src/main.rs` |
+| 10 | Hook to run SQL after migrations | `dao::v2::schema::apply()` at start, before the loops. The app stops if it fails | `src/main.rs` |
 | 11 | Schemas other than `public` | `v2_` prefix on the table names | `src/dao/v2/models/*` |
 | 12 | Datasource per entity | same DB, prefixed tables, no separate v2 DB | same |
 | 13 | More than one entity per file | one file per entity, 12 files | `src/dao/v2/models/` |

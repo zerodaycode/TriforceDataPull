@@ -1,6 +1,6 @@
 //! New API answers → v2 reference rows (structure from en-US, texts from every locale)
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use color_eyre::{Result, eyre::eyre};
 
@@ -8,12 +8,70 @@ use crate::{
     client::{
         adapters::parse_id,
         gql::ops::{lol_team_overview, other_leagues},
+        log,
     },
     dao::v2::rows::*,
 };
 
 fn id(s: &str) -> Result<i64> {
     parse_id(s).map(|x| x.0)
+}
+
+/// File names the API uses for "no photo", with or without a `<timestamp>_` prefix
+const PLACEHOLDER_NAMES: [&str; 7] = [
+    "silhouette",
+    "silhouette_transparent",
+    "placeholder",
+    "placeholder_",
+    "default-headshot",
+    "empphotoplaceholderimage",
+    "esports_male_noplayer",
+];
+/// A photo shared by this many players is a placeholder, not a person
+const SHARED_PHOTO: usize = 3;
+/// Shared photos we already know about, not logged again
+const KNOWN_SHARED: [&str; 3] = ["download.png", "pobrane1.png", "pobrane2.png"];
+
+fn is_placeholder_name(url: &str) -> bool {
+    let file = url.rsplit('/').next().unwrap_or(url);
+    let stem = file.rsplit_once('.').map_or(file, |(s, _)| s);
+    let stem = match stem.split_once('_') {
+        Some((ts, rest)) if !ts.is_empty() && ts.bytes().all(|b| b.is_ascii_digit()) => rest,
+        _ => stem,
+    };
+    PLACEHOLDER_NAMES.contains(&stem.to_ascii_lowercase().as_str())
+}
+
+/// No photo is stored as NULL, so readers pick their own fallback
+fn drop_placeholders(players: &mut BTreeMap<i64, PlayerRow>) {
+    let mut uses: HashMap<String, usize> = HashMap::new();
+    for url in players.values().filter_map(|p| p.image_url.as_ref()) {
+        *uses.entry(url.clone()).or_default() += 1;
+    }
+    // so new placeholder names can go into PLACEHOLDER_NAMES
+    let mut shared: Vec<&String> = uses
+        .iter()
+        .filter(|(u, n)| {
+            **n >= SHARED_PHOTO
+                && !u.trim().is_empty()
+                && !is_placeholder_name(u)
+                && !KNOWN_SHARED.contains(&u.rsplit('/').next().unwrap_or(u))
+        })
+        .map(|(u, _)| u)
+        .collect();
+    if !shared.is_empty() {
+        shared.sort();
+        log(format!(
+            "v2 reference: player photos shared by {SHARED_PHOTO}+ players, stored as NULL: {shared:?}"
+        ));
+    }
+    for p in players.values_mut() {
+        if p.image_url.as_deref().is_some_and(|u| {
+            u.trim().is_empty() || is_placeholder_name(u) || uses[u] >= SHARED_PHOTO
+        }) {
+            p.image_url = None;
+        }
+    }
 }
 
 pub fn from_answers(
@@ -150,6 +208,7 @@ pub fn from_answers(
             home_league_ext_id: t.home_league.as_ref().map(|h| id(&h.id)).transpose()?,
         });
     }
+    drop_placeholders(&mut players);
     Ok(ReferenceRows {
         leagues: leagues.into_values().collect(),
         seasons: seasons.into_values().collect(),
@@ -169,6 +228,68 @@ mod tests {
         ops::{lol_team_overview::GetLoLTeamOverview, other_leagues::GetOtherLeagues},
         parse_body,
     };
+
+    #[test]
+    fn placeholder_names() {
+        for url in [
+            "http://static.lolesports.com/players/default-headshot.png",
+            "http://static.lolesports.com/players/1633033031951_silhouette.png",
+            "http://static.lolesports.com/players/1643734200321_silhouette_transparent.png",
+            "http://static.lolesports.com/players/placeholder_.jpg",
+            "http://static.lolesports.com/players/1590681292084_EMPPhotoPlaceholderImage.png",
+            "http://static.lolesports.com/players/eSports_male_NoPlayer.png",
+            "http://static.lolesports.com/players/placeholder.jpg",
+            "http://static.lolesports.com/players/silhouette.png",
+            "http://static.lolesports.com/players/1590681292084_placeholder.png",
+        ] {
+            assert!(is_placeholder_name(url), "{url}");
+        }
+        for url in [
+            "http://static.lolesports.com/players/1718125212677_Grell.png",
+            "http://x/1718125212677_placeholder_art.png",
+            "http://x/abc_silhouette.png",
+        ] {
+            assert!(!is_placeholder_name(url), "{url}");
+        }
+    }
+
+    #[test]
+    fn shared_photo_is_a_placeholder() {
+        let player = |ext_id: i64, url: &str| PlayerRow {
+            ext_id,
+            handle: "h".into(),
+            first_name: "f".into(),
+            last_name: "l".into(),
+            image_url: Some(url.into()),
+            role: "top".into(),
+        };
+        let mut players: BTreeMap<i64, PlayerRow> = [
+            player(1, "http://x/download.png"),
+            player(2, "http://x/download.png"),
+            player(3, "http://x/download.png"),
+            player(4, "http://x/1_twice.png"),
+            player(5, "http://x/1_twice.png"),
+            player(6, "http://x/1_silhouette.png"),
+            player(7, " "),
+        ]
+        .into_iter()
+        .map(|p| (p.ext_id, p))
+        .collect();
+        drop_placeholders(&mut players);
+        let urls: Vec<Option<&str>> = players.values().map(|p| p.image_url.as_deref()).collect();
+        assert_eq!(
+            urls,
+            vec![
+                None,
+                None,
+                None,
+                Some("http://x/1_twice.png"),
+                Some("http://x/1_twice.png"),
+                None,
+                None
+            ]
+        );
+    }
 
     #[test]
     fn two_locales() {
