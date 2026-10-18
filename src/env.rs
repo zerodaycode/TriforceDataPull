@@ -18,6 +18,7 @@ const SETTINGS: &[&str] = &[
     "TRIFORCE_SOURCE_LEAGUES",
     "TRIFORCE_SOURCE_TEAMS",
     "TRIFORCE_V2",
+    "TRIFORCE_V2_DETAILS",
     "TRIFORCE_LOCALES",
     "TRIFORCE_GQL_MANIFEST",
 ];
@@ -244,6 +245,10 @@ mod tests {
             parse_locales(None)
         );
         assert_eq!(read["TRIFORCE_GQL_MANIFEST"], DEFAULT_PATH);
+        assert_eq!(
+            crate::service::v2_details::parse_switch(Some(&read["TRIFORCE_V2_DETAILS"])).unwrap(),
+            crate::service::v2_details::parse_switch(None).unwrap()
+        );
         for (name, default) in crate::schedules::LOOPS {
             assert_eq!(read[&format!("TRIFORCE_CRON_{name}")], *default, "{name}");
         }

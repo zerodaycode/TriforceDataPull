@@ -43,7 +43,7 @@ pub struct Team {
     pub image: String,
     pub background_image: Option<String>,
     pub home_league: Option<HomeLeague>,
-    #[serde(default, deserialize_with = "super::null_as_empty")]
+    #[serde(default, deserialize_with = "crate::client::null_as_empty")]
     pub players: Vec<Player>,
 }
 

@@ -103,9 +103,9 @@ pub struct EventMatch {
     pub league: League,
     pub tournament: Option<Tournament>,
     pub r#match: Match,
-    #[serde(default, deserialize_with = "super::null_as_empty")]
+    #[serde(default, deserialize_with = "crate::client::null_as_empty")]
     pub match_teams: Vec<MatchTeam>,
-    #[serde(default, deserialize_with = "super::null_as_empty")]
+    #[serde(default, deserialize_with = "crate::client::null_as_empty")]
     pub streams: Vec<Stream>,
 }
 
@@ -117,7 +117,7 @@ pub struct EventShow {
     pub state: String,
     pub league: League,
     pub tournament: Option<Tournament>,
-    #[serde(default, deserialize_with = "super::null_as_empty")]
+    #[serde(default, deserialize_with = "crate::client::null_as_empty")]
     pub streams: Vec<Stream>,
 }
 
@@ -139,7 +139,7 @@ pub struct Match {
     /// `normal` or `tiebreaker`
     pub r#type: Option<String>,
     pub strategy: Option<Strategy>,
-    #[serde(default, deserialize_with = "super::null_as_empty")]
+    #[serde(default, deserialize_with = "crate::client::null_as_empty")]
     pub games: Vec<Game>,
 }
 

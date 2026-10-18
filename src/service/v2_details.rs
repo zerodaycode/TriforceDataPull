@@ -1,0 +1,217 @@
+//! v2 game details: drains the queue of finished games (`v2_game.details IS NULL`) from the
+//! live feed, ~1 game per second. All the progress is in the DB: stop and start any time.
+//! A failed game waits (10 min, 40 min, 2 h 40, 10 h 40), after 5 tries it leaves the queue
+
+use std::{sync::Arc, time::Duration};
+
+use color_eyre::{Result, eyre::eyre};
+use tokio::time::{Instant, sleep};
+
+use crate::{
+    client::{
+        adapters::v2::details::{from_feed, from_vod, match_teams},
+        feed,
+        gql::{
+            Gql,
+            ops::watch_vod::{self, GetWatchVod, VodEvent},
+        },
+        log,
+    },
+    dao::v2::details::{
+        MAX_TRIES, QueueGame, bump_tries, next_games, write_details, write_player_stubs,
+        write_vod_sides,
+    },
+};
+
+/// Games per queue read
+const BATCH: i64 = 20;
+/// At most one game per second (3 feed calls)
+const PACE: Duration = Duration::from_secs(1);
+const IDLE: Duration = Duration::from_secs(5 * 60);
+/// A progress line every this many games
+const LOG_EVERY: usize = 100;
+/// Failures in a row that look like the feed is down: the loop pauses (IDLE)
+const FAILS_BEFORE_PAUSE: usize = 5;
+
+#[derive(Debug, Default)]
+struct Stats {
+    done: usize,
+    no_feed: usize,
+    failed: usize,
+}
+
+#[derive(Debug, PartialEq)]
+enum Outcome {
+    Done,
+    NoFeed,
+}
+
+/// No feed (204): the sides of the match's finished games from `watchVodQuery`
+async fn from_watch_vod(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
+    let vars = watch_vod::Vars {
+        event_id: g.event_ext_id.to_string(),
+        hl: "en-US".into(),
+    };
+    let data = gql
+        .call::<GetWatchVod>(&vars)
+        .await
+        .map_err(color_eyre::Report::new)?
+        .data;
+    let Some(VodEvent::Match(event)) = data.scheduled_event else {
+        return Err(eyre!("watchVodQuery {}: not a match", g.event_ext_id));
+    };
+    // only this game: the other games of the match get their own feed try
+    let mut sides: Vec<_> = from_vod(&event)
+        .into_iter()
+        .filter(|s| s.game_ext_id == g.game_ext_id)
+        .collect();
+    // same rule as the feed: a team the match doesn't list takes the match's other team
+    for s in &mut sides {
+        let (ids, remapped) = match_teams(s.game_ext_id, [s.sides[0].0, s.sides[1].0], &g.teams)?;
+        s.sides[0].0 = ids[0];
+        s.sides[1].0 = ids[1];
+        if let Some((vod, event)) = remapped {
+            log(format!(
+                "v2 details: game {}: watchVodQuery team {vod} is not in the match, taken as {event}",
+                s.game_ext_id
+            ));
+        }
+    }
+    if sides.is_empty() {
+        return Err(eyre!(
+            "game {}: no feed and no sides in watchVodQuery",
+            g.game_ext_id
+        ));
+    }
+    if write_vod_sides(&sides).await?.contains(&g.game_ext_id) {
+        Ok(Outcome::NoFeed)
+    } else {
+        Err(eyre!("game {}: no feed, sides not stored", g.game_ext_id))
+    }
+}
+
+async fn one_game(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
+    let Some((first, server_now)) = feed::window(g.game_ext_id, None).await? else {
+        return from_watch_vod(gql, g).await;
+    };
+    let at = feed::starting_time(server_now);
+    let (last, _) = feed::window(g.game_ext_id, Some(&at))
+        .await?
+        .ok_or_else(|| eyre!("game {}: last window empty", g.game_ext_id))?;
+    let details = feed::details(g.game_ext_id, &at)
+        .await?
+        .ok_or_else(|| eyre!("game {}: details empty", g.game_ext_id))?;
+    let row = from_feed(g.game_ext_id, &g.teams, &first, &last, &details)?;
+    write_player_stubs(&row.player_stubs).await?;
+    write_details(&row).await?;
+    if let Some((feed, event)) = row.remapped {
+        log(format!(
+            "v2 details: game {}: feed team {feed} is not in the match, stored as {event}",
+            g.game_ext_id
+        ));
+    }
+    Ok(Outcome::Done)
+}
+
+/// Never returns. Each game in its own task: a panic is one failed try, not the loop
+pub async fn details_loop(gql: Arc<Gql>) {
+    let mut stats = Stats::default();
+    let mut fails_in_a_row = 0;
+    loop {
+        let games = match next_games(BATCH).await {
+            Ok(g) => g,
+            Err(e) => {
+                log(format!("v2 details: queue not read: {e:#}"));
+                sleep(IDLE).await;
+                continue;
+            }
+        };
+        if games.is_empty() {
+            sleep(IDLE).await;
+            continue;
+        }
+        'batch: for g in games {
+            let started = Instant::now();
+            let id = g.game_ext_id;
+            let gql = gql.clone();
+            let result = match tokio::spawn(async move { one_game(&gql, &g).await }).await {
+                Ok(r) => r,
+                Err(e) => Err(eyre!("game {id}: task stopped: {e}")),
+            };
+            match result {
+                Ok(Outcome::Done) => {
+                    stats.done += 1;
+                    fails_in_a_row = 0;
+                }
+                Ok(Outcome::NoFeed) => {
+                    stats.no_feed += 1;
+                    fails_in_a_row = 0;
+                }
+                Err(e) => {
+                    stats.failed += 1;
+                    fails_in_a_row += 1;
+                    match bump_tries(id).await {
+                        Ok(n) if n >= MAX_TRIES => {
+                            log(format!("v2 details: game {id} left after {n} tries: {e:#}"))
+                        }
+                        Ok(_) => log(format!(
+                            "v2 details: game {id} failed, tried again later: {e:#}"
+                        )),
+                        Err(b) => log(format!(
+                            "v2 details: game {id} failed ({e:#}), try not counted: {b:#}"
+                        )),
+                    }
+                }
+            }
+            if fails_in_a_row >= FAILS_BEFORE_PAUSE {
+                log(format!(
+                    "v2 details: {fails_in_a_row} failures in a row, pausing {} min",
+                    IDLE.as_secs() / 60
+                ));
+                fails_in_a_row = 0;
+                sleep(IDLE).await;
+                break 'batch;
+            }
+            let total = stats.done + stats.no_feed + stats.failed;
+            if total % LOG_EVERY == 0 {
+                log(format!(
+                    "v2 details: {} done, {} no feed, {} failed",
+                    stats.done, stats.no_feed, stats.failed
+                ));
+            }
+            sleep(PACE.saturating_sub(started.elapsed())).await;
+        }
+    }
+}
+
+/// `TRIFORCE_V2_DETAILS` value: `on` (default when unset) or `off`
+pub fn parse_switch(value: Option<&str>) -> color_eyre::Result<bool> {
+    match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
+        None | Some("on") => Ok(true),
+        Some("off") => Ok(false),
+        Some(_) => Err(eyre!(
+            "TRIFORCE_V2_DETAILS must be on or off, got {value:?}"
+        )),
+    }
+}
+
+pub fn enabled() -> color_eyre::Result<bool> {
+    match crate::env::var("TRIFORCE_V2_DETAILS") {
+        Err(std::env::VarError::NotPresent) => parse_switch(None),
+        Err(e) => Err(eyre!("TRIFORCE_V2_DETAILS: {e}")),
+        Ok(v) => parse_switch(Some(&v)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn switch() {
+        assert!(parse_switch(None).unwrap());
+        assert!(!parse_switch(Some(" OFF ")).unwrap());
+        assert!(parse_switch(Some("on")).unwrap());
+        assert!(parse_switch(Some("yes")).is_err());
+    }
+}

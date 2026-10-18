@@ -1,3 +1,4 @@
+pub mod details;
 pub mod events;
 pub mod models;
 pub mod reference;
@@ -15,6 +16,8 @@ pub(crate) async fn test_cleanup() {
     use canyon_sql::connection::DbConnection;
     const EVENTS: &str = "(SELECT id FROM v2_event WHERE ext_id < 0)";
     for sql in [
+        format!("DELETE FROM v2_game_player WHERE game_id IN (SELECT id FROM v2_game WHERE event_id IN {EVENTS} OR ext_id < 0) OR player_id IN (SELECT id FROM v2_player WHERE ext_id < 0)"),
+        format!("DELETE FROM v2_game_team WHERE game_id IN (SELECT id FROM v2_game WHERE event_id IN {EVENTS} OR ext_id < 0) OR team_id IN (SELECT id FROM v2_team WHERE ext_id < 0)"),
         format!("DELETE FROM v2_stream WHERE event_id IN {EVENTS}"),
         format!("DELETE FROM v2_event_i18n WHERE event_id IN {EVENTS}"),
         format!("DELETE FROM v2_event_team WHERE event_id IN {EVENTS} OR team_id IN (SELECT id FROM v2_team WHERE ext_id < 0)"),

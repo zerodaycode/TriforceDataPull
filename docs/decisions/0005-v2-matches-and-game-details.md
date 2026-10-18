@@ -13,23 +13,28 @@ v1 keeps a match in `schedule` with one left and one right team, found by name, 
 - An event with a value we don't store (a new state, strategy or outcome) or that doesn't parse is skipped, the rest of the page is written. A game id the API moved to another event or number is skipped and logged, the stored game stays (two games that swap ids stay as they were).
 - Streams are replaced on every answer. Games, team slots and block names are never deleted: one the API stops sending stays as it was.
 - Unknown leagues and teams in an event are added with the little the event has. They are never changed from here, the reference loop owns them. Nothing deletes players or teams.
-- Game details (planned, second branch): sides, lineups with champions and roles, and the final stats of each game come from the live feed, from the last frame. They are stored as columns of `v2_game_team` and `v2_game_player` (one row per team and player per game). If we store every frame later, the last one is kept twice on purpose: a cheap box score that doesn't depend on how the frames are stored.
+- Game details, from the live feed: sides, lineups with champions and roles (of that game), and the final stats of each game, from the last frame. Stored as columns of `v2_game_team` and `v2_game_player` (one row per team and player per game). If we store every frame later, the last one is kept twice on purpose: a cheap box score that doesn't depend on how the frames are stored.
+  - A queue in the DB (`v2_game.details` NULL), untried and newest first, ~1 game per second. A failed game waits 10 min, 40 min, 2 h 40, 10 h 40, then leaves the queue (reset in the README). 5 failures in a row pause the loop 5 min. One statement per game: if a team or a player is missing, nothing of it is written. `TRIFORCE_V2_DETAILS=off` stops only this part.
+  - No feed (204): sides from `watchVodQuery` for that game only, `side_source = 'api'`, the game is `no_feed`. The other games of the match get their own feed try. A feed side (`'feed'`) is never replaced by an API one.
+  - The feed's (or `watchVodQuery`'s) team ids should be the match's. When one isn't (LIT 2026: the game ran under Aeterna's id, the match lists TEAM AQUA), it takes the match's other team, logged: the schedule is what results and standings use. Both unknown, or the other slot still TBD: an error, nothing written.
+  - A player the feed has no id for (missing or `"-"`, national teams, some subs) keeps the slot with `player_id` NULL and the feed name in `summoner_name`.
+  - Winner per game only for sweeps (`v2_game_team.result`).
 
 ## Consequences
 - Good:
   - Teams by id: no wrong team by name, no wins in the wrong column.
-  - Games with their state, and later sides and lineups per game.
+  - Games with their state, the side of each team, the lineups and the final stats per game.
   - A full history pass is ~1 min (115 pages) per locale, the 30 min ticks read 1 page per locale.
   - Old copies of an answer don't undo a result.
 - Bad:
   - A real correction that lowers a result is skipped too (logged). Corrections need their own design.
   - A game the API drops (a Bo5 changed to a Bo3) stays in `v2_game`.
   - The per-game winner is only known for sweeps or when watched live.
-  - The feed isn't used by the new site and can go away.
+  - The feed isn't used by the new site and can go away. A long outage takes games out of the queue after their 5 tries (~14 h), they need the reset.
   - Matches before 2023-10 are not in `scheduleEvents`.
 
 ## Evidence
 - [Live recording and feed history](../investigations/2026-10-18-live-recording-and-feed-history.md)
 - [Live match state](../investigations/2026-10-16-live-match-state-design.md)
 - [ADR 0004](0004-schema-v2-reference-tables.md)
-- `src/dao/v2/events.rs`, `src/service/v2_matches.rs`
+- `src/dao/v2/events.rs`, `src/dao/v2/details.rs`, `src/service/v2_matches.rs`, `src/service/v2_details.rs`

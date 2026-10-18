@@ -42,6 +42,16 @@ async fn sleep_until_next(schedule: &Schedule) {
     }
 }
 
+/// Waits for the first good run of another loop, or 15 min (it's gone or still failing)
+async fn wait_other_loop(name: &str, mut w: tokio::sync::watch::Receiver<bool>) {
+    let wait = tokio::time::timeout(Duration::from_secs(15 * 60), w.wait_for(|go| *go));
+    if !matches!(wait.await, Ok(Ok(_))) {
+        client::log(format!(
+            "{name}: starting without a good run of the loop it waits for"
+        ));
+    }
+}
+
 /// A v2 loop: first run at start (after `wait_for` says go, or 15 min), then on `schedule`.
 /// One task per run: a panic skips this run, not the loop. `ran` gets `true` after a good run
 fn spawn_v2_loop<F, Fut>(
@@ -57,14 +67,8 @@ fn spawn_v2_loop<F, Fut>(
     Fut: std::future::Future<Output = Result<()>> + Send + 'static,
 {
     tokio::spawn(async move {
-        if let Some(mut w) = wait_for {
-            // the other loop gone or still failing after 15 min: go on anyway
-            let wait = tokio::time::timeout(Duration::from_secs(15 * 60), w.wait_for(|go| *go));
-            if !matches!(wait.await, Ok(Ok(_))) {
-                client::log(format!(
-                    "{name}: starting without a good run of the loop it waits for"
-                ));
-            }
+        if let Some(w) = wait_for {
+            wait_other_loop(name, w).await;
         }
         loop {
             let ok = match tokio::spawn(once(gql.clone(), locales.clone())).await {
@@ -101,6 +105,7 @@ fn main() -> Result<()> {
     }
 
     let v2 = service::v2::v2_enabled()?;
+    let v2_details = service::v2_details::enabled()?;
     let schedules::Schedules {
         v2: v2_reference_schedule,
         v2_matches: v2_matches_schedule,
@@ -142,6 +147,18 @@ fn main() -> Result<()> {
             Some(reference_ran),
             |g, l| async move { service::v2::reference_once(&g, &l).await },
         );
+        // game details: drains its queue on its own, after the first good reference run
+        if v2_details {
+            let gql = gql.clone();
+            let wait = wait_reference.clone();
+            tokio::spawn(async move {
+                wait_other_loop("v2 details", wait).await;
+                client::log("v2 details: starting");
+                service::v2_details::details_loop(gql).await;
+            });
+        } else {
+            client::log("v2 details: off (TRIFORCE_V2_DETAILS=off)");
+        }
         spawn_v2_loop(
             "v2 matches",
             v2_matches_schedule,

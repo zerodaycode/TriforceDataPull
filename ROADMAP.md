@@ -12,19 +12,24 @@ See [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (propos
 - [ ] [Low] Live and event details from `watchLiveQuery` + `watchVodQuery` (checked live on 2026-10-16), the adapter sets `state` itself
 
 ## Schema v2
-See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
-- [ ] [High] v2 tables for matches: the match, its games with the blue and red team of each game, and the streams. Today v1 keeps one left and one right team for the whole match in `schedule`
+See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005](docs/decisions/0005-v2-matches-and-game-details.md) (proposed).
+- [x] [High] v2 tables for matches: the match, its games with the blue and red team of each game, and the streams (`scheduleEvents` + live feed, ADR 0005)
+- [ ] [High] Live loop for v2: `watchLiveQuery` + the feed while a game is played. Score and state within a minute, winner of each game (only known when watched live, sweeps aside), streams, sides before the game (`side_source = 'api'`)
 - [ ] [Medium] Move WSC-Triforce to the v2 tables ([notes](docs/investigations/2026-10-17-wsc-triforce-on-schema-v2.md)), then the app
 - [ ] [Medium] Roster history (who played where and when) and the teams that played each tournament, maybe from another API (`GetSeasonTournament.teams` only has them for 263 of 514 tournaments)
-- [ ] [Medium] In-game stats per game from the live feed
+- [ ] [Medium] In-game stats per game from the live feed: the final stats are done (`v2_game_team`, `v2_game_player`, last frame). Left: every frame, for graphs (storage to design: rows every N seconds, compressed blobs or both)
 - [x] [Medium] Stage names in `v2_stage_i18n` from `GetSeasonTournament` (every locale, 100 tournaments per call)
 - [ ] [Low] Stage sections (groups, brackets) and their standings from `GetSeasonStage`, with the match tables
+- [ ] [Low] Games, team slots and block names the API stops sending stay in v2 (a Bo5 changed to a Bo3 keeps games 4 and 5). Remove them without breaking the game details that point at them
 - [ ] [Low] Split names: the API mostly sends ids (`split_2`), find where the site gets the names
 - [ ] [Low] A source for `light_image_url` (`lightImage` comes with the events)
 - [ ] [Low] `alt_image_url` comes from the old API: decide what to do when it goes away
 - [ ] [Low] Rename `v2_*` when v1 goes away. If Canyon's rename doesn't work, a SQL script and an issue to Canyon-SQL
 
 ## Reliability
+- [ ] [Medium] v2: API corrections that lower a result are skipped today (an answer with a lower state, score or outcome is taken as an old copy). Design how to accept a real one ([live match state](docs/investigations/2026-10-16-live-match-state-design.md) rule 8)
+- [ ] [Low] v2 game details: if the feed goes away for good each game burns its 5 tries (~14 h). Notice it and stop the loop (`TRIFORCE_V2_DETAILS=off` does it by hand)
+- [ ] [Low] v2: a Postgres deadlock between the sweep results and a game details write fails one of them. Retry it without counting a try
 - [ ] [High] Refresh `team_player` in one go. Today we delete all rows, then `.expect()` and `todo!()` can panic, which leaves the table empty and stops the hourly job for good. Build the rows first (skip unknown teams/players with a log), then delete and insert in one SQL statement with `DbConnection::execute`. Canyon's query builder only inserts one row and has no transactions, see [investigation](docs/investigations/2026-10-16-canyon-main-vs-develop.md).
 - [ ] [High] Replace `tournaments`, `teams` and `players` on every fetch instead of adding to them. Today each run appends a full copy: every hourly run stores each `team_player` link once more, and player changes after start up are never written (the dedupe keeps the first copy)
 - [ ] [Medium] Stop ignoring DB errors (`let _ = …`, unused `Result`s in `main.rs`)
@@ -55,9 +60,10 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
 
 ## Security
 - [ ] [Low] Bind the dev Postgres port to `127.0.0.1`. Today `docker/docker-compose.yml` publishes `5438` on all interfaces with `postgres`/`postgres`.
-- [ ] [Low] Take the Postgres user, password and port in `docker/docker-compose.yml` from env (`.env`, not in git), with the dev values as defaults
+- [ ] [Low] Take the Postgres user, password and port in `docker/docker-compose.yml` from env (a file in `env/`, not in git, like `env/docker.env`), with the dev values as defaults
 
 ## Quality & tests
+- [ ] [Low] Long checks when v2 is complete: a feed outage of 20+ min (games keep their tries), 48 h with the default crons (the full pass every ~24 h, not 24 h 30), a start on an empty DB (matches and details wait for the reference loop, no deadlock)
 - [ ] [Medium] Tests for API parsing. Start with a bad id or date (today it panics) and a rescheduled show (`EventDetails::eq`)
 - [ ] [Low] Fix the remaining clippy warnings
 - [ ] [Low] Base URL for the GraphQL client and the manifest download set from tests, to test unknown hash → refresh → retry without the network

@@ -19,7 +19,10 @@ use crate::{
         },
         log,
     },
-    dao::v2::events::{WriteStats, job_last_ok, locale_known, set_job_ok, write_events},
+    dao::v2::{
+        details::sweep_results,
+        events::{WriteStats, job_last_ok, locale_known, set_job_ok, write_events},
+    },
 };
 
 /// `scheduleEvents` has nothing before Worlds 2023 (2023-10-15)
@@ -177,6 +180,12 @@ async fn pass(gql: &Gql, locales: &[String], pass: Pass, now: NaiveDateTime) -> 
 pub async fn matches_once(gql: &Gql, locales: &[String]) -> Result<()> {
     let now = Utc::now().naive_utc();
     pass(gql, locales, Pass::Recent, now).await?;
+    // game winners of sweeps, for games whose sides are already stored
+    match sweep_results().await {
+        Ok(0) => {}
+        Ok(n) => log(format!("v2 matches: {n} game results from sweeps")),
+        Err(e) => log(format!("v2 matches: sweep results not written: {e:#}")),
+    }
     if !full_due(
         job_last_ok(FULL_JOB).await?,
         job_last_ok(FULL_TRY_JOB).await?,

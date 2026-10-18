@@ -6,16 +6,13 @@ use color_eyre::{Result, eyre::eyre};
 
 use crate::{
     client::{
-        adapters::parse_id,
         gql::ops::{lol_team_overview, other_leagues, season_tournament},
         log,
     },
     dao::v2::rows::*,
 };
 
-fn id(s: &str) -> Result<i64> {
-    parse_id(s).map(|x| x.0)
-}
+use crate::client::adapters::ext_id as id;
 
 /// File names the API uses for "no photo", with or without a `<timestamp>_` prefix
 const PLACEHOLDER_NAMES: [&str; 7] = [

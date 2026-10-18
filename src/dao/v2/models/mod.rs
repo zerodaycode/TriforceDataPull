@@ -2,6 +2,8 @@ pub mod event;
 pub mod event_i18n;
 pub mod event_team;
 pub mod game;
+pub mod game_player;
+pub mod game_team;
 pub mod job_run;
 pub mod league;
 pub mod league_i18n;

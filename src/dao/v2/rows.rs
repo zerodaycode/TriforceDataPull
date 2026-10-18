@@ -209,3 +209,82 @@ impl EventRow {
         }
     }
 }
+
+/// One finished game from the feed: sides, lineup and the last frame
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameDetailsRow {
+    pub game_ext_id: i64,
+    pub patch: Option<String>,
+    /// First and last feed frame
+    pub start_time: Option<NaiveDateTime>,
+    pub end_time: Option<NaiveDateTime>,
+    pub teams: Vec<GameTeamRow>,
+    pub players: Vec<GamePlayerRow>,
+    /// Players the feed has, added only when we don't have them
+    pub player_stubs: Vec<PlayerStub>,
+    /// (feed team, match team) when the feed had a team the match doesn't list and it took the
+    /// match's other team (a spot that changed hands during the season)
+    pub remapped: Option<(i64, i64)>,
+}
+
+/// A team in a game: its side and its totals in the last frame
+#[derive(Debug, Clone, PartialEq)]
+pub struct GameTeamRow {
+    pub team_ext_id: i64,
+    /// `blue` or `red`
+    pub side: &'static str,
+    pub gold: Option<i64>,
+    pub kills: Option<i32>,
+    pub towers: Option<i32>,
+    pub inhibitors: Option<i32>,
+    pub barons: Option<i32>,
+    /// `infernal,ocean`
+    pub dragons: Option<String>,
+}
+
+/// A player in a game: champion, role (of that game) and the last frame
+#[derive(Debug, Clone, PartialEq)]
+pub struct GamePlayerRow {
+    pub team_ext_id: i64,
+    /// `None`: the feed has no esports id for this player (missing or `"-"`)
+    pub player_ext_id: Option<i64>,
+    /// As the feed sends it, with the team code (`"FUR Guigo"`)
+    pub summoner_name: String,
+    /// 1-5 blue, 6-10 red
+    pub participant_id: i32,
+    pub role: String,
+    pub champion: String,
+    pub level: Option<i32>,
+    pub kills: Option<i32>,
+    pub deaths: Option<i32>,
+    pub assists: Option<i32>,
+    pub gold: Option<i64>,
+    pub cs: Option<i32>,
+    pub wards_placed: Option<i32>,
+    pub wards_destroyed: Option<i32>,
+    /// Share of the team's damage to champions × 10000 (`0.2144` → `2144`)
+    pub damage_share_bp: Option<i32>,
+    /// Item ids, `1086,3158`
+    pub items: Option<String>,
+    pub rune_style: Option<i32>,
+    pub rune_sub_style: Option<i32>,
+    /// Rune ids, `8437,8401`
+    pub runes: Option<String>,
+    /// `W,E,Q,…`
+    pub skill_order: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerStub {
+    pub ext_id: i64,
+    pub handle: String,
+    pub role: String,
+}
+
+/// Sides of the finished games of one event, from `watchVodQuery` (no feed for them)
+#[derive(Debug, Clone, PartialEq)]
+pub struct VodSides {
+    pub game_ext_id: i64,
+    /// (team ext_id, `blue`/`red`)
+    pub sides: Vec<(i64, &'static str)>,
+}

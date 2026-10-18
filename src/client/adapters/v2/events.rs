@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     client::{
-        adapters::parse_id,
+        adapters::ext_id,
         gql::ops::schedule_events::{self, Event, EventMatch, EventShow},
         log,
     },
@@ -12,7 +12,7 @@ use crate::{
 };
 
 fn id(s: &str) -> Option<i64> {
-    parse_id(s).ok().map(|x| x.0)
+    ext_id(s).ok()
 }
 
 /// The TBD slot of a match

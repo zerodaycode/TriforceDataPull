@@ -1,0 +1,176 @@
+{
+ "data": {
+  "__typename": "Query",
+  "scheduledEvent": {
+   "__typename": "EventMatch",
+   "blockName": "Play-Ins",
+   "id": "115660588583171794",
+   "league": {
+    "__typename": "League",
+    "displayPriority": {
+     "__typename": "Priority",
+     "position": 0,
+     "status": "force_selected"
+    },
+    "id": "98767975604431411",
+    "image": "http://static.lolesports.com/leagues/1592594612171_WorldsDarkBG.png",
+    "name": "Worlds",
+    "slug": "worlds"
+   },
+   "match": {
+    "__typename": "Match",
+    "games": [
+     {
+      "__typename": "Game",
+      "id": "115660588583171795",
+      "number": 1,
+      "state": "completed",
+      "teams": [
+       {
+        "__typename": "Team",
+        "id": "100205576309502431",
+        "side": "blue"
+       },
+       {
+        "__typename": "Team",
+        "id": "98767991877340524",
+        "side": "red"
+       }
+      ],
+      "vods": [],
+      "recaps": []
+     },
+     {
+      "__typename": "Game",
+      "id": "115660588583171796",
+      "number": 2,
+      "state": "completed",
+      "teams": [
+       {
+        "__typename": "Team",
+        "id": "98767991877340524",
+        "side": "blue"
+       },
+       {
+        "__typename": "Team",
+        "id": "100205576309502431",
+        "side": "red"
+       }
+      ],
+      "vods": [],
+      "recaps": []
+     },
+     {
+      "__typename": "Game",
+      "id": "115660588583171797",
+      "number": 3,
+      "state": "completed",
+      "teams": [
+       {
+        "__typename": "Team",
+        "id": "100205576309502431",
+        "side": "blue"
+       },
+       {
+        "__typename": "Team",
+        "id": "98767991877340524",
+        "side": "red"
+       }
+      ],
+      "vods": [],
+      "recaps": []
+     },
+     {
+      "__typename": "Game",
+      "id": "116299649500204440",
+      "number": 4,
+      "state": "completed",
+      "teams": [
+       {
+        "__typename": "Team",
+        "id": "100205576309502431",
+        "side": "blue"
+       },
+       {
+        "__typename": "Team",
+        "id": "98767991877340524",
+        "side": "red"
+       }
+      ],
+      "vods": [],
+      "recaps": []
+     },
+     {
+      "__typename": "Game",
+      "id": "116299649500204441",
+      "number": 5,
+      "state": "unneeded",
+      "teams": [
+       {
+        "__typename": "Team",
+        "id": "98767991877340524",
+        "side": "blue"
+       },
+       {
+        "__typename": "Team",
+        "id": "100205576309502431",
+        "side": "red"
+       }
+      ],
+      "vods": [],
+      "recaps": []
+     }
+    ],
+    "id": "115660588583171794",
+    "matchTeams": [
+     {
+      "__typename": "MatchTeam",
+      "code": "FUR",
+      "id": "115660588583171794:100205576309502431",
+      "image": "http://static.lolesports.com/teams/FURIA---black.png",
+      "name": "FURIA",
+      "record": {
+       "__typename": "TeamRecord",
+       "losses": 2,
+       "wins": 1
+      },
+      "result": {
+       "__typename": "TeamResult",
+       "gameWins": 3,
+       "outcome": "win"
+      }
+     },
+     {
+      "__typename": "MatchTeam",
+      "code": "C9",
+      "id": "115660588583171794:98767991877340524",
+      "image": "http://static.lolesports.com/teams/1736924120254_C9Kia_IconBlue_Transparent_2000x2000.png",
+      "name": "Cloud9 Kia",
+      "record": {
+       "__typename": "TeamRecord",
+       "losses": 2,
+       "wins": 0
+      },
+      "result": {
+       "__typename": "TeamResult",
+       "gameWins": 1,
+       "outcome": "loss"
+      }
+     }
+    ],
+    "strategy": {
+     "__typename": "MatchStrategy",
+     "count": 5,
+     "type": "bestOf"
+    }
+   },
+   "startTime": "2026-10-16T23:00:00Z",
+   "streams": [],
+   "tournament": {
+    "__typename": "Tournament",
+    "id": "115660540725177488"
+   },
+   "type": "match"
+  }
+ }
+}

@@ -25,14 +25,14 @@ pub struct Vars {
 
 #[derive(Debug, Deserialize)]
 pub struct Data {
-    #[serde(default, deserialize_with = "super::null_as_empty")]
+    #[serde(default, deserialize_with = "crate::client::null_as_empty")]
     pub tournaments: Vec<Tournament>,
 }
 
 /// Only the stages: the answer also has teams, sections and matches, unused for now
 #[derive(Debug, Deserialize)]
 pub struct Tournament {
-    #[serde(default, deserialize_with = "super::null_as_empty")]
+    #[serde(default, deserialize_with = "crate::client::null_as_empty")]
     pub stages: Vec<Stage>,
 }
 

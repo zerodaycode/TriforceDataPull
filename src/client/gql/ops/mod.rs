@@ -4,6 +4,7 @@ pub mod lol_team_overview;
 pub mod other_leagues;
 pub mod schedule_events;
 pub mod season_tournament;
+pub mod watch_vod;
 
 use super::Operation;
 
@@ -13,14 +14,5 @@ pub const USED: &[&str] = &[
     lol_team_overview::GetLoLTeamOverview::NAME,
     season_tournament::GetSeasonTournament::NAME,
     schedule_events::GetScheduleEvents::NAME,
+    watch_vod::GetWatchVod::NAME,
 ];
-
-/// GraphQL sends `null`, not a missing key: treat it as empty
-pub(crate) fn null_as_empty<'de, D, T>(d: D) -> Result<Vec<T>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: serde::Deserialize<'de>,
-{
-    use serde::Deserialize;
-    Ok(Option::<Vec<T>>::deserialize(d)?.unwrap_or_default())
-}

@@ -63,7 +63,7 @@ mod tests {
                 "ALTER TABLE t\n  ADD CONSTRAINT c CHECK (x > 0);"
             ]
         );
-        assert_eq!(statements(SQL).len(), 40);
+        assert_eq!(statements(SQL).len(), 51);
     }
 
     #[test]
@@ -113,14 +113,14 @@ mod tests {
             "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname LIKE 'v2\\_%' AND indexname NOT LIKE '%\\_pkey'",
             &[],
         ).await?;
-        assert_eq!(n, 26);
+        assert_eq!(n, 32);
         let c: i64 = ""
             .query_one_for(
                 "SELECT count(*) FROM pg_constraint WHERE contype = 'c' AND conname LIKE 'v2\\_%'",
                 &[],
             )
             .await?;
-        assert_eq!(c, 13);
+        assert_eq!(c, 18);
         // the SQL ranks are the Rust ones
         for st in ["unstarted", "inProgress", "completed", "unneeded", "other"] {
             let db: i32 = ""

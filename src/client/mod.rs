@@ -1,6 +1,7 @@
 //! Everything that talks to LoL Esports
 
 pub mod adapters;
+pub mod feed;
 pub mod gql;
 pub mod legacy;
 
@@ -24,13 +25,24 @@ pub fn http() -> &'static reqwest::Client {
     })
 }
 
+/// A list sent as `null` (or missing, with `#[serde(default)]`): empty
+pub(crate) fn null_as_empty<'de, D, T>(d: D) -> Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    use serde::Deserialize;
+    Ok(Option::<Vec<T>>::deserialize(d)?.unwrap_or_default())
+}
+
 /// Biggest body we read, decompressed. The biggest real answer is ~1.2 MB
 pub const MAX_BODY: usize = 32 * 1024 * 1024;
 
 #[derive(Debug)]
 pub enum BodyError {
     Network(reqwest::Error),
-    TooBig,
+    /// over this many bytes
+    TooBig(usize),
     NotUtf8,
 }
 
@@ -38,7 +50,7 @@ impl std::fmt::Display for BodyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Network(e) => write!(f, "network error: {e}"),
-            Self::TooBig => write!(f, "answer over {MAX_BODY} bytes"),
+            Self::TooBig(max) => write!(f, "answer over {max} bytes"),
             Self::NotUtf8 => write!(f, "answer is not UTF-8"),
         }
     }
@@ -55,15 +67,23 @@ impl std::error::Error for BodyError {
 }
 
 /// The body as text, up to `MAX_BODY`: a small compressed answer can expand a lot
-pub async fn read_text(mut response: reqwest::Response) -> Result<String, BodyError> {
+pub async fn read_text(response: reqwest::Response) -> Result<String, BodyError> {
+    read_text_max(response, MAX_BODY).await
+}
+
+/// The body as text, up to `max` bytes
+pub async fn read_text_max(
+    mut response: reqwest::Response,
+    max: usize,
+) -> Result<String, BodyError> {
     let mut buf = Vec::new();
     while let Some(chunk) = response
         .chunk()
         .await
         .map_err(|e| BodyError::Network(e.without_url()))?
     {
-        if buf.len() + chunk.len() > MAX_BODY {
-            return Err(BodyError::TooBig);
+        if buf.len() + chunk.len() > max {
+            return Err(BodyError::TooBig(max));
         }
         buf.extend_from_slice(&chunk);
     }

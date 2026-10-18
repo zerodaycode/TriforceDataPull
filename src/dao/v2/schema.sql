@@ -43,3 +43,14 @@ ALTER TABLE v2_game DROP CONSTRAINT IF EXISTS v2_game_state_check, ADD CONSTRAIN
 ALTER TABLE v2_game DROP CONSTRAINT IF EXISTS v2_game_number, ADD CONSTRAINT v2_game_number CHECK (number >= 1);
 -- Same ranks as rows::state_rank in Rust: a state never goes down (unneeded counts as done)
 CREATE OR REPLACE FUNCTION v2_state_rank(s text) RETURNS int IMMUTABLE LANGUAGE sql AS $$ SELECT CASE s WHEN 'inProgress' THEN 1 WHEN 'completed' THEN 2 WHEN 'unneeded' THEN 2 ELSE 0 END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS v2_game_team_key ON v2_game_team (game_id, team_id);
+CREATE UNIQUE INDEX IF NOT EXISTS v2_game_player_key ON v2_game_player (game_id, participant_id);
+CREATE INDEX IF NOT EXISTS v2_game_team_team ON v2_game_team (team_id);
+CREATE INDEX IF NOT EXISTS v2_game_player_player ON v2_game_player (player_id);
+CREATE INDEX IF NOT EXISTS v2_game_player_team ON v2_game_player (team_id);
+CREATE INDEX IF NOT EXISTS v2_game_queue ON v2_game (event_id) WHERE details IS NULL AND state = 'completed';
+ALTER TABLE v2_game DROP CONSTRAINT IF EXISTS v2_game_details, ADD CONSTRAINT v2_game_details CHECK (details IN ('done', 'no_feed'));
+ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_side, ADD CONSTRAINT v2_game_team_side CHECK (side IN ('blue', 'red'));
+ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_source, ADD CONSTRAINT v2_game_team_source CHECK (side_source IN ('api', 'feed'));
+ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_result, ADD CONSTRAINT v2_game_team_result CHECK (result IN ('win', 'loss'));
+ALTER TABLE v2_game_player DROP CONSTRAINT IF EXISTS v2_game_player_participant, ADD CONSTRAINT v2_game_player_participant CHECK (participant_id BETWEEN 1 AND 10);
