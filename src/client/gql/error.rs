@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{error::Error, fmt};
 
 #[derive(Debug)]
 pub enum GqlError {
@@ -14,6 +14,7 @@ pub enum GqlError {
         status: u16,
     },
     Network(reqwest::Error),
+    Body(crate::client::BodyError),
     Parse(serde_json::Error),
     Manifest(String),
 }
@@ -31,18 +32,34 @@ impl fmt::Display for GqlError {
             }
             Self::Http { status } => write!(f, "HTTP {status}"),
             Self::Network(e) => write!(f, "network error: {e}"),
+            Self::Body(e) => write!(f, "{e}"),
             Self::Parse(e) => write!(f, "can't parse the answer: {e}"),
             Self::Manifest(m) => write!(f, "manifest: {m}"),
         }
     }
 }
 
-impl std::error::Error for GqlError {
+impl Error for GqlError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Network(e) => Some(e),
-            Self::Parse(e) => Some(e),
+            // Display already has the inner error: start the chain one level down
+            Self::Network(e) => e.source(),
+            Self::Body(e) => e.source(),
+            Self::Parse(e) => e.source(),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chain_has_each_message_once() {
+        let inner = serde_json::from_str::<u8>("x").unwrap_err();
+        let text = inner.to_string();
+        let e = color_eyre::Report::new(GqlError::Parse(inner));
+        assert_eq!(format!("{e:#}").matches(&text).count(), 1);
     }
 }

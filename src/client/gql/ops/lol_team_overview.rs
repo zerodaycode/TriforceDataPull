@@ -43,17 +43,8 @@ pub struct Team {
     pub image: String,
     pub background_image: Option<String>,
     pub home_league: Option<HomeLeague>,
-    #[serde(default, deserialize_with = "null_as_empty")]
+    #[serde(default, deserialize_with = "super::null_as_empty")]
     pub players: Vec<Player>,
-}
-
-/// GraphQL sends `null`, not a missing key: treat it as empty
-fn null_as_empty<'de, D, T>(d: D) -> Result<Vec<T>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: serde::Deserialize<'de>,
-{
-    Ok(Option::<Vec<T>>::deserialize(d)?.unwrap_or_default())
 }
 
 #[derive(Debug, Deserialize)]

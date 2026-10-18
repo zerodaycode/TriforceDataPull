@@ -66,7 +66,7 @@ On start everything is fetched and saved once (live events are saved from the fi
 | Teams and players | 1 hour | `TRIFORCE_CRON_TEAMS` |
 | Schedule (current page) | 30 minutes | `TRIFORCE_CRON_SCHEDULE` |
 | Live events | 2 minutes | `TRIFORCE_CRON_LIVE` |
-| v2 reference tables (`GetOtherLeagues` per locale + `GetLoLTeamOverview` → `v2_*`, alternative team images from the old `getTeams`) | 2 hours at :15 (first run at start) | `TRIFORCE_CRON_V2` |
+| v2 reference tables (`GetOtherLeagues` and `GetSeasonTournament` per locale + `GetLoLTeamOverview` → `v2_*`, alternative team images from the old `getTeams`) | 2 hours at :15 (first run at start) | `TRIFORCE_CRON_V2` |
 
 Defaults are in `src/schedules.rs`. The `TRIFORCE_CRON_*` variables take a cron expression with seconds (`sec min hour day month weekday`), useful to test a loop without waiting for its tick:
 

@@ -256,7 +256,9 @@ async fn fetch_text(http: &reqwest::Client, url: &str) -> Result<String, GqlErro
             status: status.as_u16(),
         });
     }
-    response.text().await.map_err(GqlError::Network)
+    crate::client::read_text(response)
+        .await
+        .map_err(GqlError::Body)
 }
 
 /// Same steps as the investigation: the page, its chunks, the chunks they load

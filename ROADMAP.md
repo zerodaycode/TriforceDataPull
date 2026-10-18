@@ -17,7 +17,7 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
 - [ ] [Medium] Move WSC-Triforce to the v2 tables ([notes](docs/investigations/2026-10-17-wsc-triforce-on-schema-v2.md)), then the app
 - [ ] [Medium] Roster history (who played where and when) and the teams that played each tournament, maybe from another API (`GetSeasonTournament.teams` only has them for 263 of 514 tournaments)
 - [ ] [Medium] In-game stats per game from the live feed
-- [ ] [Medium] Stage names in `v2_stage_i18n` from `GetSeasonTournament` (every locale, 100 tournaments per call)
+- [x] [Medium] Stage names in `v2_stage_i18n` from `GetSeasonTournament` (every locale, 100 tournaments per call)
 - [ ] [Low] Stage sections (groups, brackets) and their standings from `GetSeasonStage`, with the match tables
 - [ ] [Low] Split names: the API mostly sends ids (`split_2`), find where the site gets the names
 - [ ] [Low] A source for `light_image_url` (`lightImage` comes with the events)
@@ -36,7 +36,7 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
 - [ ] [Low] Retry policy for the old API: transport errors, 5xx and 429 with backoff, `error_for_status` for the rest
 - [ ] [Low] Shut down cleanly on ctrl-c: let in-flight writes finish (today it can stop between the `team_player` delete and the inserts)
 - [ ] [Low] Don't delete `team_player` when the team list is empty
-- [ ] [Low] GraphQL client: retry a timeout while reading the body, cap the size of answers and site chunks
+- [ ] [Low] GraphQL client: retry a timeout while reading the body. Cap the size of the old API answers too (GraphQL, manifest and `getTeams` are capped at 32 MB)
 - [ ] [Low] Manifest refresh: one deadline for the whole refresh, retry a chunk that timed out once
 
 ## Data layer
@@ -61,6 +61,7 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
 - [ ] [Medium] Tests for API parsing. Start with a bad id or date (today it panics) and a rescheduled show (`EventDetails::eq`)
 - [ ] [Low] Fix the remaining clippy warnings
 - [ ] [Low] Base URL for the GraphQL client and the manifest download set from tests, to test unknown hash → refresh → retry without the network
+- [ ] [Low] `parse_body` without the full `serde_json::Value` tree (`RawValue`), the big answers are parsed twice
 
 ## Observability & config
 - [ ] [Low] Use `tracing` instead of `println!`

@@ -13,11 +13,8 @@ use tokio::time::sleep;
 
 /// Body of a GET without args, an error on a non-2xx status
 pub async fn get_text(endpoint: &str) -> Result<String> {
-    Ok(get::<()>(endpoint, None)
-        .await?
-        .error_for_status()?
-        .text()
-        .await?)
+    let response = get::<()>(endpoint, None).await?.error_for_status()?;
+    Ok(super::read_text(response).await?)
 }
 
 pub async fn get<T>(endpoint: &str, args: Option<&T>) -> Result<Response>

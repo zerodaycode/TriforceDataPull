@@ -167,7 +167,8 @@ impl Gql {
                     log(format!("Request to {} timed out", Op::NAME));
                     tokio::time::sleep(Duration::from_secs(5)).await;
                 }
-                Err(e) => return Err(GqlError::Network(e)),
+                // without the URL: the query string is long and the op name is in the logs
+                Err(e) => return Err(GqlError::Network(e.without_url())),
             }
         };
         let received = Utc::now();
@@ -181,7 +182,9 @@ impl Gql {
         };
         let date = header(reqwest::header::DATE);
         let age = header(reqwest::header::AGE);
-        let body = response.text().await.map_err(GqlError::Network)?;
+        let body = crate::client::read_text(response)
+            .await
+            .map_err(GqlError::Body)?;
         let data = parse_body::<Op>(status, &body)?;
         Ok(Answer {
             data,

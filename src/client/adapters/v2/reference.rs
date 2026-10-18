@@ -7,7 +7,7 @@ use color_eyre::{Result, eyre::eyre};
 use crate::{
     client::{
         adapters::parse_id,
-        gql::ops::{lol_team_overview, other_leagues},
+        gql::ops::{lol_team_overview, other_leagues, season_tournament},
         log,
     },
     dao::v2::rows::*,
@@ -140,7 +140,7 @@ pub fn from_answers(
                             StageRow {
                                 ext_id: stid,
                                 tournament_ext_id: tid,
-                                // GetOtherLeagues has no stage names: v2_stage_i18n stays empty until GetSeasonStage (ADR 0004)
+                                // GetOtherLeagues has no stage names, they come from GetSeasonTournament (add_stage_names)
                                 texts: vec![],
                             },
                         );
@@ -221,13 +221,117 @@ pub fn from_answers(
     })
 }
 
+/// Stage names of one locale from a `GetSeasonTournament` answer. Stages not in `rows` are skipped.
+/// Returns how many names were added
+pub fn add_stage_names(
+    rows: &mut ReferenceRows,
+    locale: &str,
+    data: season_tournament::Data,
+) -> usize {
+    let mut by_id: HashMap<i64, &mut StageRow> =
+        rows.stages.iter_mut().map(|s| (s.ext_id, s)).collect();
+    let mut added = 0;
+    for st in data.tournaments.into_iter().flat_map(|t| t.stages) {
+        let Some(name) = st.name.filter(|n| !n.trim().is_empty()) else {
+            continue;
+        };
+        // every stage of ours came from GetOtherLeagues with a numeric id
+        if let Some(stage) = id(&st.id).ok().and_then(|sid| by_id.get_mut(&sid))
+            && !stage.texts.iter().any(|t| t.locale == locale)
+        {
+            stage.texts.push(Text {
+                locale: locale.to_string(),
+                name,
+            });
+            added += 1;
+        }
+    }
+    added
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::client::gql::{
-        ops::{lol_team_overview::GetLoLTeamOverview, other_leagues::GetOtherLeagues},
+        ops::{
+            lol_team_overview::GetLoLTeamOverview, other_leagues::GetOtherLeagues,
+            season_tournament::GetSeasonTournament,
+        },
         parse_body,
     };
+
+    #[test]
+    fn stage_names_per_locale() {
+        let en =
+            parse_body::<GetOtherLeagues>(200, include_str!("testdata/other_leagues_v2_en.json"))
+                .unwrap();
+        let teams = parse_body::<GetLoLTeamOverview>(
+            200,
+            include_str!("../testdata/lol_team_overview.json"),
+        )
+        .unwrap();
+        let mut rows = from_answers(vec![("en-US".into(), en)], teams).unwrap();
+        let answer = |name: &str| {
+            let body = serde_json::json!({"data": {"tournaments": [{"id": "115548681802226458", "stages": [
+                {"id": "115548681802750747", "name": name},
+                {"id": "115548681802750748", "name": null},
+                {"id": "999", "name": "Not ours"}]}]}});
+            parse_body::<GetSeasonTournament>(200, &body.to_string()).unwrap()
+        };
+        assert_eq!(add_stage_names(&mut rows, "en-US", answer("Playoffs")), 1);
+        assert_eq!(
+            add_stage_names(&mut rows, "es-ES", answer("Eliminatorias")),
+            1
+        );
+        // same locale twice: no second text
+        assert_eq!(add_stage_names(&mut rows, "es-ES", answer("Otra")), 0);
+        let stage = rows
+            .stages
+            .iter()
+            .find(|s| s.ext_id == 115548681802750747)
+            .unwrap();
+        assert_eq!(
+            stage
+                .texts
+                .iter()
+                .map(|t| (t.locale.as_str(), t.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("en-US", "Playoffs"), ("es-ES", "Eliminatorias")]
+        );
+        let other = rows
+            .stages
+            .iter()
+            .find(|s| s.ext_id == 115548681802750748)
+            .unwrap();
+        assert!(other.texts.is_empty());
+    }
+
+    #[test]
+    fn stage_names_skip_blank_and_bad_ids() {
+        let en =
+            parse_body::<GetOtherLeagues>(200, include_str!("testdata/other_leagues_v2_en.json"))
+                .unwrap();
+        let teams = parse_body::<GetLoLTeamOverview>(
+            200,
+            include_str!("../testdata/lol_team_overview.json"),
+        )
+        .unwrap();
+        let mut rows = from_answers(vec![("en-US".into(), en)], teams).unwrap();
+        let body =
+            serde_json::json!({"data": {"tournaments": [{"id": "115548681802226458", "stages": [
+            {"id": "not-a-number", "name": "Bad"},
+            {"id": "115548681802750747", "name": "  "},
+            {"id": "115548681802750748", "name": "Groups"}]}]}})
+            .to_string();
+        let data = parse_body::<GetSeasonTournament>(200, &body).unwrap();
+        assert_eq!(add_stage_names(&mut rows, "en-US", data), 1);
+        let blank = rows
+            .stages
+            .iter()
+            .find(|s| s.ext_id == 115548681802750747)
+            .unwrap();
+        assert!(blank.texts.is_empty());
+    }
 
     #[test]
     fn placeholder_names() {

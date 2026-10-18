@@ -12,12 +12,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Leagues and tournaments can come from the lolesports.com GraphQL API (`TRIFORCE_SOURCE_LEAGUES=new`), one call instead of 52.
 - Teams and players can come from the lolesports.com GraphQL API (`TRIFORCE_SOURCE_TEAMS=new`). The stored alternative image is kept, the new API doesn't have it.
 - GraphQL query manifest kept in `gql-manifest.json`, downloaded again when a query hash stops working, or with `cargo run -- refresh-manifest`.
-- v2 reference tables (`v2_*`), created by the Canyon migrations and filled from the new API at start and every 2 hours. On by default, `TRIFORCE_V2=off` stops the filling and the startup SQL. Names in `en-US` plus `TRIFORCE_LOCALES` (like `es-ES,ko-KR`). Unique indexes and checks Canyon can't create are in `src/dao/v2/schema.sql`, the app doesn't start if they fail. Alternative team images come from the old API. Player photos that are only a placeholder are stored as `NULL`. See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
+- v2 reference tables (`v2_*`), created by the Canyon migrations and filled from the new API at start and every 2 hours. On by default, `TRIFORCE_V2=off` stops the filling and the startup SQL. Names in `en-US` plus `TRIFORCE_LOCALES` (like `es-ES,ko-KR`). Unique indexes and checks Canyon can't create are in `src/dao/v2/schema.sql`, the app doesn't start if they fail. Stage names in every locale come from `GetSeasonTournament`. Alternative team images come from the old API. Player photos that are only a placeholder are stored as `NULL`. See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
 - `TRIFORCE_CRON_<LOOP>` to change the schedule of a loop, like `TRIFORCE_CRON_V2="0 * * ? * *"` to run v2 every minute when testing.
 
 ### Changed
 - Rust edition 2021 → 2024.
 - New dependency: sha2 0.11.1, to check the manifest hashes.
+- reqwest `gzip` and `brotli` features: API answers come compressed (a 100 tournaments `GetSeasonTournament` answer goes from 1.2 MB to 193 KB with gzip, 52 KB with brotli, the CDN sends brotli). GraphQL, manifest and `getTeams` answers are read up to 32 MB.
 - Dependencies updated: serde 1.0.229, serde_json 1.0.154, reqwest 0.13.5, color-eyre 0.6.5, itertools 0.15.0, chrono 0.4.45, cron 0.17.0, tokio 1.53.3.
 - Canyon-SQL 0.4.2 → `develop` branch, pinned to commit `1c81b3b` with `rev`. See [ADR 0001](docs/decisions/0001-use-canyon-sql-develop-branch.md).
 - Data access ported to the new Canyon API (`Crud` derive, `Read`/`Insert`/`Update`/`Delete` traits, query builder with `where_value`).

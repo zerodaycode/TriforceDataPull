@@ -8,18 +8,22 @@ use color_eyre::{
 
 use crate::{
     client::{
-        adapters::v2::reference::from_answers,
+        adapters::v2::reference::{add_stage_names, from_answers},
         gql::{
             Gql,
             ops::{
                 lol_team_overview::GetLoLTeamOverview,
                 other_leagues::{self, GetOtherLeagues},
+                season_tournament::{self, GetSeasonTournament},
             },
         },
         legacy::{self, endpoints, models::Wrapper},
         log,
     },
-    dao::v2::reference::{write_alt_images, write_reference},
+    dao::v2::{
+        reference::{write_alt_images, write_reference},
+        rows::ReferenceRows,
+    },
 };
 
 /// `TRIFORCE_V2` value: `on` (default when unset) or `off`
@@ -148,6 +152,47 @@ async fn old_alt_images() -> Result<Vec<(i64, Option<String>)>> {
     parse_alt_images(&legacy::get_text(endpoints::TEAMS_AND_LEAGUES_ENDPOINT).await?)
 }
 
+/// Stage names for every tournament in `rows`, per locale. A failed call only skips its 100
+/// tournaments, 2 in a row skip the rest of that locale. Names stored by an earlier run stay
+async fn stage_names(gql: &Gql, rows: &mut ReferenceRows, locales: &[String]) -> usize {
+    let ids: Vec<String> = rows
+        .tournaments
+        .iter()
+        .map(|t| t.ext_id.to_string())
+        .collect();
+    let calls = ids.len().div_ceil(season_tournament::MAX_IDS);
+    let mut added = 0;
+    for locale in locales {
+        let mut failed_in_a_row = 0;
+        for (i, chunk) in ids.chunks(season_tournament::MAX_IDS).enumerate() {
+            let vars = season_tournament::Vars {
+                hl: locale.clone(),
+                tournament_id: chunk.to_vec(),
+            };
+            match gql.call::<GetSeasonTournament>(&vars).await {
+                Ok(a) => {
+                    added += add_stage_names(rows, locale, a.data);
+                    failed_in_a_row = 0;
+                }
+                Err(e) => {
+                    // as a Report, so `{:#}` also prints the causes
+                    let e = color_eyre::Report::new(e);
+                    log(format!(
+                        "v2 reference: stage names {locale}, call {}/{calls} skipped: {e:#}",
+                        i + 1
+                    ));
+                    failed_in_a_row += 1;
+                    // the API looks down: don't wait ~55 s on each call left
+                    if failed_in_a_row == 2 {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    added
+}
+
 pub async fn reference_once(gql: &Gql, locales: &[String]) -> Result<()> {
     let mut by_locale = Vec::new();
     for locale in locales {
@@ -162,13 +207,15 @@ pub async fn reference_once(gql: &Gql, locales: &[String]) -> Result<()> {
         }
     }
     drop_english_copies(&mut by_locale);
-    let written_locales = by_locale.len();
+    // only locales GetOtherLeagues translated: an unknown one answers with the en-US texts
+    let written_locales: Vec<String> = by_locale.iter().map(|(l, _)| l.clone()).collect();
     let teams = gql
         .call::<GetLoLTeamOverview>(&Default::default())
         .await
         .wrap_err("GetLoLTeamOverview")?
         .data;
-    let rows = from_answers(by_locale, teams).wrap_err("v2 adapter")?;
+    let mut rows = from_answers(by_locale, teams).wrap_err("v2 adapter")?;
+    let stage_count = stage_names(gql, &mut rows, &written_locales).await;
     let orphans = rows
         .teams
         .iter()
@@ -203,12 +250,12 @@ pub async fn reference_once(gql: &Gql, locales: &[String]) -> Result<()> {
         }
     };
     log(format!(
-        "v2 reference: {} leagues, {} tournaments, {} teams, {} players, {} locales, {alts}",
+        "v2 reference: {} leagues, {} tournaments, {} teams, {} players, {} locales, {stage_count} stage names, {alts}",
         rows.leagues.len(),
         rows.tournaments.len(),
         rows.teams.len(),
         rows.players.len(),
-        written_locales
+        written_locales.len()
     ));
     Ok(())
 }
