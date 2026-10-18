@@ -37,3 +37,22 @@ v2 stores `NULL` when the file name is one of these (with or without the timesta
 `GetOtherLeagues` with a locale the API doesn't know (`zz-ZZ`) answers 200, no `errors`, and the English texts. The headers are the same as for a real locale, nothing says it fell back. `es-ES`, `fr-FR` and `de-DE` come translated (`Mundial`, `Mondial`, `WM`).
 
 v2 skips a locale whose names are all the same as `en-US`. Readers fall back to `en-US` anyway, so a real locale with English names (like `en-GB`) loses nothing.
+
+## Results pages: stages, sections and teams
+
+Sources: HARs of `/en-GB/results/<tournamentId>/stage/<stageId>` (DCGI 2026, LFL Invitational) and of `/en-GB/teams/french-flair`, not in git, plus calls to the API.
+
+- The results pages are rendered on the server too, with no GraphQL call in the HAR. The page data has the same shape as the site queries `GetSeasonTournament` and `GetSeasonStage`, both in the manifest.
+- `GetSeasonTournament(hl, tournamentId: [ID!])` takes a list of ids. 100 ids per call work, all 514 in one call fail with HTTP 414 (URL too long), so 6 calls cover every tournament. Same `cache-control: max-age=60` as the rest.
+- Per tournament it sends:
+
+| Field | What we got for the 514 tournaments |
+|---|---|
+| `stages { id name slug sections { name type matches { id state } } }` | 1,100 stages, all with a name (`Playoffs` 431, `Regular Season` 360, `Groups` 50, ...). 637 have a different name in `es-ES` (`Knockouts` → `Eliminatorias`). 1,315 sections (`bracket` 689, `group` 612, `crossGroup` 14) with 33,929 match ids |
+| `split { id name region slug }` | Mostly ids, not names: `split_2`, `split_1`, `tier_2_leagues_2026`. Only 38 look like names (`Split 1`, `Split 3`). Only `Worlds` → `Mundial` is translated |
+| `teams` (with `homeLeague`) | 263 tournaments list the teams that played it |
+| `players` | Always empty |
+| `awards`, `scores`, `phases`, `description` | Only 39 to 41 tournaments (international events with points) |
+
+- `GetSeasonStage(hl, stageIds: [ID!]!)` sends the same stage with each section's standings, rankings and bracket matches (`matchTeams` with `teamId`, `result`, `destinations`).
+- French Flair: the page shows the same 3 player photos we store, and `default-headshot.png` for the 2 we store as `NULL`. The logo is `image`, the same file we store as `alt_image_url`.

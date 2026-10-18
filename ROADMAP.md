@@ -5,23 +5,39 @@ Things we want to do. Priority: High / Medium / Low.
 ## API migration
 See [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (proposed) and the [migration map](docs/investigations/2026-10-16-lolesports-api-migration-map.md).
 - [ ] [High] Close the [ADR 0003 open points](docs/decisions/0003-migrate-to-lolesports-graphql-api.md#open-before-accepting) (Rust spike, hash refresh, tier 2/3, `alt_image_url`, TBD, shows)
-- [ ] [High] Leagues and tournaments from `GetOtherLeagues` (one call instead of 51), tournament dates = UTC date of `startTime`/`endTime`
-- [ ] [Medium] Teams and players from `GetLoLTeamOverview`, use `homeLeague.id` instead of the name lookup
+- [ ] [High] Leagues and tournaments from `GetOtherLeagues`: done behind `TRIFORCE_SOURCE_LEAGUES=new`. Left: make `new` the default
+- [ ] [Medium] Teams and players from `GetLoLTeamOverview`: done behind `TRIFORCE_SOURCE_TEAMS=new`. Left: link `homeLeague.id` instead of the name lookup, and make `new` the default
 - [ ] [Medium] Schedule from `scheduleEvents`, use league and team ids instead of slug/name lookups
 - [x] [Medium] Keep the query manifest up to date and alert when a hash stops working
 - [ ] [Low] Live and event details from `watchLiveQuery` + `watchVodQuery` (checked live on 2026-10-16), the adapter sets `state` itself
+
+## Schema v2
+See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
+- [ ] [High] v2 tables for matches: the match, its games with the blue and red team of each game, and the streams. Today v1 keeps one left and one right team for the whole match in `schedule`
+- [ ] [Medium] Move WSC-Triforce to the v2 tables ([notes](docs/investigations/2026-10-17-wsc-triforce-on-schema-v2.md)), then the app
+- [ ] [Medium] Roster history (who played where and when) and the teams that played each tournament, maybe from another API (`GetSeasonTournament.teams` only has them for 263 of 514 tournaments)
+- [ ] [Medium] In-game stats per game from the live feed
+- [ ] [Medium] Stage names in `v2_stage_i18n` from `GetSeasonTournament` (every locale, 100 tournaments per call)
+- [ ] [Low] Stage sections (groups, brackets) and their standings from `GetSeasonStage`, with the match tables
+- [ ] [Low] Split names: the API mostly sends ids (`split_2`), find where the site gets the names
+- [ ] [Low] A source for `light_image_url` (`lightImage` comes with the events)
+- [ ] [Low] `alt_image_url` comes from the old API: decide what to do when it goes away
+- [ ] [Low] Rename `v2_*` when v1 goes away. If Canyon's rename doesn't work, a SQL script and an issue to Canyon-SQL
 
 ## Reliability
 - [ ] [High] Refresh `team_player` in one go. Today we delete all rows, then `.expect()` and `todo!()` can panic, which leaves the table empty and stops the hourly job for good. Build the rows first (skip unknown teams/players with a log), then delete and insert in one SQL statement with `DbConnection::execute`. Canyon's query builder only inserts one row and has no transactions, see [investigation](docs/investigations/2026-10-16-canyon-main-vs-develop.md).
 - [ ] [High] Replace `tournaments`, `teams` and `players` on every fetch instead of adding to them. Today each run appends a full copy: every hourly run stores each `team_player` link once more, and player changes after start up are never written (the dedupe keeps the first copy)
 - [ ] [Medium] Stop ignoring DB errors (`let _ = …`, unused `Result`s in `main.rs`)
-- [ ] [Medium] Don't hold the `DataPull` lock during HTTP fetches and DB writes
+- [ ] [Medium] Don't hold the `DataPull` lock during HTTP fetches and DB writes (a GraphQL manifest refresh also runs under it)
 - [ ] [Medium] Ignore API answers older than the last one we got (keep the time each answer was made). The old `getLive` went `completed` → `inProgress` → `completed` during a live game ([live check](docs/investigations/2026-10-17-old-vs-new-api-comparison.md#the-old-api-went-back))
 - [ ] [Medium] A failed `getEventDetails` drops the rest of the batch without a log: update `previous_live` after the loop and log the error ([migration map](docs/investigations/2026-10-16-lolesports-api-migration-map.md#how-triforce-decides-a-match-ended))
 - [ ] [Medium] The live match found at start up is never saved: `fetch_change_in_events` runs at start without `bulk_eventdetails_in_database`, and the next tick sees no change, so the match and its streams aren't stored until something changes
-- [ ] [Medium] No panics in the scheduled loops (`text().await.unwrap()`, `Deserialize` impls that panic, `leagues[0]`). Keep the `JoinHandle`s and log when a loop stops
+- [ ] [Medium] No panics in the scheduled loops (`text().await.unwrap()`, `Deserialize` impls that panic, `leagues[0]`). Run each v1 pass in its own task like v2 does, so a panic skips one run instead of stopping the loop
 - [ ] [Low] Retry policy for the old API: transport errors, 5xx and 429 with backoff, `error_for_status` for the rest
 - [ ] [Low] Shut down cleanly on ctrl-c: let in-flight writes finish (today it can stop between the `team_player` delete and the inserts)
+- [ ] [Low] Don't delete `team_player` when the team list is empty
+- [ ] [Low] GraphQL client: retry a timeout while reading the body, cap the size of answers and site chunks
+- [ ] [Low] Manifest refresh: one deadline for the whole refresh, retry a chunk that timed out once
 
 ## Data layer
 - [ ] [Medium] Schedule teams are found by name and 24 matches have the wrong team (49 names shared by 104 teams). With the new API use `teamId`, before that match by name + code + image ([comparison](docs/investigations/2026-10-17-old-vs-new-api-comparison.md#schedule-teams-wrong-team-by-name))
@@ -30,6 +46,7 @@ See [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (propos
 - [ ] [Low] Add the foreign key to `schedule.team_right_id` (only `team_left_id` has one). Needed before removing the TBD teams
 - [ ] [Low] Save the time each API answer was made (column or `schedule_change` table) for the P3 corrections. Canyon migration + rebuild
 - [ ] [Low] Live change detection (`EventDetails::eq`) misses added or removed games and rescheduled shows
+- [ ] [Low] Skip and log tournaments whose league isn't stored, instead of saving them with `league = 0`
 
 ## Dependencies
 - [ ] [Low] Report Canyon-SQL issues upstream ([0.5.1 cfg bug](docs/investigations/2026-10-16-canyon-0.5.1-cfg-bug.md), [`crate::canyon_sql` paths](docs/decisions/0002-extern-crate-canyon-sql.md), [book vs code](docs/investigations/2026-10-16-canyon-main-vs-develop.md), config lookup takes the first `canyon*.toml` it finds, [features Triforce needs](docs/investigations/2026-10-17-canyon-features-for-triforce.md)). Ask for multi-row insert in the query builder.
@@ -38,11 +55,14 @@ See [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (propos
 
 ## Security
 - [ ] [Low] Bind the dev Postgres port to `127.0.0.1`. Today `docker/docker-compose.yml` publishes `5438` on all interfaces with `postgres`/`postgres`.
+- [ ] [Low] Take the Postgres user, password and port in `docker/docker-compose.yml` from env (`.env`, not in git), with the dev values as defaults
 
 ## Quality & tests
-- [ ] [Medium] Tests for API parsing and cron schedules. Start with a bad id or date (today it panics) and a rescheduled show (`EventDetails::eq`)
+- [ ] [Medium] Tests for API parsing. Start with a bad id or date (today it panics) and a rescheduled show (`EventDetails::eq`)
 - [ ] [Low] Fix the remaining clippy warnings
+- [ ] [Low] Base URL for the GraphQL client and the manifest download set from tests, to test unknown hash → refresh → retry without the network
 
 ## Observability & config
 - [ ] [Low] Use `tracing` instead of `println!`
 - [ ] [Low] Read the API key from config/env
+- [ ] [Low] `refresh-manifest` without Canyon start and migrations (its own binary)

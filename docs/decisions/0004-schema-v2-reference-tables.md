@@ -30,9 +30,9 @@ The v1 tables follow the old API: names in one language, teams found by name, no
   - Every v2 run also calls the old `getTeams` for `alt_image_url`. When the old API goes away the stored values stay, they just stop updating.
 
 ## Open points
-- Stage names: `v2_stage_i18n` stays empty until we call `GetSeasonStage`.
+- Stage names: `v2_stage_i18n` stays empty for now. `GetSeasonTournament` has them in every locale, 100 tournaments per call ([investigation](../investigations/2026-10-18-team-pages-images-and-locales.md#results-pages-stages-sections-and-teams)).
 - `light_image_url` has no source yet. The team pages only use `image`.
-- Split names.
+- Split names: `GetSeasonTournament` mostly sends ids (`split_2`, `tier_2_leagues_2026`), not names.
 - Renaming `v2_*` when v1 goes away. Canyon rename is untested: if it doesn't work we run a SQL script and report it to Canyon-SQL.
 - v2 tables for matches: today v1 keeps them in `schedule`, with one left and one right team for the whole match. v2 will have the match, its games with the blue and red team of each game, and the streams.
 - Roster history needs another source (ROADMAP).
