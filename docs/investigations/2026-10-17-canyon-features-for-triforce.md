@@ -4,6 +4,8 @@ Date: 2026-10-17
 
 Found while building the v2 reference tables on Canyon-SQL `develop`, `rev 1c81b3b`. Canyon paths are relative to the checkout in `~/.cargo/git/checkouts/canyon-sql-*/1c81b3b/`. The API sketches are what we would like, not something that exists.
 
+Reviewed on 2026-10-18: 13, 18 and 20 are Canyon design choices, not gaps. 11 is narrower than first written: the entity already takes a schema, migrations don't. The work on the migrations items goes in Canyon's `develop-refactor-migrations` branch.
+
 ## Schema and migrations
 
 | # | Missing | Triforce today | Where |
@@ -13,11 +15,11 @@ Found while building the v2 reference tables on Canyon-SQL `develop`, `rev 1c81b
 | 3 | CHECK / enum mapping | `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT ... CHECK` at startup | `src/dao/v2/schema.sql` |
 | 4 | `timestamptz` (`DateTime<Utc>`) | `NaiveDateTime`, always UTC by convention (`naive_utc()`) | `src/dao/v2/models/*` |
 | 10 | Hook to run SQL after migrations | `dao::v2::schema::apply()` at start, before the loops. The app stops if it fails | `src/main.rs` |
-| 11 | Schemas other than `public` | `v2_` prefix on the table names | `src/dao/v2/models/*` |
+| 11 | Migrations ignore the entity's `schema` | `v2_` prefix on the table names | `src/dao/v2/models/*` |
 | 12 | Datasource per entity | same DB, prefixed tables, no separate v2 DB | same |
-| 13 | More than one entity per file | one file per entity, 18 files | `src/dao/v2/models/` |
+| 13 | One entity per file (design choice, no change wanted) | one file per entity, 18 files | `src/dao/v2/models/` |
 | 14 | FK / unique handling that does not collide | every FK is `#[foreign_key]`, unique only as index | `src/dao/v2/schema.sql` (header comment) |
-| 15 | Table rename untested | open point, `v2_*` will be renamed later | none yet |
+| 15 | Table rename: expected to work, to check | `v2_*` will be renamed later | none yet |
 | 21 | Floats in migrations | the box score keeps the damage share as an `i32` in basis points (`0.1688` → `1688`) | game details (planned) |
 
 ### 1-2. Unique and index
@@ -62,16 +64,17 @@ async fn main() { ... }
 
 ### 11-12. Schema and datasource
 
-Migrations read `table_schema = 'public'` (`canyon_migrations/src/constants.rs:34`) and apply every entity to every datasource with migrations on (`canyon_migrations/src/migrations/handler.rs:30-37`).
+`#[canyon_entity(schema = "...")]` exists (`canyon_entities/src/entity.rs:170`) and the queries use it. The migrations don't: they never read the entity's schema and their metadata query is fixed to `table_schema = 'public'` (`canyon_migrations/src/constants.rs:34`). So a table in another schema works for queries but the migrations can't create or compare it. Migrations also apply every entity to every datasource with migrations on (`canyon_migrations/src/migrations/handler.rs:30-37`).
 
 ```rust
-#[canyon_entity(schema = "v2", datasource = "reference")]
+#[canyon_entity(schema = "v2")]                         // exists: wanted, migrations in `v2` too
+#[canyon_entity(schema = "v2", datasource = "reference")] // datasource per entity: still a wish
 pub struct V2League { ... }
 ```
 
 ### 13. One entity per file
 
-With migrations on, two `#[canyon_entity]` in one file is a compile error ("does not support having multiple structs annotated with `#[canyon::entity]` on the same file"). Wanted: several entities per module.
+With migrations on, two `#[canyon_entity]` in one file is a compile error ("does not support having multiple structs annotated with `#[canyon::entity]` on the same file"). That's a Canyon design choice, and one file per entity works fine for Triforce: no change wanted.
 
 ### 14. FKs and unique constraints
 
@@ -79,7 +82,7 @@ Canyon drops FKs that are not in an entity (`processor.rs:516-545`). The per-col
 
 ### 15. Rename
 
-`processor.rs` has `ALTER TABLE ... RENAME` but we did not try it. We will when the `v2_*` tables get their final names.
+`processor.rs` has `ALTER TABLE ... RENAME` and it's expected to work. We'll check it when the `v2_*` tables get their final names; if it fails it's a fix in Canyon.
 
 ### 21. Floats
 
@@ -158,10 +161,10 @@ Without the target struct imported, the `Crud` derive fails to compile. The attr
 |---|---|---|---|
 | 16 | First `canyon*.toml` found (depth <= 2) wins | template renamed to `canyon.toml.example` | `canyon.toml.example`, README (Setup) |
 | 17 | Real error swallowed when creating `canyon_memory` | check which config Canyon read and the host | none |
-| 18 | `canyon_tokio_test` runs `Canyon::init` but not the migrations | start the app once before DB tests | [README (Tests)](../../README.md#tests) |
-| 20 | Migrations computed at compile time, the build connects to the DB | `touch src/main.rs` after DB changes | README |
+| 18 | `canyon_tokio_test` runs `Canyon::init` but not the migrations (design choice) | start the app once before DB tests | [README (Tests)](../../README.md#tests) |
+| 20 | Migrations computed at compile time, the build connects to the DB (design choice) | `touch src/main.rs` after DB changes | README |
 
 - **16:** the lookup is in `canyon_core/src/canyon.rs:205`. Wanted: error when there is more than one, or a `CANYON_CONFIG` env var.
 - **17:** "Error creating the 'canyon_memory' table" hides the real DB error (`memory.rs:283`). Usually it means it can't connect. Wanted: include the source error and the config path in the message.
-- **18:** `canyon_macros/src/canyon_tokio_test.rs`. A test that needs the new tables fails until the app ran once.
-- **20:** `canyon_macros/src/canyon_macro.rs:10-17`. A binary only fits the DB it was built against. Wanted: compute the migrations at startup, or a flag to skip them in the build.
+- **18:** `canyon_macros/src/canyon_tokio_test.rs`. By design: tests must not change schemas. A test that needs the new tables waits until the app ran once, that's fine.
+- **20:** `canyon_macros/src/canyon_macro.rs:10-17`. A Canyon design choice. A binary only fits the DB it was built against; open to discuss (migrations at startup, or a flag to skip them in the build).
