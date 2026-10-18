@@ -2,12 +2,12 @@ extern crate canyon_sql;
 
 mod client;
 mod dao;
+mod schedules;
 mod service;
 
 use canyon_sql::date_time::Utc;
 use chrono::Local;
 use cron::Schedule;
-use std::str::FromStr;
 use std::sync::Arc;
 use tokio::time::{Duration, sleep};
 
@@ -16,12 +16,15 @@ use tokio::sync::Mutex;
 
 /// Sleep until the next tick of `schedule`
 async fn sleep_until_next(schedule: &Schedule) {
-    let now = Utc::now();
-    if let Some(next) = schedule.upcoming(Utc).next() {
-        sleep(Duration::from_millis(
-            (next - now).num_milliseconds().max(0) as u64,
-        ))
-        .await;
+    let Some(next) = schedule.upcoming(Utc).next() else {
+        // no tick left (schedules rejects these at start): this loop never runs again
+        return std::future::pending().await;
+    };
+    // the wall clock can jump under a monotonic sleep (suspend, NTP step): check it every minute
+    while let Ok(left) = (next - Utc::now()).to_std()
+        && !left.is_zero()
+    {
+        sleep(left.min(Duration::from_secs(60))).await;
     }
 }
 
@@ -42,9 +45,17 @@ fn main() -> Result<()> {
         }
     }
 
-    // one GraphQL client for the v1 sources set to new and the v2 loop
     let v2 = service::v2::v2_enabled()?;
+    let schedules::Schedules {
+        v2: v2_reference_schedule,
+        leagues: leagues_schedule,
+        tournaments: tournaments_schedule,
+        teams: teams_and_players_schedule,
+        schedule: lolschedule_current_page,
+        live: live_schedule,
+    } = schedules::all_from_env()?;
     client::log(format!("v2 tables: {}", if v2 { "on" } else { "off" }));
+    // one GraphQL client for the v1 sources set to new and the v2 loop
     let v1_new = client::Source::from_env("TRIFORCE_SOURCE_LEAGUES")? == client::Source::New
         || client::Source::from_env("TRIFORCE_SOURCE_TEAMS")? == client::Source::New;
     let gql = (v2 || v1_new).then(|| {
@@ -61,7 +72,6 @@ fn main() -> Result<()> {
 
     // Loop for v2 reference tables, no DataPull or DatabaseOps lock. Spawned first so a slow
     // or failing v1 startup fetch doesn't delay it
-    let v2_reference_schedule = Schedule::from_str("0 15 */2 ? * *")?; // every 2 hours at :15, away from the v1 loops
     // with TRIFORCE_SOURCE_* = new, v1 and v2 send the same queries: accepted while v1 lives (ADR 0004)
     if v2 && let Some(gql) = gql.clone() {
         let locales = Arc::new(service::v2::locales_from_env());
@@ -173,18 +183,6 @@ fn main() -> Result<()> {
     // println!("{} - Initial live data {:?}", Local::now().format("%Y-%m-%d %H:%M:%S.%f"), data_pull);
 
     // println!("{} - Initial data {:?}", Local::now().format("%Y-%m-%d %H:%M:%S.%f"), data_pull);
-    //
-    // let leagues_schedule = Schedule::from_str("0 0 */2 * *")?; // every 2 day at midnight
-    // let tournaments_schedule = Schedule::from_str("0 0 * * * *")?; // every day at midnight
-    // let teams_and_players_schedule = Schedule::from_str("0 0 * * * *")?; // every day at midnight
-    // let lolschedule_schedule = Schedule::from_str("*/10 * * * *")?; // every 10 minutes
-
-    let leagues_schedule = Schedule::from_str("0 0 */2 ? * *")?; // every 2 hours
-    let tournaments_schedule = Schedule::from_str("0 0 */2 ? * *")?; // every 2 hours
-    let teams_and_players_schedule = Schedule::from_str("0 0 * ? * *")?; // every hour (cron can't express 90 min)
-    // let lolschedule_schedule = Schedule::from_str("0 */60 * ? * *")?; // every 1 hour
-    let lolschedule_current_page = Schedule::from_str("0 */30 * ? * *")?; // every 30 minutes
-    let live_schedule = Schedule::from_str("0 */2 * ? * *")?; // every 2 minutes
 
     // Loop for leagues
     {

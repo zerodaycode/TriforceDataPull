@@ -59,22 +59,27 @@ touch src/main.rs && cargo run
 
 On start everything is fetched and saved once (live events are saved from the first 2 minutes tick), then:
 
-| Data | Every |
-|---|---|
-| Leagues | 2 hours |
-| Tournaments | 2 hours |
-| Teams and players | 1 hour |
-| Schedule (current page) | 30 minutes |
-| Live events | 2 minutes |
-| v2 reference tables (`GetOtherLeagues` per locale + `GetLoLTeamOverview` → `v2_*`, alternative team images from the old `getTeams`) | 2 hours at :15 (first run at start) |
+| Data | Every | Change with |
+|---|---|---|
+| Leagues | 2 hours | `TRIFORCE_CRON_LEAGUES` |
+| Tournaments | 2 hours | `TRIFORCE_CRON_TOURNAMENTS` |
+| Teams and players | 1 hour | `TRIFORCE_CRON_TEAMS` |
+| Schedule (current page) | 30 minutes | `TRIFORCE_CRON_SCHEDULE` |
+| Live events | 2 minutes | `TRIFORCE_CRON_LIVE` |
+| v2 reference tables (`GetOtherLeagues` per locale + `GetLoLTeamOverview` → `v2_*`, alternative team images from the old `getTeams`) | 2 hours at :15 (first run at start) | `TRIFORCE_CRON_V2` |
 
-Schedules are in `src/main.rs`.
+Defaults are in `src/schedules.rs`. The `TRIFORCE_CRON_*` variables take a cron expression with seconds (`sec min hour day month weekday`), useful to test a loop without waiting for its tick:
+
+```sh
+TRIFORCE_CRON_V2="0 * * ? * *" cargo run   # v2 every minute
+```
 
 ## Project structure
 
 | Path | What |
 |---|---|
 | `src/main.rs` | Start up and scheduled loops |
+| `src/schedules.rs` | Loop schedules: defaults and `TRIFORCE_CRON_*` |
 | `src/client/` | LoL Esports HTTP client (`legacy/`: old API calls, endpoints and models) |
 | `src/service/` | `DataPull`: fetches and keeps the API data |
 | `src/service/v2.rs` | v2 loop: fetches the new API (alternative team images from the old `getTeams`) and fills the `v2_*` tables |
