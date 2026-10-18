@@ -1,0 +1,5 @@
+# Settings go through crate::env (it also reads the --env file)
+disallowed-methods = [
+    { path = "std::env::var", reason = "use crate::env::var, it also reads the --env file" },
+    { path = "std::env::var_os", reason = "use crate::env::var_os, it also reads the --env file" },
+]

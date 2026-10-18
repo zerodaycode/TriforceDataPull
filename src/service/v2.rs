@@ -39,7 +39,7 @@ pub fn parse_v2(value: Option<&str>) -> Result<bool> {
 }
 
 pub fn v2_enabled() -> Result<bool> {
-    match std::env::var("TRIFORCE_V2") {
+    match crate::env::var("TRIFORCE_V2") {
         Err(std::env::VarError::NotPresent) => parse_v2(None),
         Err(e) => Err(eyre!("TRIFORCE_V2: {e}")),
         Ok(v) => parse_v2(Some(&v)),
@@ -69,7 +69,7 @@ pub fn parse_locales(value: Option<&str>) -> Vec<String> {
 }
 
 pub fn locales_from_env() -> Vec<String> {
-    parse_locales(std::env::var("TRIFORCE_LOCALES").ok().as_deref())
+    parse_locales(crate::env::var("TRIFORCE_LOCALES").ok().as_deref())
 }
 
 /// The API answers an unknown locale with the en-US texts, those rows would be copies

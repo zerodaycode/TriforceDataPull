@@ -233,7 +233,7 @@ pub const MAX_DOWNLOADS: usize = 200;
 pub const DEFAULT_PATH: &str = "gql-manifest.json";
 
 pub fn path_from_env() -> PathBuf {
-    std::env::var_os("TRIFORCE_GQL_MANIFEST")
+    crate::env::var_os("TRIFORCE_GQL_MANIFEST")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(DEFAULT_PATH))
 }

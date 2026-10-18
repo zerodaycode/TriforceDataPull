@@ -45,15 +45,28 @@ touch src/main.rs && cargo run
 
 ## Settings
 
+Set them in the shell or in a file under `env/`. Copy `env/example.env` (it lists every variable with its default) to a name of your own, like `env/dev.env`, and pick it when you run:
+
+```sh
+cargo run -- --env env/dev.env
+```
+
+- Only `env/example.env` is in git, keep one file per setup (dev, docker, ...).
+- Variables set in the shell win over the file.
+- A file given with `--env` must exist, the app stops otherwise. Without `--env` no file is read.
+- Format is the `docker compose` `env_file:` one: `KEY=value`, `#` comments, quote values with spaces (the cron ones). Not `docker run --env-file`: it keeps the quotes as part of the value.
+- `$NAME` in a value is replaced by that variable (empty when not set), single quotes (`'a$b'`) keep the `$`.
+- An unknown `TRIFORCE_*` name in the file is logged and ignored.
+
 | Variable | Default | Use |
 |---|---|---|
 | `TRIFORCE_SOURCE_LEAGUES` | `old` | `new` takes leagues and tournaments from the lolesports.com GraphQL API |
 | `TRIFORCE_SOURCE_TEAMS` | `old` | `new` takes teams and players from `GetLoLTeamOverview` |
 | `TRIFORCE_V2` | `on` | `off` stops filling the `v2_*` tables and skips their startup SQL. Canyon still creates the tables |
-| `TRIFORCE_LOCALES` | `en-US` | Extra locales for the v2 names, comma list like `es-ES,ko-KR`. `en-US` is always pulled. A locale the API doesn't know comes back in English and is skipped |
+| `TRIFORCE_LOCALES` | (none) | Extra locales for the v2 names, comma list like `es-ES,ko-KR`. `en-US` is always pulled. A locale the API doesn't know comes back in English and is skipped |
 | `TRIFORCE_GQL_MANIFEST` | `gql-manifest.json` | Where the GraphQL query manifest is kept |
 
-`cargo run -- refresh-manifest` downloads the manifest again and exits (it connects to the DB and applies pending Canyon migrations first).
+`cargo run -- refresh-manifest` (also with `--env <file>`) downloads the manifest again and exits (it connects to the DB and applies pending Canyon migrations first).
 
 ## What runs when
 
@@ -80,6 +93,8 @@ TRIFORCE_CRON_V2="0 * * ? * *" cargo run   # v2 every minute
 |---|---|
 | `src/main.rs` | Start up and scheduled loops |
 | `src/schedules.rs` | Loop schedules: defaults and `TRIFORCE_CRON_*` |
+| `src/env.rs` | Command line (`--env`, `refresh-manifest`) and settings: shell first, then the `--env` file |
+| `env/` | Settings files, only `example.env` is in git |
 | `src/client/` | LoL Esports HTTP client (`legacy/`: old API calls, endpoints and models) |
 | `src/service/` | `DataPull`: fetches and keeps the API data |
 | `src/service/v2.rs` | v2 loop: fetches the new API (alternative team images from the old `getTeams`) and fills the `v2_*` tables |

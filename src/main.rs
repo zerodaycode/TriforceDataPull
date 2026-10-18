@@ -2,6 +2,7 @@ extern crate canyon_sql;
 
 mod client;
 mod dao;
+mod env;
 mod schedules;
 mod service;
 
@@ -30,19 +31,16 @@ async fn sleep_until_next(schedule: &Schedule) {
 
 #[canyon_sql::main]
 fn main() -> Result<()> {
-    // `triforce-data-pull refresh-manifest`: download the site's query manifest and exit
-    match std::env::args().nth(1).as_deref() {
-        None => {}
-        Some("refresh-manifest") => {
-            let store = client::gql::manifest::Store::open(client::gql::manifest::path_from_env());
-            store.refresh(client::http()).await?;
-            return Ok(());
-        }
-        Some(other) => {
-            return Err(color_eyre::eyre::eyre!(
-                "unknown command {other:?}, expected refresh-manifest"
-            ));
-        }
+    // `triforce-data-pull [--env <file>] [refresh-manifest]`
+    let cli = env::parse_args(std::env::args().skip(1))?;
+    if let Some(path) = &cli.env_file {
+        env::load(path)?;
+    }
+    // download the site's query manifest and exit
+    if cli.refresh_manifest {
+        let store = client::gql::manifest::Store::open(client::gql::manifest::path_from_env());
+        store.refresh(client::http()).await?;
+        return Ok(());
     }
 
     let v2 = service::v2::v2_enabled()?;

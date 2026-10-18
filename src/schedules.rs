@@ -21,6 +21,17 @@ const SCHEDULE: &str = "0 */30 * ? * *";
 /// Every 2 minutes
 const LIVE: &str = "0 */2 * ? * *";
 
+/// Every loop by `TRIFORCE_CRON_<name>` with its default. A new loop goes here, in `Schedules`
+/// and in `env/example.env` (a test checks the example)
+pub const LOOPS: &[(&str, &str)] = &[
+    ("V2", V2),
+    ("LEAGUES", LEAGUES),
+    ("TOURNAMENTS", TOURNAMENTS),
+    ("TEAMS", TEAMS),
+    ("SCHEDULE", SCHEDULE),
+    ("LIVE", LIVE),
+];
+
 pub struct Schedules {
     pub v2: Schedule,
     pub leagues: Schedule,
@@ -33,19 +44,29 @@ pub struct Schedules {
 /// Every loop schedule, read at start so a bad value stops the app before any work
 pub fn all_from_env() -> Result<Schedules> {
     Ok(Schedules {
-        v2: from_env("V2", V2)?,
-        leagues: from_env("LEAGUES", LEAGUES)?,
-        tournaments: from_env("TOURNAMENTS", TOURNAMENTS)?,
-        teams: from_env("TEAMS", TEAMS)?,
-        schedule: from_env("SCHEDULE", SCHEDULE)?,
-        live: from_env("LIVE", LIVE)?,
+        v2: loop_from_env("V2")?,
+        leagues: loop_from_env("LEAGUES")?,
+        tournaments: loop_from_env("TOURNAMENTS")?,
+        teams: loop_from_env("TEAMS")?,
+        schedule: loop_from_env("SCHEDULE")?,
+        live: loop_from_env("LIVE")?,
     })
+}
+
+/// A loop of `LOOPS` with its default
+fn loop_from_env(name: &str) -> Result<Schedule> {
+    let default = LOOPS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, d)| *d)
+        .ok_or_else(|| eyre!("loop {name} missing from LOOPS"))?;
+    from_env(name, default)
 }
 
 /// `TRIFORCE_CRON_<name>` when set, else `default`
 fn from_env(name: &str, default: &str) -> Result<Schedule> {
     let var = format!("TRIFORCE_CRON_{name}");
-    let value = match std::env::var(&var) {
+    let value = match crate::env::var(&var) {
         Ok(v) => Some(v),
         Err(std::env::VarError::NotPresent) => None,
         Err(e) => return Err(eyre!("{var}: {e}")),
@@ -76,16 +97,12 @@ mod tests {
 
     #[test]
     fn defaults_parse() {
-        for (name, default) in [
-            ("V2", V2),
-            ("LEAGUES", LEAGUES),
-            ("TOURNAMENTS", TOURNAMENTS),
-            ("TEAMS", TEAMS),
-            ("SCHEDULE", SCHEDULE),
-            ("LIVE", LIVE),
-        ] {
+        for (name, default) in LOOPS {
             parse(name, None, default).unwrap();
         }
+        // every Schedules field has its LOOPS entry
+        all_from_env().unwrap();
+        assert!(loop_from_env("NOPE").is_err());
     }
 
     #[test]

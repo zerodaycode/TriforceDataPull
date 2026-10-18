@@ -91,7 +91,7 @@ impl Source {
 
     /// Reads `var` (`old` or `new`), not set means `old`
     pub fn from_env(var: &str) -> color_eyre::Result<Self> {
-        match std::env::var(var) {
+        match crate::env::var(var) {
             Err(std::env::VarError::NotPresent) => Ok(Self::Old),
             Err(e) => Err(color_eyre::eyre::eyre!("{var}: {e}")),
             Ok(v) => Self::parse(&v)
