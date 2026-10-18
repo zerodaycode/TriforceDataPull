@@ -335,8 +335,9 @@ pub struct Vod {
     pub media_locale: MediaLocale,
     pub provider: String,
     pub offset: i32,
+    // null while a game of a live match has no recording yet: the start up live fetch stopped the app
     #[serde(alias = "firstFrameTime")]
-    pub first_frame_time: String,
+    pub first_frame_time: Option<String>,
     #[serde(alias = "startMillis")]
     pub start_millis: Option<i64>,
     #[serde(alias = "endMillis")]
@@ -385,4 +386,19 @@ pub struct Strategy {
     #[serde(default)]
     pub r#type: String,
     pub count: i8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vod_without_first_frame_time() {
+        // as getLive sent it on 2026-10-18 for a game of a live Bo5
+        let v: Vod = serde_json::from_str(
+            r#"{"id":"1","parameter":"x","locale":"es-MX","mediaLocale":{"locale":"es-MX","englishName":"Spanish (Mexico)","translatedName":"Español (Latinoamérica)"},"provider":"youtube","offset":0,"firstFrameTime":null,"startMillis":null,"endMillis":null}"#,
+        )
+        .unwrap();
+        assert_eq!(v.first_frame_time, None);
+    }
 }
