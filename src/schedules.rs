@@ -10,6 +10,8 @@ use crate::client::log;
 
 /// Every 2 hours at :15, away from the v1 loops
 const V2: &str = "0 15 */2 ? * *";
+/// Every 30 minutes at :05 and :35, away from the v1 schedule loop
+const V2_MATCHES: &str = "0 5,35 * ? * *";
 /// Every 2 hours
 const LEAGUES: &str = "0 0 */2 ? * *";
 /// Every 2 hours
@@ -25,6 +27,7 @@ const LIVE: &str = "0 */2 * ? * *";
 /// and in `env/example.env` (a test checks the example)
 pub const LOOPS: &[(&str, &str)] = &[
     ("V2", V2),
+    ("V2_MATCHES", V2_MATCHES),
     ("LEAGUES", LEAGUES),
     ("TOURNAMENTS", TOURNAMENTS),
     ("TEAMS", TEAMS),
@@ -34,6 +37,7 @@ pub const LOOPS: &[(&str, &str)] = &[
 
 pub struct Schedules {
     pub v2: Schedule,
+    pub v2_matches: Schedule,
     pub leagues: Schedule,
     pub tournaments: Schedule,
     pub teams: Schedule,
@@ -45,6 +49,7 @@ pub struct Schedules {
 pub fn all_from_env() -> Result<Schedules> {
     Ok(Schedules {
         v2: loop_from_env("V2")?,
+        v2_matches: loop_from_env("V2_MATCHES")?,
         leagues: loop_from_env("LEAGUES")?,
         tournaments: loop_from_env("TOURNAMENTS")?,
         teams: loop_from_env("TEAMS")?,

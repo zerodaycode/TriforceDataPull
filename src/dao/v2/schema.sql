@@ -20,3 +20,26 @@ ALTER TABLE v2_league_i18n DROP CONSTRAINT IF EXISTS v2_league_i18n_locale, ADD 
 ALTER TABLE v2_season_i18n DROP CONSTRAINT IF EXISTS v2_season_i18n_locale, ADD CONSTRAINT v2_season_i18n_locale CHECK (locale ~ '^[a-z]{2}-[A-Z]{2}$');
 ALTER TABLE v2_tournament_i18n DROP CONSTRAINT IF EXISTS v2_tournament_i18n_locale, ADD CONSTRAINT v2_tournament_i18n_locale CHECK (locale ~ '^[a-z]{2}-[A-Z]{2}$');
 ALTER TABLE v2_stage_i18n DROP CONSTRAINT IF EXISTS v2_stage_i18n_locale, ADD CONSTRAINT v2_stage_i18n_locale CHECK (locale ~ '^[a-z]{2}-[A-Z]{2}$');
+CREATE UNIQUE INDEX IF NOT EXISTS v2_event_ext_id ON v2_event (ext_id);
+CREATE UNIQUE INDEX IF NOT EXISTS v2_event_i18n_key ON v2_event_i18n (event_id, locale);
+CREATE UNIQUE INDEX IF NOT EXISTS v2_event_team_key ON v2_event_team (event_id, slot);
+CREATE UNIQUE INDEX IF NOT EXISTS v2_game_ext_id ON v2_game (ext_id);
+CREATE UNIQUE INDEX IF NOT EXISTS v2_game_key ON v2_game (event_id, number);
+CREATE UNIQUE INDEX IF NOT EXISTS v2_stream_key ON v2_stream (event_id, provider, parameter);
+CREATE UNIQUE INDEX IF NOT EXISTS v2_job_run_job ON v2_job_run (job);
+CREATE INDEX IF NOT EXISTS v2_event_start_time ON v2_event (start_time);
+CREATE INDEX IF NOT EXISTS v2_event_state ON v2_event (state);
+CREATE INDEX IF NOT EXISTS v2_event_team_team ON v2_event_team (team_id);
+CREATE INDEX IF NOT EXISTS v2_event_league ON v2_event (league_id);
+CREATE INDEX IF NOT EXISTS v2_event_tournament ON v2_event (tournament_id);
+ALTER TABLE v2_event DROP CONSTRAINT IF EXISTS v2_event_kind, ADD CONSTRAINT v2_event_kind CHECK (kind IN ('match', 'show'));
+ALTER TABLE v2_event DROP CONSTRAINT IF EXISTS v2_event_state_check, ADD CONSTRAINT v2_event_state_check CHECK (state IN ('unstarted', 'inProgress', 'completed'));
+ALTER TABLE v2_event DROP CONSTRAINT IF EXISTS v2_event_strategy, ADD CONSTRAINT v2_event_strategy CHECK (strategy_type IN ('bestOf', 'playAll'));
+ALTER TABLE v2_event DROP CONSTRAINT IF EXISTS v2_event_match_type, ADD CONSTRAINT v2_event_match_type CHECK (match_type IN ('normal', 'tiebreaker'));
+ALTER TABLE v2_event_i18n DROP CONSTRAINT IF EXISTS v2_event_i18n_locale, ADD CONSTRAINT v2_event_i18n_locale CHECK (locale ~ '^[a-z]{2}-[A-Z]{2}$');
+ALTER TABLE v2_event_team DROP CONSTRAINT IF EXISTS v2_event_team_slot, ADD CONSTRAINT v2_event_team_slot CHECK (slot IN (1, 2));
+ALTER TABLE v2_event_team DROP CONSTRAINT IF EXISTS v2_event_team_outcome, ADD CONSTRAINT v2_event_team_outcome CHECK (outcome IN ('win', 'loss', 'tie'));
+ALTER TABLE v2_game DROP CONSTRAINT IF EXISTS v2_game_state_check, ADD CONSTRAINT v2_game_state_check CHECK (state IN ('unstarted', 'inProgress', 'completed', 'unneeded'));
+ALTER TABLE v2_game DROP CONSTRAINT IF EXISTS v2_game_number, ADD CONSTRAINT v2_game_number CHECK (number >= 1);
+-- Same ranks as rows::state_rank in Rust: a state never goes down (unneeded counts as done)
+CREATE OR REPLACE FUNCTION v2_state_rank(s text) RETURNS int IMMUTABLE LANGUAGE sql AS $$ SELECT CASE s WHEN 'inProgress' THEN 1 WHEN 'completed' THEN 2 WHEN 'unneeded' THEN 2 ELSE 0 END $$;

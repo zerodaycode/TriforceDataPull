@@ -42,6 +42,50 @@ async fn sleep_until_next(schedule: &Schedule) {
     }
 }
 
+/// A v2 loop: first run at start (after `wait_for` says go, or 15 min), then on `schedule`.
+/// One task per run: a panic skips this run, not the loop. `ran` gets `true` after a good run
+fn spawn_v2_loop<F, Fut>(
+    name: &'static str,
+    schedule: Schedule,
+    gql: Arc<client::gql::Gql>,
+    locales: Arc<Vec<String>>,
+    wait_for: Option<tokio::sync::watch::Receiver<bool>>,
+    ran: Option<tokio::sync::watch::Sender<bool>>,
+    once: F,
+) where
+    F: Fn(Arc<client::gql::Gql>, Arc<Vec<String>>) -> Fut + Send + 'static,
+    Fut: std::future::Future<Output = Result<()>> + Send + 'static,
+{
+    tokio::spawn(async move {
+        if let Some(mut w) = wait_for {
+            // the other loop gone or still failing after 15 min: go on anyway
+            let wait = tokio::time::timeout(Duration::from_secs(15 * 60), w.wait_for(|go| *go));
+            if !matches!(wait.await, Ok(Ok(_))) {
+                client::log(format!(
+                    "{name}: starting without a good run of the loop it waits for"
+                ));
+            }
+        }
+        loop {
+            let ok = match tokio::spawn(once(gql.clone(), locales.clone())).await {
+                Ok(Ok(())) => true,
+                Ok(Err(e)) => {
+                    client::log(format!("{name} failed, skipped this run: {e:#}"));
+                    false
+                }
+                Err(e) => {
+                    client::log(format!("{name} stopped, skipped this run: {e}"));
+                    false
+                }
+            };
+            if ok && let Some(ran) = &ran {
+                ran.send_replace(true);
+            }
+            sleep_until_next(&schedule).await;
+        }
+    });
+}
+
 #[canyon_sql::main]
 fn main() -> Result<()> {
     // `triforce-data-pull [--env <file>] [refresh-manifest]`
@@ -59,6 +103,7 @@ fn main() -> Result<()> {
     let v2 = service::v2::v2_enabled()?;
     let schedules::Schedules {
         v2: v2_reference_schedule,
+        v2_matches: v2_matches_schedule,
         leagues: leagues_schedule,
         tournaments: tournaments_schedule,
         teams: teams_and_players_schedule,
@@ -81,27 +126,31 @@ fn main() -> Result<()> {
         dao::v2::schema::apply().await?;
     }
 
-    // Loop for v2 reference tables, no DataPull or DatabaseOps lock. Spawned first so a slow
-    // or failing v1 startup fetch doesn't delay it
+    // v2 loops, no DataPull or DatabaseOps lock. Spawned first so a slow or failing v1 startup
+    // fetch doesn't delay them
     // with TRIFORCE_SOURCE_* = new, v1 and v2 send the same queries: accepted while v1 lives (ADR 0004)
     if v2 && let Some(gql) = gql.clone() {
         let locales = Arc::new(service::v2::locales_from_env());
-        tokio::spawn(async move {
-            loop {
-                let (gql, locales) = (gql.clone(), locales.clone());
-                // one task per run: a panic skips this run, not the loop
-                let run =
-                    tokio::spawn(async move { service::v2::reference_once(&gql, &locales).await });
-                match run.await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(e)) => {
-                        client::log(format!("v2 reference failed, skipped this run: {e:#}"))
-                    }
-                    Err(e) => client::log(format!("v2 reference stopped, skipped this run: {e}")),
-                }
-                sleep_until_next(&v2_reference_schedule).await;
-            }
-        });
+        // matches wait for the first reference run: tournaments, teams and locales come from it
+        let (reference_ran, wait_reference) = tokio::sync::watch::channel(false);
+        spawn_v2_loop(
+            "v2 reference",
+            v2_reference_schedule,
+            gql.clone(),
+            locales.clone(),
+            None,
+            Some(reference_ran),
+            |g, l| async move { service::v2::reference_once(&g, &l).await },
+        );
+        spawn_v2_loop(
+            "v2 matches",
+            v2_matches_schedule,
+            gql,
+            locales,
+            Some(wait_reference),
+            None,
+            |g, l| async move { service::v2_matches::matches_once(&g, &l).await },
+        );
     }
 
     let data_pull = Arc::new(Mutex::new(service::DataPull::new(gql.clone())?));

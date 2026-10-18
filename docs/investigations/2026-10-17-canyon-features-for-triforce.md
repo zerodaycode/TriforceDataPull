@@ -15,9 +15,10 @@ Found while building the v2 reference tables on Canyon-SQL `develop`, `rev 1c81b
 | 10 | Hook to run SQL after migrations | `dao::v2::schema::apply()` at start, before the loops. The app stops if it fails | `src/main.rs` |
 | 11 | Schemas other than `public` | `v2_` prefix on the table names | `src/dao/v2/models/*` |
 | 12 | Datasource per entity | same DB, prefixed tables, no separate v2 DB | same |
-| 13 | More than one entity per file | one file per entity, 12 files | `src/dao/v2/models/` |
+| 13 | More than one entity per file | one file per entity, 18 files | `src/dao/v2/models/` |
 | 14 | FK / unique handling that does not collide | every FK is `#[foreign_key]`, unique only as index | `src/dao/v2/schema.sql` (header comment) |
 | 15 | Table rename untested | open point, `v2_*` will be renamed later | none yet |
+| 21 | Floats in migrations | the box score keeps the damage share as an `i32` in basis points (`0.1688` → `1688`) | game details (planned) |
 
 ### 1-2. Unique and index
 
@@ -79,6 +80,14 @@ Canyon drops FKs that are not in an entity (`processor.rs:516-545`). The per-col
 ### 15. Rename
 
 `processor.rs` has `ALTER TABLE ... RENAME` but we did not try it. We will when the `v2_*` tables get their final names.
+
+### 21. Floats
+
+`f32` and `f64` work as query parameters (`canyon_core/src/query/parameters.rs:146-198`) and have type names in `canyon_migrations/src/constants.rs:124-127`, but none of the 4 migration type maps has them (`transforms.rs:52, 99, 138, 177`). An `f64` field falls into `todo!("Not supported datatype for this migrations version")` and the build fails, because the migrations run while compiling. Adding the column in SQL doesn't help, Canyon drops columns that aren't in the entity.
+
+```rust
+pub damage_share: Option<f64>, // → double precision
+```
 
 ## Queries
 

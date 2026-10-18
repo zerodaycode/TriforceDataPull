@@ -34,7 +34,7 @@ The v1 tables follow the old API: names in one language, teams found by name, no
 - `light_image_url` has no source yet. The team pages only use `image`.
 - Split names: `GetSeasonTournament` mostly sends ids (`split_2`, `tier_2_leagues_2026`), not names.
 - Renaming `v2_*` when v1 goes away. Canyon rename is untested: if it doesn't work we run a SQL script and report it to Canyon-SQL.
-- v2 tables for matches: today v1 keeps them in `schedule`, with one left and one right team for the whole match. v2 will have the match, its games with the blue and red team of each game, and the streams.
+- v2 tables for matches: see [ADR 0005](0005-v2-matches-and-game-details.md).
 - Roster history needs another source (ROADMAP).
 
 ## Evidence

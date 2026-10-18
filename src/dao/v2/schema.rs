@@ -63,7 +63,29 @@ mod tests {
                 "ALTER TABLE t\n  ADD CONSTRAINT c CHECK (x > 0);"
             ]
         );
-        assert_eq!(statements(SQL).len(), 18);
+        assert_eq!(statements(SQL).len(), 40);
+    }
+
+    #[test]
+    fn checks_match_the_rust_lists() {
+        use crate::dao::v2::rows::*;
+        for (name, values) in [
+            ("v2_event_state_check", EVENT_STATES),
+            ("v2_game_state_check", GAME_STATES),
+            ("v2_event_strategy", STRATEGIES),
+            ("v2_event_match_type", MATCH_TYPES),
+            ("v2_event_team_outcome", OUTCOMES),
+        ] {
+            let line = SQL
+                .lines()
+                .find(|l| l.contains(&format!("ADD CONSTRAINT {name} ")))
+                .unwrap();
+            let list = &line[line.find(" IN (").unwrap()..];
+            assert_eq!(list.matches('\'').count(), values.len() * 2, "{name}");
+            for v in values {
+                assert!(list.contains(&format!("'{v}'")), "{name}: {v}");
+            }
+        }
     }
 
     #[test]
@@ -91,13 +113,20 @@ mod tests {
             "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname LIKE 'v2\\_%' AND indexname NOT LIKE '%\\_pkey'",
             &[],
         ).await?;
-        assert_eq!(n, 14);
+        assert_eq!(n, 26);
         let c: i64 = ""
             .query_one_for(
                 "SELECT count(*) FROM pg_constraint WHERE contype = 'c' AND conname LIKE 'v2\\_%'",
                 &[],
             )
             .await?;
-        assert_eq!(c, 4);
+        assert_eq!(c, 13);
+        // the SQL ranks are the Rust ones
+        for st in ["unstarted", "inProgress", "completed", "unneeded", "other"] {
+            let db: i32 = ""
+                .query_one_for("SELECT v2_state_rank($1)", &[&st.to_string()])
+                .await?;
+            assert_eq!(db, crate::dao::v2::rows::state_rank(st), "{st}");
+        }
     }
 }

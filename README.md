@@ -63,7 +63,7 @@ cargo run -- --env env/dev.env
 | `TRIFORCE_SOURCE_LEAGUES` | `old` | `new` takes leagues and tournaments from the lolesports.com GraphQL API |
 | `TRIFORCE_SOURCE_TEAMS` | `old` | `new` takes teams and players from `GetLoLTeamOverview` |
 | `TRIFORCE_V2` | `on` | `off` stops filling the `v2_*` tables and skips their startup SQL. Canyon still creates the tables |
-| `TRIFORCE_LOCALES` | (none) | Extra locales for the v2 names, comma list like `es-ES,ko-KR`. `en-US` is always pulled. A locale the API doesn't know comes back in English and is skipped |
+| `TRIFORCE_LOCALES` | (none) | Extra locales for the v2 names and match block names (each one reads `scheduleEvents` again), comma list like `es-ES,ko-KR`. `en-US` is always pulled. A locale the API doesn't know comes back in English and is skipped |
 | `TRIFORCE_GQL_MANIFEST` | `gql-manifest.json` | Where the GraphQL query manifest is kept |
 
 `cargo run -- refresh-manifest` (also with `--env <file>`) downloads the manifest again and exits (it connects to the DB and applies pending Canyon migrations first).
@@ -80,6 +80,7 @@ On start everything is fetched and saved once (live events are saved from the fi
 | Schedule (current page) | 30 minutes | `TRIFORCE_CRON_SCHEDULE` |
 | Live events | 2 minutes | `TRIFORCE_CRON_LIVE` |
 | v2 reference tables (`GetOtherLeagues` and `GetSeasonTournament` per locale + `GetLoLTeamOverview` → `v2_*`, alternative team images from the old `getTeams`) | 2 hours at :15 (first run at start) | `TRIFORCE_CRON_V2` |
+| v2 matches (`scheduleEvents` → `v2_event`, `v2_event_i18n`, `v2_event_team`, `v2_game`, `v2_stream`, last full pass in `v2_job_run`): the last 3 days and the next year on every run, the whole history from 2023-10 at most once a day. Starts after the first v2 reference run | 30 minutes at :05 and :35 (first run at start) | `TRIFORCE_CRON_V2_MATCHES` |
 
 Defaults are in `src/schedules.rs`. The `TRIFORCE_CRON_*` variables take a cron expression with seconds (`sec min hour day month weekday`), useful to test a loop without waiting for its tick:
 
@@ -99,6 +100,7 @@ TRIFORCE_CRON_V2="0 * * ? * *" cargo run   # v2 every minute
 | `src/client/` | LoL Esports HTTP client (`legacy/`: old API calls, endpoints and models) |
 | `src/service/` | `DataPull`: fetches and keeps the API data |
 | `src/service/v2.rs` | v2 loop: fetches the new API (alternative team images from the old `getTeams`) and fills the `v2_*` tables |
+| `src/service/v2_matches.rs` | v2 matches loop: `scheduleEvents` pages → `v2_event*`, `v2_game`, `v2_stream`, never going back |
 | `src/client/adapters/v2/` | New API answers → v2 rows |
 | `src/dao/` | Database models and writes |
 | `src/dao/v2/` | v2 entities, startup SQL and upserts |

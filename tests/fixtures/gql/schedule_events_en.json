@@ -1,0 +1,521 @@
+{
+ "data": {
+  "__typename": "Query",
+  "esports": {
+   "__typename": "EsportsData",
+   "events": [
+    {
+     "__typename": "EventMatch",
+     "blockName": "Swiss",
+     "id": "115660540726095005",
+     "league": {
+      "__typename": "League",
+      "displayPriority": {
+       "__typename": "Priority",
+       "position": 0,
+       "status": "force_selected"
+      },
+      "id": "98767975604431411",
+      "image": "http://static.lolesports.com/leagues/1592594612171_WorldsDarkBG.png",
+      "name": "Worlds",
+      "slug": "worlds"
+     },
+     "match": {
+      "__typename": "Match",
+      "flags": [],
+      "games": [
+       {
+        "__typename": "Game",
+        "id": "115660540726095006",
+        "number": 1,
+        "state": "unstarted",
+        "vods": [],
+        "recaps": []
+       }
+      ],
+      "id": "115660540726095005",
+      "state": "unstarted",
+      "strategy": {
+       "__typename": "MatchStrategy",
+       "count": 1,
+       "type": "bestOf"
+      },
+      "type": "normal"
+     },
+     "matchTeams": [
+      {
+       "__typename": "MatchTeam",
+       "code": "TBD",
+       "homeLeague": null,
+       "id": "115660540726095005:0",
+       "image": "https://static.lolesports.com/teams/team-tbd.png",
+       "lightImage": "https://static.lolesports.com/teams/team-tbd-light.png",
+       "name": "TBD",
+       "result": null,
+       "teamId": "0"
+      },
+      {
+       "__typename": "MatchTeam",
+       "code": "TBD",
+       "homeLeague": null,
+       "id": "115660540726095005:0",
+       "image": "https://static.lolesports.com/teams/team-tbd.png",
+       "lightImage": "https://static.lolesports.com/teams/team-tbd-light.png",
+       "name": "TBD",
+       "result": null,
+       "teamId": "0"
+      }
+     ],
+     "startTime": "2026-10-23T17:00:00Z",
+     "state": "unstarted",
+     "streams": [],
+     "tournament": {
+      "__typename": "Tournament",
+      "id": "115660540725177488",
+      "name": "2026"
+     },
+     "type": "match"
+    },
+    {
+     "__typename": "EventMatch",
+     "blockName": "Swiss",
+     "id": "117133830114188936",
+     "league": {
+      "__typename": "League",
+      "displayPriority": {
+       "__typename": "Priority",
+       "position": 0,
+       "status": "not_selected"
+      },
+      "id": "117126995932274206",
+      "image": "http://static.lolesports.com/leagues/1788253732774_94x-81.png",
+      "name": "DCGI",
+      "slug": "demacia_cup"
+     },
+     "match": {
+      "__typename": "Match",
+      "flags": [
+       "hasVod"
+      ],
+      "games": [
+       {
+        "__typename": "Game",
+        "id": "117133830114188937",
+        "number": 1,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "117133830114188938",
+        "number": 2,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "117133830114188939",
+        "number": 3,
+        "state": "unneeded",
+        "vods": [],
+        "recaps": []
+       }
+      ],
+      "id": "117133830114188936",
+      "state": "completed",
+      "strategy": {
+       "__typename": "MatchStrategy",
+       "count": 3,
+       "type": "bestOf"
+      },
+      "type": "normal"
+     },
+     "matchTeams": [
+      {
+       "__typename": "MatchTeam",
+       "code": "RED",
+       "homeLeague": {
+        "__typename": "HomeLeague",
+        "image": "http://static.lolesports.com/leagues/cblol-logo-symbol-offwhite.png",
+        "regionSlug": "br"
+       },
+       "id": "117133830114188936:99566408221961358",
+       "image": "http://static.lolesports.com/teams/1631820575924_red-2021-worlds.png",
+       "lightImage": null,
+       "name": "RED Kalunga",
+       "result": {
+        "__typename": "TeamResult",
+        "gameWins": 0,
+        "outcome": "loss"
+       },
+       "teamId": "99566408221961358"
+      },
+      {
+       "__typename": "MatchTeam",
+       "code": "FLY",
+       "homeLeague": {
+        "__typename": "HomeLeague",
+        "image": "http://static.lolesports.com/leagues/1706356907418_LCSNew-01-FullonDark.png",
+        "regionSlug": "na"
+       },
+       "id": "117133830114188936:98926509892121852",
+       "image": "http://static.lolesports.com/teams/flyquest-new-on-dark.png",
+       "lightImage": "http://static.lolesports.com/teams/flyquest-new-white.png",
+       "name": "FlyQuest",
+       "result": {
+        "__typename": "TeamResult",
+        "gameWins": 2,
+        "outcome": "win"
+       },
+       "teamId": "98926509892121852"
+      }
+     ],
+     "startTime": "2026-10-08T09:00:00Z",
+     "state": "completed",
+     "streams": [],
+     "tournament": {
+      "__typename": "Tournament",
+      "id": "117133773242499009",
+      "name": "2026"
+     },
+     "type": "match"
+    },
+    {
+     "__typename": "EventMatch",
+     "blockName": "Play-Ins",
+     "id": "115660588583171798",
+     "league": {
+      "__typename": "League",
+      "displayPriority": {
+       "__typename": "Priority",
+       "position": 0,
+       "status": "force_selected"
+      },
+      "id": "98767975604431411",
+      "image": "http://static.lolesports.com/leagues/1592594612171_WorldsDarkBG.png",
+      "name": "Worlds",
+      "slug": "worlds"
+     },
+     "match": {
+      "__typename": "Match",
+      "flags": [
+       "hasVod",
+       "isSpoiler"
+      ],
+      "games": [
+       {
+        "__typename": "Game",
+        "id": "115660588583171799",
+        "number": 1,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "115660588583171800",
+        "number": 2,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "115660588583171801",
+        "number": 3,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "116299649500204442",
+        "number": 4,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "116299649500204443",
+        "number": 5,
+        "state": "unneeded",
+        "vods": [],
+        "recaps": []
+       }
+      ],
+      "id": "115660588583171798",
+      "state": "completed",
+      "strategy": {
+       "__typename": "MatchStrategy",
+       "count": 5,
+       "type": "bestOf"
+      },
+      "type": "normal"
+     },
+     "matchTeams": [
+      {
+       "__typename": "MatchTeam",
+       "code": "MVK",
+       "homeLeague": {
+        "__typename": "HomeLeague",
+        "image": "http://static.lolesports.com/leagues/1733468139601_lcp-color-golden.png",
+        "regionSlug": "pac"
+       },
+       "id": "115660588583171798:107251245690956393",
+       "image": "http://static.lolesports.com/teams/1767089709161_White_Logo.png",
+       "lightImage": null,
+       "name": "MVK Esports",
+       "result": {
+        "__typename": "TeamResult",
+        "gameWins": 3,
+        "outcome": "win"
+       },
+       "teamId": "107251245690956393"
+      },
+      {
+       "__typename": "MatchTeam",
+       "code": "FUR",
+       "homeLeague": {
+        "__typename": "HomeLeague",
+        "image": "http://static.lolesports.com/leagues/cblol-logo-symbol-offwhite.png",
+        "regionSlug": "br"
+       },
+       "id": "115660588583171798:100205576309502431",
+       "image": "http://static.lolesports.com/teams/FURIA---black.png",
+       "lightImage": "http://static.lolesports.com/teams/FURIA---black.png",
+       "name": "FURIA",
+       "result": {
+        "__typename": "TeamResult",
+        "gameWins": 1,
+        "outcome": "loss"
+       },
+       "teamId": "100205576309502431"
+      }
+     ],
+     "startTime": "2026-10-17T18:00:00Z",
+     "state": "completed",
+     "streams": [],
+     "tournament": {
+      "__typename": "Tournament",
+      "id": "115660540725177488",
+      "name": "2026"
+     },
+     "type": "match"
+    },
+    {
+     "__typename": "EventMatch",
+     "blockName": "Week 8",
+     "id": "117087860288882437",
+     "league": {
+      "__typename": "League",
+      "displayPriority": {
+       "__typename": "Priority",
+       "position": 18,
+       "status": "not_selected"
+      },
+      "id": "105266091639104326",
+      "image": "http://static.lolesports.com/leagues/PrimeLeagueResized.png",
+      "name": "Prime League",
+      "slug": "primeleague"
+     },
+     "match": {
+      "__typename": "Match",
+      "flags": [
+       "hasVod",
+       "isSpoiler"
+      ],
+      "games": [
+       {
+        "__typename": "Game",
+        "id": "117087860288882438",
+        "number": 1,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "117087860288882439",
+        "number": 2,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "117087860288882440",
+        "number": 3,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       }
+      ],
+      "id": "117087860288882437",
+      "state": "completed",
+      "strategy": {
+       "__typename": "MatchStrategy",
+       "count": 3,
+       "type": "bestOf"
+      },
+      "type": "tiebreaker"
+     },
+     "matchTeams": [
+      {
+       "__typename": "MatchTeam",
+       "code": "EWI",
+       "homeLeague": {
+        "__typename": "HomeLeague",
+        "image": "http://static.lolesports.com/leagues/PrimeLeagueResized.png",
+        "regionSlug": "emea"
+       },
+       "id": "117087860288882437:105503948999800557",
+       "image": "http://static.lolesports.com/teams/1674832938539_MicrosoftTeams-image14.png",
+       "lightImage": null,
+       "name": "E Wie Einfach E-Sports",
+       "result": {
+        "__typename": "TeamResult",
+        "gameWins": 1,
+        "outcome": "loss"
+       },
+       "teamId": "105503948999800557"
+      },
+      {
+       "__typename": "MatchTeam",
+       "code": "ROSS",
+       "homeLeague": {
+        "__typename": "HomeLeague",
+        "image": "http://static.lolesports.com/leagues/PrimeLeagueResized.png",
+        "regionSlug": "emea"
+       },
+       "id": "117087860288882437:111726828176554327",
+       "image": "http://static.lolesports.com/teams/1734307301367_ROSS.png",
+       "lightImage": null,
+       "name": "Rossmann Centaurs",
+       "result": {
+        "__typename": "TeamResult",
+        "gameWins": 2,
+        "outcome": "win"
+       },
+       "teamId": "111726828176554327"
+      }
+     ],
+     "startTime": "2026-08-13T15:00:00Z",
+     "state": "completed",
+     "streams": [],
+     "tournament": {
+      "__typename": "Tournament",
+      "id": "116713163971248266",
+      "name": "Summer 2026"
+     },
+     "type": "match"
+    },
+    {
+     "__typename": "EventMatch",
+     "blockName": "Week 6",
+     "id": "116697716933082115",
+     "league": {
+      "__typename": "League",
+      "displayPriority": {
+       "__typename": "Priority",
+       "position": 21,
+       "status": "not_selected"
+      },
+      "id": "105266108767593290",
+      "image": "http://static.lolesports.com/leagues/1736361775356_HLL_FULL_COLOUR_DARKBG.png",
+      "name": "Hellenic Legends League",
+      "slug": "hellenic_legends_league"
+     },
+     "match": {
+      "__typename": "Match",
+      "flags": [
+       "hasVod"
+      ],
+      "games": [
+       {
+        "__typename": "Game",
+        "id": "116697716933082116",
+        "number": 1,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       },
+       {
+        "__typename": "Game",
+        "id": "116697716933082117",
+        "number": 2,
+        "state": "completed",
+        "vods": [],
+        "recaps": []
+       }
+      ],
+      "id": "116697716933082115",
+      "state": "completed",
+      "strategy": {
+       "__typename": "MatchStrategy",
+       "count": 2,
+       "type": "playAll"
+      },
+      "type": "normal"
+     },
+     "matchTeams": [
+      {
+       "__typename": "MatchTeam",
+       "code": "WLG",
+       "homeLeague": {
+        "__typename": "HomeLeague",
+        "image": "http://static.lolesports.com/leagues/1736361775356_HLL_FULL_COLOUR_DARKBG.png",
+        "regionSlug": "emea"
+       },
+       "id": "116697716933082115:102787200149928963",
+       "image": "http://static.lolesports.com/teams/WLGlogo.png",
+       "lightImage": null,
+       "name": "WLGaming",
+       "result": {
+        "__typename": "TeamResult",
+        "gameWins": 2,
+        "outcome": "win"
+       },
+       "teamId": "102787200149928963"
+      },
+      {
+       "__typename": "MatchTeam",
+       "code": "ALMO",
+       "homeLeague": {
+        "__typename": "HomeLeague",
+        "image": "http://static.lolesports.com/leagues/1736361775356_HLL_FULL_COLOUR_DARKBG.png",
+        "regionSlug": "emea"
+       },
+       "id": "116697716933082115:110441266196719234",
+       "image": "http://static.lolesports.com/teams/1766149888302_Ogi7qeR.webp",
+       "lightImage": null,
+       "name": "ALMO Players",
+       "result": {
+        "__typename": "TeamResult",
+        "gameWins": 0,
+        "outcome": "loss"
+       },
+       "teamId": "110441266196719234"
+      }
+     ],
+     "startTime": "2026-08-05T15:00:00Z",
+     "state": "completed",
+     "streams": [],
+     "tournament": {
+      "__typename": "Tournament",
+      "id": "116697716930132912",
+      "name": "Summer 2026"
+     },
+     "type": "match"
+    }
+   ],
+   "pages": {
+    "__typename": "Pages",
+    "older": null,
+    "newer": null
+   }
+  }
+ }
+}

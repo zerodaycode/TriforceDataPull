@@ -12,7 +12,7 @@ use crate::client::log;
 
 use super::{
     rows::ReferenceRows,
-    upsert::{Col, Upsert, Val, run},
+    upsert::{Col, MAX_PARAMS, Upsert, Val, run, t},
 };
 
 const LEAGUE: Upsert = Upsert {
@@ -25,6 +25,7 @@ const LEAGUE: Upsert = Upsert {
     ],
     conflict: &[0],
     update: true,
+    guard: None,
 };
 const LEAGUE_I18N: Upsert = Upsert {
     table: "v2_league_i18n",
@@ -40,6 +41,7 @@ const LEAGUE_I18N: Upsert = Upsert {
     ],
     conflict: &[0, 1],
     update: true,
+    guard: None,
 };
 const SEASON: Upsert = Upsert {
     table: "v2_season",
@@ -50,6 +52,7 @@ const SEASON: Upsert = Upsert {
     ],
     conflict: &[0],
     update: true,
+    guard: None,
 };
 const SEASON_I18N: Upsert = Upsert {
     table: "v2_season_i18n",
@@ -63,12 +66,14 @@ const SEASON_I18N: Upsert = Upsert {
     ],
     conflict: &[0, 1],
     update: true,
+    guard: None,
 };
 const SPLIT: Upsert = Upsert {
     table: "v2_split",
     cols: &[Col::Plain("ext_id")],
     conflict: &[0],
     update: false,
+    guard: None,
 };
 const TOURNAMENT: Upsert = Upsert {
     table: "v2_tournament",
@@ -92,6 +97,7 @@ const TOURNAMENT: Upsert = Upsert {
     ],
     conflict: &[0],
     update: true,
+    guard: None,
 };
 const TOURNAMENT_I18N: Upsert = Upsert {
     table: "v2_tournament_i18n",
@@ -105,6 +111,7 @@ const TOURNAMENT_I18N: Upsert = Upsert {
     ],
     conflict: &[0, 1],
     update: true,
+    guard: None,
 };
 const STAGE: Upsert = Upsert {
     table: "v2_stage",
@@ -117,6 +124,7 @@ const STAGE: Upsert = Upsert {
     ],
     conflict: &[0],
     update: true,
+    guard: None,
 };
 const STAGE_I18N: Upsert = Upsert {
     table: "v2_stage_i18n",
@@ -130,6 +138,7 @@ const STAGE_I18N: Upsert = Upsert {
     ],
     conflict: &[0, 1],
     update: true,
+    guard: None,
 };
 const TEAM: Upsert = Upsert {
     table: "v2_team",
@@ -148,6 +157,7 @@ const TEAM: Upsert = Upsert {
     ],
     conflict: &[0],
     update: true,
+    guard: None,
 };
 const PLAYER: Upsert = Upsert {
     table: "v2_player",
@@ -161,11 +171,8 @@ const PLAYER: Upsert = Upsert {
     ],
     conflict: &[0],
     update: true,
+    guard: None,
 };
-
-fn t(s: &str) -> Val {
-    Val::Text(Some(s.to_string()))
-}
 
 /// Leagues first (everything points at them), then two independent groups that both always
 /// run: teams, players and rosters; seasons down to stages. Returns the first error and logs
@@ -351,9 +358,6 @@ async fn write_structure(rows: &ReferenceRows) -> Result<()> {
     .await?;
     Ok(())
 }
-
-/// Params per roster statement, under Postgres' limit of 65535
-const MAX_PARAMS: usize = 60_000;
 
 /// Insert the new pairs and delete the old ones of the same teams, in one statement (atomic, never empty)
 fn team_players_sql(pairs: usize, teams: usize) -> String {
@@ -573,21 +577,7 @@ mod tests {
     }
 
     async fn cleanup() {
-        for sql in [
-            "DELETE FROM v2_team_player WHERE team_id IN (SELECT id FROM v2_team WHERE ext_id < 0)",
-            "DELETE FROM v2_player WHERE ext_id < 0",
-            "DELETE FROM v2_team WHERE ext_id < 0",
-            "DELETE FROM v2_stage WHERE ext_id < 0",
-            "DELETE FROM v2_tournament_i18n WHERE tournament_id IN (SELECT id FROM v2_tournament WHERE ext_id < 0)",
-            "DELETE FROM v2_tournament WHERE ext_id < 0",
-            "DELETE FROM v2_split WHERE ext_id < 0",
-            "DELETE FROM v2_season_i18n WHERE season_id IN (SELECT id FROM v2_season WHERE ext_id < 0)",
-            "DELETE FROM v2_season WHERE ext_id < 0",
-            "DELETE FROM v2_league_i18n WHERE league_id IN (SELECT id FROM v2_league WHERE ext_id < 0)",
-            "DELETE FROM v2_league WHERE ext_id < 0",
-        ] {
-            "".execute(sql, &[]).await.unwrap();
-        }
+        crate::dao::v2::test_cleanup().await;
     }
 
     #[canyon_sql::macros::canyon_tokio_test]

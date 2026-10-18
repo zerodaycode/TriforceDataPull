@@ -1,3 +1,8 @@
+pub mod event;
+pub mod event_i18n;
+pub mod event_team;
+pub mod game;
+pub mod job_run;
 pub mod league;
 pub mod league_i18n;
 pub mod player;
@@ -6,6 +11,7 @@ pub mod season_i18n;
 pub mod split;
 pub mod stage;
 pub mod stage_i18n;
+pub mod stream;
 pub mod team;
 pub mod team_player;
 pub mod tournament;

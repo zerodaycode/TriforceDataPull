@@ -1,6 +1,6 @@
 //! Batched INSERT … ON CONFLICT for the v2 tables. FKs are resolved by ext_id in the SQL
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use canyon_sql::{connection::DbConnection, date_time::NaiveDateTime, query::QueryParameter};
 use color_eyre::{
@@ -8,12 +8,19 @@ use color_eyre::{
     eyre::{WrapErr, eyre},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Val {
     I64(Option<i64>),
     I32(Option<i32>),
     Text(Option<String>),
     Time(Option<NaiveDateTime>),
+}
+
+/// Params per statement, under Postgres' limit of 65535
+pub const MAX_PARAMS: usize = 60_000;
+
+pub fn t(s: &str) -> Val {
+    Val::Text(Some(s.to_string()))
 }
 
 impl Val {
@@ -51,6 +58,8 @@ pub struct Upsert {
     pub cols: &'static [Col],
     pub conflict: &'static [usize],
     pub update: bool,
+    /// Extra condition for `DO UPDATE` (`v2_x` = stored row, `EXCLUDED` = new one)
+    pub guard: Option<&'static str>,
 }
 
 pub fn build_sql(u: &Upsert, rows: usize) -> String {
@@ -87,8 +96,9 @@ pub fn build_sql(u: &Upsert, rows: usize) -> String {
         // skip rows that didn't change: no new tuple, no WAL, no dead rows
         let old: Vec<String> = set.iter().map(|c| format!("{}.{c}", u.table)).collect();
         let new: Vec<String> = set.iter().map(|c| format!("EXCLUDED.{c}")).collect();
+        let guard = u.guard.map(|g| format!(" AND ({g})")).unwrap_or_default();
         format!(
-            "DO UPDATE SET {} WHERE ({}) IS DISTINCT FROM ({})",
+            "DO UPDATE SET {} WHERE ({}) IS DISTINCT FROM ({}){guard}",
             assign.join(", "),
             old.join(", "),
             new.join(", ")
@@ -106,27 +116,21 @@ pub fn build_sql(u: &Upsert, rows: usize) -> String {
     )
 }
 
-/// Postgres refuses two rows with the same conflict key in one statement: last one wins
+/// Postgres refuses two rows with the same conflict key in one statement: last one wins.
+/// Sorted by key, so two loops upserting the same table lock rows in the same order (no deadlock)
 pub fn dedupe(u: &Upsert, rows: Vec<Vec<Val>>) -> Vec<Vec<Val>> {
-    let mut pos: HashMap<Vec<Val>, usize> = HashMap::new();
-    let mut out: Vec<Vec<Val>> = Vec::new();
+    let mut by_key: BTreeMap<Vec<Val>, Vec<Val>> = BTreeMap::new();
     for row in rows {
         let key: Vec<Val> = u.conflict.iter().map(|i| row[*i].clone()).collect();
-        match pos.get(&key) {
-            Some(i) => out[*i] = row,
-            None => {
-                pos.insert(key, out.len());
-                out.push(row);
-            }
-        }
+        by_key.insert(key, row);
     }
-    out
+    by_key.into_values().collect()
 }
 
 pub async fn run(u: &Upsert, rows: Vec<Vec<Val>>) -> Result<u64> {
     let rows = dedupe(u, rows);
     // Postgres takes at most 65535 parameters per statement
-    let per_batch = (60_000 / u.cols.len()).max(1);
+    let per_batch = (MAX_PARAMS / u.cols.len()).max(1);
     let mut total = 0;
     for batch in rows.chunks(per_batch) {
         let sql = build_sql(u, batch.len());
@@ -156,6 +160,7 @@ mod tests {
         ],
         conflict: &[0],
         update: true,
+        guard: None,
     };
 
     #[test]
@@ -171,6 +176,19 @@ mod tests {
     }
 
     #[test]
+    fn guard_is_added_to_the_update() {
+        let u = Upsert {
+            guard: Some("v2_tournament.slug <> 'x'"),
+            ..T
+        };
+        assert!(build_sql(&u, 1).ends_with(
+            "IS DISTINCT FROM (EXCLUDED.league_id, EXCLUDED.slug) AND (v2_tournament.slug <> 'x')"
+        ));
+        let u = Upsert { update: false, ..u };
+        assert!(build_sql(&u, 1).ends_with("DO NOTHING"));
+    }
+
+    #[test]
     fn do_nothing_when_no_update() {
         let u = Upsert { update: false, ..T };
         assert!(build_sql(&u, 1).ends_with("ON CONFLICT (ext_id) DO NOTHING"));
@@ -183,6 +201,7 @@ mod tests {
             cols: &[Col::Plain("a"), Col::Plain("b")],
             conflict: &[0, 1],
             update: true,
+            guard: None,
         };
         assert!(build_sql(&u, 1).ends_with("ON CONFLICT (a, b) DO NOTHING"));
     }

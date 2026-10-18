@@ -44,7 +44,7 @@ SERIES  unstarted ─► live ─────────────► decided
 
 Rules:
 
-1. Forward only. Save the state and score with the time the answer was made (CloudFront: `Date`, Netlify: `Date - Age`). Ignore any answer older than what we have, and a score never goes down. Seen on 2026-10-16: the old `getLive` said game 3 `completed`, then `inProgress` again from an older cached copy, then `completed` ([live check](2026-10-17-old-vs-new-api-comparison.md#the-old-api-went-back)).
+1. Forward only. Save the state and score with the time the answer was made (CloudFront: `Date`, Netlify: `Date - Age`). Ignore any answer older than what we have, and a score never goes down. The answer time alone isn't enough: on 2026-10-16 answers with a newer time still went back (`getSchedule` `completed` → `inProgress`, a game `completed` → `inProgress`), so compare the values too: state and wins never go down ([recording](2026-10-18-live-recording-and-feed-history.md#going-back-with-a-newer-answer)). Seen on 2026-10-16: the old `getLive` said game 3 `completed`, then `inProgress` again from an older cached copy, then `completed` ([live check](2026-10-17-old-vs-new-api-comparison.md#the-old-api-went-back)).
 2. "Live" comes from the feed, not from the API. Show "current game: waiting" while the feed answers `204`.
 3. A game that `ended` (feed) has no winner yet. Show "finished, waiting for result" for up to ~5 min until the API confirms. Don't guess the winner from kills or towers.
 4. The score decides the series, with `strategy.count`. `unneeded` games, an empty `streams` and leaving `getLive` confirm it.

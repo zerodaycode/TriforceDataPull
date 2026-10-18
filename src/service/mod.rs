@@ -1,4 +1,5 @@
 pub mod v2;
+pub mod v2_matches;
 
 use crate::client::legacy::{
     self, endpoints,
