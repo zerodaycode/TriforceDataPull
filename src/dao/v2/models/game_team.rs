@@ -9,9 +9,9 @@ use serde::Serialize;
 pub struct V2GameTeam {
     #[primary_key]
     pub id: i32,
-    #[foreign_key(table = "v2_game", column = "id")]
+    #[foreign_key(references = V2Game::id)]
     pub game_id: i32,
-    #[foreign_key(table = "v2_team", column = "id")]
+    #[foreign_key(references = V2Team::id)]
     pub team_id: i32,
     pub side: String,
     // `feed` (from the game itself) or `api` (watchVodQuery, no feed)

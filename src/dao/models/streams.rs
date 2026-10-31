@@ -9,7 +9,7 @@ use crate::client::legacy::models as api;
 pub struct Stream {
     #[primary_key]
     id: i32,
-    #[foreign_key(table = "schedule", column = "id")]
+    #[foreign_key(references = Schedule::id)]
     event_id: i32,
     provider: String,
     parameter: String,

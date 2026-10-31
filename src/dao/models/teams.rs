@@ -16,7 +16,8 @@ pub struct Team {
     image_url: String,
     alt_image_url: Option<String>,
     bg_image_url: Option<String>,
-    #[foreign_key(table = "league", column = "id")]
+    // bigint foreign keys to int4 ids: the find_* methods Canyon generates for them fail, don't use them (ADR 0006)
+    #[foreign_key(references = League::id)]
     home_league: Option<i64>,
 }
 

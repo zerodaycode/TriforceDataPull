@@ -8,8 +8,8 @@ use serde::Serialize;
 pub struct V2TeamPlayer {
     #[primary_key]
     pub id: i32,
-    #[foreign_key(table = "v2_team", column = "id")]
+    #[foreign_key(references = V2Team::id)]
     pub team_id: i32,
-    #[foreign_key(table = "v2_player", column = "id")]
+    #[foreign_key(references = V2Player::id)]
     pub player_id: i32,
 }

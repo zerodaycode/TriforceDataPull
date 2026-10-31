@@ -8,8 +8,9 @@ use serde::Serialize;
 pub struct TeamPlayer {
     #[primary_key]
     id: i32,
-    #[foreign_key(table = "team", column = "id")]
+    // bigint foreign keys to int4 ids: the find_* methods Canyon generates for them fail, don't use them (ADR 0006)
+    #[foreign_key(references = Team::id)]
     team_id: Option<i64>,
-    #[foreign_key(table = "player", column = "id")]
+    #[foreign_key(references = Player::id)]
     player_id: Option<i64>,
 }

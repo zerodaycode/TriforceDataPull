@@ -12,7 +12,7 @@ use self::models::{
 use crate::{client::legacy::models as api, service::OurTournaments};
 use canyon_sql::{
     crud::{Delete, Insert, Read, Update},
-    query::{operators::Operator, querybuilder::QueryBuilderOps},
+    query::{operators::Operator, querybuilder::QueryBuilderExt},
 };
 use chrono::{Days, Local, Utc};
 use color_eyre::Result;

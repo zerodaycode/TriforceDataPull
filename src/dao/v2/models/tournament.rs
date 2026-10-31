@@ -10,11 +10,11 @@ pub struct V2Tournament {
     #[primary_key]
     pub id: i32,
     pub ext_id: i64,
-    #[foreign_key(table = "v2_league", column = "id")]
+    #[foreign_key(references = V2League::id)]
     pub league_id: i32,
-    #[foreign_key(table = "v2_season", column = "id")]
+    #[foreign_key(references = V2Season::id)]
     pub season_id: Option<i32>,
-    #[foreign_key(table = "v2_split", column = "id")]
+    #[foreign_key(references = V2Split::id)]
     pub split_id: Option<i32>,
     pub slug: String,
     pub start_time: Option<NaiveDateTime>,

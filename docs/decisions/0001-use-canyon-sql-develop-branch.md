@@ -1,6 +1,6 @@
 # 0001 - Use Canyon-SQL `develop` branch, pinned to a commit
 
-- Status: Accepted
+- Status: Superseded by 0006
 - Date: 2026-10-16
 
 ## Context

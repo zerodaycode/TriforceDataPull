@@ -10,9 +10,9 @@ pub struct V2Event {
     pub id: i32,
     pub ext_id: i64,
     pub kind: String,
-    #[foreign_key(table = "v2_league", column = "id")]
+    #[foreign_key(references = V2League::id)]
     pub league_id: i32,
-    #[foreign_key(table = "v2_tournament", column = "id")]
+    #[foreign_key(references = V2Tournament::id)]
     pub tournament_id: Option<i32>,
     pub start_time: Option<NaiveDateTime>,
     pub state: String,

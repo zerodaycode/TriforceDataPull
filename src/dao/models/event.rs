@@ -14,12 +14,13 @@ pub struct Schedule {
     state: String,
     event_type: String,
     blockname: Option<String>,
-    #[foreign_key(table = "league", column = "id")]
+    // bigint foreign keys to int4 ids: the find_* methods Canyon generates for them fail, don't use them (ADR 0006)
+    #[foreign_key(references = League::id)]
     league_id: Option<i64>,
     match_id: Option<i64>,
     strategy: Option<String>,
     strategy_count: Option<i64>,
-    #[foreign_key(table = "team", column = "id")]
+    #[foreign_key(references = Team::id)]
     team_left_id: Option<i64>,
     team_left_wins: Option<i64>,
     team_right_id: Option<i64>,

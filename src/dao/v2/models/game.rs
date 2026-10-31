@@ -8,7 +8,7 @@ pub struct V2Game {
     #[primary_key]
     pub id: i32,
     pub ext_id: i64,
-    #[foreign_key(table = "v2_event", column = "id")]
+    #[foreign_key(references = V2Event::id)]
     pub event_id: i32,
     pub number: i32,
     pub state: String,

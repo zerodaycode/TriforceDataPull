@@ -129,4 +129,36 @@ mod tests {
             assert_eq!(db, crate::dao::v2::rows::state_rank(st), "{st}");
         }
     }
+
+    /// Every foreign key Canyon made from `#[foreign_key(references = ...)]`, as
+    /// `table.column>referenced table`. Catches a Canyon update that resolves them differently
+    const FOREIGN_KEYS: &str = "schedule.league_id>league,schedule.team_left_id>team,\
+        stream.event_id>schedule,team.home_league>league,team_player.player_id>player,\
+        team_player.team_id>team,tournament.league>league,v2_event.league_id>v2_league,\
+        v2_event.tournament_id>v2_tournament,v2_event_i18n.event_id>v2_event,\
+        v2_event_team.event_id>v2_event,v2_event_team.team_id>v2_team,v2_game.event_id>v2_event,\
+        v2_game_player.game_id>v2_game,v2_game_player.player_id>v2_player,\
+        v2_game_player.team_id>v2_team,v2_game_team.game_id>v2_game,v2_game_team.team_id>v2_team,\
+        v2_league_i18n.league_id>v2_league,v2_season_i18n.season_id>v2_season,\
+        v2_stage.tournament_id>v2_tournament,v2_stage_i18n.stage_id>v2_stage,\
+        v2_stream.event_id>v2_event,v2_team.home_league_id>v2_league,\
+        v2_team_player.player_id>v2_player,v2_team_player.team_id>v2_team,\
+        v2_tournament.league_id>v2_league,v2_tournament.season_id>v2_season,\
+        v2_tournament.split_id>v2_split,v2_tournament_i18n.tournament_id>v2_tournament";
+
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "reads the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn foreign_keys_point_at_their_tables() {
+        let fks: String = ""
+            .query_one_for(
+                "SELECT string_agg(k, ',' ORDER BY k) FROM (
+                     SELECT c.conrelid::regclass || '.' || a.attname || '>' || c.confrelid::regclass AS k
+                     FROM pg_constraint c
+                     JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+                     WHERE c.contype = 'f') f",
+                &[],
+            )
+            .await?;
+        assert_eq!(fks, FOREIGN_KEYS);
+    }
 }

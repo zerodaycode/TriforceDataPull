@@ -7,7 +7,7 @@ use serde::Serialize;
 pub struct V2EventI18n {
     #[primary_key]
     pub id: i32,
-    #[foreign_key(table = "v2_event", column = "id")]
+    #[foreign_key(references = V2Event::id)]
     pub event_id: i32,
     pub locale: String,
     pub block_name: String,

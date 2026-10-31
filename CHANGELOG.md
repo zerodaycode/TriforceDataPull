@@ -25,7 +25,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - New dependency: dotenvy 0.15.7, to read the `--env` file.
 - reqwest `gzip` and `brotli` features: API answers come compressed (a 100 tournaments `GetSeasonTournament` answer goes from 1.2 MB to 193 KB with gzip, 52 KB with brotli, the CDN sends brotli). GraphQL, manifest and `getTeams` answers are read up to 32 MB.
 - Dependencies updated: serde 1.0.229, serde_json 1.0.154, reqwest 0.13.5, color-eyre 0.6.5, itertools 0.15.0, chrono 0.4.45, cron 0.17.0, tokio 1.53.3.
-- Canyon-SQL 0.4.2 → `develop` branch, pinned to commit `1c81b3b` with `rev`. See [ADR 0001](docs/decisions/0001-use-canyon-sql-develop-branch.md).
+- Canyon-SQL 0.4.2 → `develop` branch with the typed foreign key fix, pinned to commit `cc563d7` with `rev`. See [ADR 0001](docs/decisions/0001-use-canyon-sql-develop-branch.md) and [ADR 0006](docs/decisions/0006-canyon-sql-develop-with-typed-fk-fix.md).
 - Data access ported to the new Canyon API (`Crud` derive, `Read`/`Insert`/`Update`/`Delete` traits, query builder with `where_value`).
 - `team_player` rows are inserted one by one (Canyon removed `multi_insert`).
 - PostgreSQL docker image 15.2 → 18.6 (alpine 3.24). Volume mount moved to `/var/lib/postgresql`, required by 18+. Old 15.x data folders can't be reused. Dump the data **before** upgrading, with the old compose file still running 15.2:

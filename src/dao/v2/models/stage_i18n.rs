@@ -7,7 +7,7 @@ use serde::Serialize;
 pub struct V2StageI18n {
     #[primary_key]
     pub id: i32,
-    #[foreign_key(table = "v2_stage", column = "id")]
+    #[foreign_key(references = V2Stage::id)]
     pub stage_id: i32,
     pub locale: String,
     pub name: String,

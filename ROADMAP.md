@@ -54,8 +54,9 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 - [ ] [Low] Skip and log tournaments whose league isn't stored, instead of saving them with `league = 0`
 
 ## Dependencies
-- [ ] [Low] Report Canyon-SQL issues upstream ([0.5.1 cfg bug](docs/investigations/2026-10-16-canyon-0.5.1-cfg-bug.md), [`crate::canyon_sql` paths](docs/decisions/0002-extern-crate-canyon-sql.md), [book vs code](docs/investigations/2026-10-16-canyon-main-vs-develop.md), config lookup takes the first `canyon*.toml` it finds, [features Triforce needs](docs/investigations/2026-10-17-canyon-features-for-triforce.md)). Ask for multi-row insert in the query builder.
-- [ ] [Low] Keep a fallback for the Canyon `rev` pin (fork with a tag, or `cargo vendor`) in case upstream rewrites `develop` ([ADR 0001](docs/decisions/0001-use-canyon-sql-develop-branch.md))
+- [ ] [Low] Report Canyon-SQL issues upstream ([0.5.1 cfg bug](docs/investigations/2026-10-16-canyon-0.5.1-cfg-bug.md), [book vs code](docs/investigations/2026-10-16-canyon-main-vs-develop.md), config lookup takes the first `canyon*.toml` it finds, [features Triforce needs](docs/investigations/2026-10-17-canyon-features-for-triforce.md)). Ask for multi-row insert in the query builder.
+- [ ] [High] Move the Canyon `rev` off `cc563d7` (branch `fix/typed-fk-old-migrations`) to `develop` once the fix is merged, or to the migrations refactor, before that branch is deleted ([ADR 0006](docs/decisions/0006-canyon-sql-develop-with-typed-fk-fix.md))
+- [ ] [Low] Keep a fallback for the Canyon `rev` pin (fork with a tag, or `cargo vendor`) in case upstream rewrites or deletes the pinned commit ([ADR 0006](docs/decisions/0006-canyon-sql-develop-with-typed-fk-fix.md))
 - [ ] [Low] Move from the `develop` commit to a Canyon-SQL release when one has the `Crud`/`Read`/`Insert` API
 
 ## Security

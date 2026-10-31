@@ -7,7 +7,7 @@ use serde::Serialize;
 pub struct V2LeagueI18n {
     #[primary_key]
     pub id: i32,
-    #[foreign_key(table = "v2_league", column = "id")]
+    #[foreign_key(references = V2League::id)]
     pub league_id: i32,
     pub locale: String,
     pub name: String,

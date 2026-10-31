@@ -10,12 +10,12 @@ use serde::Serialize;
 pub struct V2GamePlayer {
     #[primary_key]
     pub id: i32,
-    #[foreign_key(table = "v2_game", column = "id")]
+    #[foreign_key(references = V2Game::id)]
     pub game_id: i32,
-    #[foreign_key(table = "v2_team", column = "id")]
+    #[foreign_key(references = V2Team::id)]
     pub team_id: i32,
     // NULL when the feed has no esports id for the player (missing or "-")
-    #[foreign_key(table = "v2_player", column = "id")]
+    #[foreign_key(references = V2Player::id)]
     pub player_id: Option<i32>,
     // as the feed sends it, with the team code
     pub summoner_name: Option<String>,

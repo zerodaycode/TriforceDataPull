@@ -8,11 +8,11 @@ use serde::Serialize;
 pub struct V2EventTeam {
     #[primary_key]
     pub id: i32,
-    #[foreign_key(table = "v2_event", column = "id")]
+    #[foreign_key(references = V2Event::id)]
     pub event_id: i32,
     pub slot: i32,
     // NULL while the slot is TBD
-    #[foreign_key(table = "v2_team", column = "id")]
+    #[foreign_key(references = V2Team::id)]
     pub team_id: Option<i32>,
     pub game_wins: Option<i32>,
     pub outcome: Option<String>,

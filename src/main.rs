@@ -1,5 +1,3 @@
-extern crate canyon_sql;
-
 /// A file under `tests/fixtures/`, read at build time. Keep it above the `mod` lines: a
 /// `macro_rules!` is only seen by the code after it
 #[cfg(test)]
