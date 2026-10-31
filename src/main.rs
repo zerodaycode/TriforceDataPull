@@ -104,9 +104,11 @@ fn main() -> Result<()> {
 
     let v2 = service::v2::v2_enabled()?;
     let v2_details = service::v2_details::enabled()?;
+    let v2_live = service::v2_live::enabled()?;
     let schedules::Schedules {
         v2: v2_reference_schedule,
         v2_matches: v2_matches_schedule,
+        v2_live: v2_live_schedule,
         leagues: leagues_schedule,
         tournaments: tournaments_schedule,
         teams: teams_and_players_schedule,
@@ -156,6 +158,21 @@ fn main() -> Result<()> {
             });
         } else {
             client::log("v2 details: off (TRIFORCE_V2_DETAILS=off)");
+        }
+        // live: teams and tournaments come from the reference loop too
+        if v2_live {
+            client::log("v2 live: on (watchLiveQuery every minute, quiet while nothing is live)");
+            spawn_v2_loop(
+                "v2 live",
+                v2_live_schedule,
+                gql.clone(),
+                locales.clone(),
+                Some(wait_reference.clone()),
+                None,
+                |g, _| async move { service::v2_live::live_once(&g).await },
+            );
+        } else {
+            client::log("v2 live: off (TRIFORCE_V2_LIVE=off)");
         }
         spawn_v2_loop(
             "v2 matches",

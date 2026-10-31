@@ -52,7 +52,7 @@ pub struct Data {
 
 #[derive(Debug, Deserialize)]
 pub struct Esports {
-    #[serde(default, deserialize_with = "each_event")]
+    #[serde(default, deserialize_with = "super::each_event")]
     pub events: Vec<Event>,
     pub pages: Pages,
 }
@@ -77,20 +77,10 @@ pub enum Event {
     Other,
 }
 
-/// Each event on its own: one bad event can't lose the other 99 of the page
-fn each_event<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Event>, D::Error> {
-    let raw = Option::<Vec<serde_json::Value>>::deserialize(d)?.unwrap_or_default();
-    Ok(raw
-        .into_iter()
-        .map(|v| {
-            let id = v
-                .get("id")
-                .and_then(|x| x.as_str())
-                .unwrap_or("?")
-                .to_string();
-            serde_json::from_value(v).unwrap_or_else(|e| Event::Bad(format!("{id}: {e}")))
-        })
-        .collect())
+impl super::BadEvent for Event {
+    fn bad(why: String) -> Self {
+        Event::Bad(why)
+    }
 }
 
 #[derive(Debug, Deserialize)]

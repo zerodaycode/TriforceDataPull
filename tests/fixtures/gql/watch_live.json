@@ -1,0 +1,20 @@
+{"data":{"esports":{"__typename":"Esports","events":[
+ {"__typename":"EventMatch","blockName":"Playoffs","id":"115660588583171794",
+  "league":{"__typename":"League","displayPriority":{"__typename":"DisplayPriority","position":2,"status":"selected"},"id":"98767991299243165","image":"http://static.lolesports.com/leagues/lcs.png","name":"LCS","region":"NORTH AMERICA","slug":"lcs"},
+  "match":{"__typename":"Match","id":"115660588583171794",
+   "games":[
+    {"__typename":"Game","id":"115660588583171795","number":1,"state":"completed","teams":[{"__typename":"GameTeam","id":"100205576309502431","side":"blue"},{"__typename":"GameTeam","id":"98767991877340524","side":"red"}]},
+    {"__typename":"Game","id":"115660588583171796","number":2,"state":"inProgress","teams":[{"__typename":"GameTeam","id":"100205576309502431","side":"red"},{"__typename":"GameTeam","id":"98767991877340524","side":"blue"}]},
+    {"__typename":"Game","id":"115660588583171797","number":3,"state":"unstarted","teams":[{"__typename":"GameTeam","id":"100205576309502431","side":"blue"},{"__typename":"GameTeam","id":"98767991877340524","side":"red"}]},
+    {"__typename":"Game","id":"115660588583171798","number":4,"state":"unstarted","teams":[]},
+    {"__typename":"Game","id":"115660588583171799","number":5,"state":"unstarted","teams":null}],
+   "matchTeams":[
+    {"__typename":"MatchTeam","code":"FUR","id":"115660588583171794:100205576309502431","image":"http://static.lolesports.com/teams/fur.png","name":"FURIA","record":null,"result":{"__typename":"MatchTeamResult","gameWins":1,"outcome":null}},
+    {"__typename":"MatchTeam","code":"C9","id":"115660588583171794:98767991877340524","image":"http://static.lolesports.com/teams/c9.png","name":"Cloud9","record":null,"result":{"__typename":"MatchTeamResult","gameWins":0,"outcome":null}}],
+   "strategy":{"__typename":"MatchStrategy","count":5,"type":"bestOf"}},
+  "startTime":"2026-10-16T21:00:00Z",
+  "streams":[{"__typename":"Stream","countries":[],"id":"s1","mediaLocale":{"__typename":"MediaLocale","englishName":"English (North America)","locale":"en-US","translatedName":"English"},"offset":0,"parameter":"lcs","provider":"twitch"}],
+  "tournament":{"__typename":"Tournament","id":"115660588583171000"},"type":"match"},
+ {"__typename":"EventShow","id":"115660588583171900","league":{"__typename":"League","id":"98767991299243165","image":null,"name":"LCS","region":"NORTH AMERICA","slug":"lcs"},"startTime":"2026-10-16T20:30:00Z","streams":null,"tournament":null,"type":"show"},
+ {"__typename":"EventMatch","id":"9","match":null},
+ {"__typename":"EventSomethingNew","id":"10"}]}}}

@@ -14,7 +14,7 @@ See [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (propos
 ## Schema v2
 See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005](docs/decisions/0005-v2-matches-and-game-details.md) (proposed).
 - [x] [High] v2 tables for matches: the match, its games with the blue and red team of each game, and the streams (`scheduleEvents` + live feed, ADR 0005)
-- [ ] [High] Live loop for v2: `watchLiveQuery` + the feed while a game is played. Score and state within a minute, winner of each game (only known when watched live, sweeps aside), streams, sides before the game (`side_source = 'api'`)
+- [x] [High] Live loop for v2: `watchLiveQuery` + the feed while a game is played (`TRIFORCE_CRON_V2_LIVE`, ADR 0005). Score and state within a minute, winner of each game (only known when watched live, sweeps aside), streams, sides before the game (`side_source = 'api'`), start/end and team totals from the feed
 - [ ] [Medium] Move WSC-Triforce to the v2 tables ([notes](docs/investigations/2026-10-17-wsc-triforce-on-schema-v2.md)), then the app
 - [ ] [Medium] Roster history (who played where and when) and the teams that played each tournament, maybe from another API (`GetSeasonTournament.teams` only has them for 263 of 514 tournaments)
 - [ ] [Medium] In-game stats per game from the live feed: the final stats are done (`v2_game_team`, `v2_game_player`, last frame). Left: every frame, for graphs (storage to design: rows every N seconds, compressed blobs or both)

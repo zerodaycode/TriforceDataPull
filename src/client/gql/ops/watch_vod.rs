@@ -59,7 +59,9 @@ pub struct VodGame {
 #[derive(Debug, Deserialize)]
 pub struct GameTeam {
     pub id: String,
-    pub side: String,
+    /// not picked yet: `null`, or missing
+    #[serde(default)]
+    pub side: Option<String>,
 }
 
 #[cfg(test)]
@@ -92,7 +94,7 @@ mod tests {
         assert_eq!(
             g2.teams
                 .iter()
-                .map(|t| (t.id.as_str(), t.side.as_str()))
+                .map(|t| (t.id.as_str(), t.side.as_deref().unwrap_or("")))
                 .collect::<Vec<_>>(),
             [("98767991877340524", "blue"), ("100205576309502431", "red")]
         );

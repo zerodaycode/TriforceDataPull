@@ -14,9 +14,10 @@ pub struct V2GameTeam {
     #[foreign_key(references = V2Team::id)]
     pub team_id: i32,
     pub side: String,
-    // `feed` (from the game itself) or `api` (watchVodQuery, no feed)
+    // `feed` (the live feed: totals while played, final ones from the details) or `api`
+    // (watchLiveQuery, watchVodQuery)
     pub side_source: String,
-    // only known for sweeps (or live, later)
+    // sweeps, and score changes seen while the match runs
     pub result: Option<String>,
     pub gold: Option<i64>,
     pub kills: Option<i32>,

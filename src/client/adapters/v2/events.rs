@@ -4,8 +4,14 @@ use std::collections::BTreeMap;
 
 use crate::{
     client::{
-        adapters::ext_id,
-        gql::ops::schedule_events::{self, Event, EventMatch, EventShow},
+        adapters::{
+            ext_id,
+            v2::{game_sides, remap_sides},
+        },
+        gql::ops::{
+            schedule_events::{self, Event, EventMatch, EventShow},
+            watch_live::{self, LiveEvent},
+        },
         log,
     },
     dao::v2::rows::*,
@@ -177,6 +183,94 @@ pub fn from_schedule(data: schedule_events::Data) -> EventRows {
     out
 }
 
+/// `watchLiveQuery` → the rows of a schedule page (everything in it is `inProgress`, no match
+/// type), plus the sides of every game that has a blue and a red team, with the match's teams
+/// (`remap_sides`; a game whose teams can't be matched is left out)
+pub fn from_live(data: watch_live::Data) -> (EventRows, Vec<GameSides>) {
+    let mut sides = Vec::new();
+    let events = data
+        .esports
+        .events
+        .into_iter()
+        .map(|e| match e {
+            LiveEvent::Match(m) => {
+                let mm = m.r#match;
+                let event_teams: Vec<i64> = mm
+                    .match_teams
+                    .iter()
+                    .filter_map(|t| ext_id(t.team_id()).ok())
+                    .collect();
+                for g in &mm.games {
+                    let Some(mut s) = game_sides(&g.id, &g.teams) else {
+                        continue;
+                    };
+                    match remap_sides(&mut s, &event_teams) {
+                        Ok(Some((answer, event))) => {
+                            log(format!(
+                                "v2 live: game {}: team {answer} is not in the match, taken as {event}",
+                                s.game_ext_id
+                            ));
+                            sides.push(s);
+                        }
+                        Ok(None) => sides.push(s),
+                        Err(e) => log(format!("v2 live: sides left out: {e:#}")),
+                    }
+                }
+                Event::Match(EventMatch {
+                    id: m.id,
+                    block_name: m.block_name,
+                    start_time: m.start_time,
+                    state: "inProgress".into(),
+                    league: m.league,
+                    tournament: m.tournament,
+                    r#match: schedule_events::Match {
+                        r#type: None,
+                        strategy: mm.strategy,
+                        games: mm
+                            .games
+                            .into_iter()
+                            .map(|g| schedule_events::Game {
+                                id: g.id,
+                                number: g.number,
+                                state: g.state,
+                            })
+                            .collect(),
+                    },
+                    match_teams: mm
+                        .match_teams
+                        .into_iter()
+                        .map(|t| schedule_events::MatchTeam {
+                            team_id: t.team_id().to_string(),
+                            code: t.code,
+                            name: t.name,
+                            image: t.image,
+                            result: t.result,
+                        })
+                        .collect(),
+                    streams: m.streams,
+                })
+            }
+            LiveEvent::Show(s) => Event::Show(EventShow {
+                id: s.id,
+                start_time: s.start_time,
+                state: "inProgress".into(),
+                league: s.league,
+                tournament: s.tournament,
+                streams: s.streams,
+            }),
+            LiveEvent::Bad(b) => Event::Bad(b),
+            LiveEvent::Other => Event::Other,
+        })
+        .collect();
+    let page = schedule_events::Data {
+        esports: schedule_events::Esports {
+            events,
+            pages: schedule_events::Pages { newer: None },
+        },
+    };
+    (from_schedule(page), sides)
+}
+
 impl schedule_events::League {
     fn clone_stub(&self) -> Option<LeagueStub> {
         Some(LeagueStub {
@@ -195,6 +289,70 @@ mod tests {
 
     fn page(body: &str) -> EventRows {
         from_schedule(parse_body::<GetScheduleEvents>(200, body).unwrap())
+    }
+
+    #[test]
+    fn live_answer_as_schedule_rows() {
+        use crate::client::gql::ops::watch_live::GetWatchLive;
+        let data = parse_body::<GetWatchLive>(200, fixture!("gql/watch_live.json")).unwrap();
+        let (rows, sides) = from_live(data);
+        // the match and the show; the bad event and the unknown type are skipped
+        assert_eq!(rows.events.len(), 2);
+        assert_eq!(rows.skipped, 2);
+        let m = &rows.events[0];
+        assert_eq!(
+            (m.state.as_str(), m.match_type.as_deref()),
+            ("inProgress", None)
+        );
+        assert_eq!(m.strategy_count, Some(5));
+        assert_eq!(
+            m.teams
+                .iter()
+                .map(|t| (t.team_ext_id, t.game_wins))
+                .collect::<Vec<_>>(),
+            [
+                (Some(100205576309502431), Some(1)),
+                (Some(98767991877340524), Some(0))
+            ]
+        );
+        assert_eq!(m.games.len(), 5);
+        assert_eq!(m.streams.len(), 1);
+        assert_eq!(rows.events[1].state, "inProgress");
+        // games 1-3 have a blue and a red team, 4 and 5 none yet
+        assert_eq!(
+            sides.iter().map(|s| s.game_ext_id).collect::<Vec<_>>(),
+            [115660588583171795, 115660588583171796, 115660588583171797]
+        );
+        assert_eq!(
+            sides[1].sides,
+            [(100205576309502431, "red"), (98767991877340524, "blue")]
+        );
+    }
+
+    #[test]
+    fn live_sides_take_the_match_teams() {
+        use crate::client::gql::ops::watch_live::GetWatchLive;
+        // game 2: the red team under an id the match doesn't list; game 3: a side not picked
+        let body = fixture!("gql/watch_live.json")
+            .replace(
+                r#""number":2,"state":"inProgress","teams":[{"__typename":"GameTeam","id":"100205576309502431""#,
+                r#""number":2,"state":"inProgress","teams":[{"__typename":"GameTeam","id":"1""#,
+            )
+            .replace(
+                r#""number":3,"state":"unstarted","teams":[{"__typename":"GameTeam","id":"100205576309502431","side":"blue"}"#,
+                r#""number":3,"state":"unstarted","teams":[{"__typename":"GameTeam","id":"100205576309502431","side":null}"#,
+            );
+        let (rows, sides) = from_live(parse_body::<GetWatchLive>(200, &body).unwrap());
+        // the match still decodes; game 2 takes the match's other team, game 3 is left out
+        assert_eq!(rows.events.len(), 2);
+        assert_eq!(
+            sides.iter().map(|s| s.game_ext_id).collect::<Vec<_>>(),
+            [115660588583171795, 115660588583171796]
+        );
+        assert_eq!(
+            sides[1].sides,
+            [(100205576309502431, "red"), (98767991877340524, "blue")]
+        );
     }
 
     #[test]

@@ -9,7 +9,10 @@ use tokio::time::{Instant, sleep};
 
 use crate::{
     client::{
-        adapters::v2::details::{from_feed, from_vod, match_teams},
+        adapters::v2::{
+            details::{from_feed, from_vod},
+            remap_sides,
+        },
         feed,
         gql::{
             Gql,
@@ -66,11 +69,9 @@ async fn from_watch_vod(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
         .filter(|s| s.game_ext_id == g.game_ext_id)
         .collect();
     // same rule as the feed: a team the match doesn't list takes the match's other team
+    let event_teams: Vec<i64> = g.teams.iter().map(|(t, _)| *t).collect();
     for s in &mut sides {
-        let (ids, remapped) = match_teams(s.game_ext_id, [s.sides[0].0, s.sides[1].0], &g.teams)?;
-        s.sides[0].0 = ids[0];
-        s.sides[1].0 = ids[1];
-        if let Some((vod, event)) = remapped {
+        if let Some((vod, event)) = remap_sides(s, &event_teams)? {
             log(format!(
                 "v2 details: game {}: watchVodQuery team {vod} is not in the match, taken as {event}",
                 s.game_ext_id
@@ -184,34 +185,6 @@ pub async fn details_loop(gql: Arc<Gql>) {
     }
 }
 
-/// `TRIFORCE_V2_DETAILS` value: `on` (default when unset) or `off`
-pub fn parse_switch(value: Option<&str>) -> color_eyre::Result<bool> {
-    match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
-        None | Some("on") => Ok(true),
-        Some("off") => Ok(false),
-        Some(_) => Err(eyre!(
-            "TRIFORCE_V2_DETAILS must be on or off, got {value:?}"
-        )),
-    }
-}
-
 pub fn enabled() -> color_eyre::Result<bool> {
-    match crate::env::var("TRIFORCE_V2_DETAILS") {
-        Err(std::env::VarError::NotPresent) => parse_switch(None),
-        Err(e) => Err(eyre!("TRIFORCE_V2_DETAILS: {e}")),
-        Ok(v) => parse_switch(Some(&v)),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn switch() {
-        assert!(parse_switch(None).unwrap());
-        assert!(!parse_switch(Some(" OFF ")).unwrap());
-        assert!(parse_switch(Some("on")).unwrap());
-        assert!(parse_switch(Some("yes")).is_err());
-    }
+    crate::env::switch("TRIFORCE_V2_DETAILS")
 }

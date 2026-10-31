@@ -148,19 +148,26 @@ async fn pass_locale(gql: &Gql, locale: &str, start: &str, end: &str) -> Result<
     }
 }
 
-/// One pass over the locales. en-US is the structure: if it fails, the pass fails
-async fn pass(gql: &Gql, locales: &[String], pass: Pass, now: NaiveDateTime) -> Result<()> {
+/// One pass over the locales. en-US is the structure: if it fails, the pass fails. `who` names
+/// the loop in the log
+async fn pass(
+    gql: &Gql,
+    who: &str,
+    locales: &[String],
+    pass: Pass,
+    now: NaiveDateTime,
+) -> Result<()> {
     let (start, end) = date_range(pass, now);
     for locale in locales {
         if locale != "en-US" && !locale_known(locale).await? {
             log(format!(
-                "v2 matches: {locale} skipped, the reference loop has no names in it"
+                "{who}: {locale} skipped, the reference loop has no names in it"
             ));
             continue;
         }
         match pass_locale(gql, locale, &start, &end).await {
             Ok(s) => log(format!(
-                "v2 matches ({pass}) {locale}: {} pages, {} events, {} went back, {} skipped (bad id or value), {} moved games, {} unknown tournaments",
+                "{who} ({pass}) {locale}: {} pages, {} events, {} went back, {} skipped (bad id or value), {} moved games, {} unknown tournaments",
                 s.pages,
                 s.write.written,
                 s.write.went_back,
@@ -169,17 +176,30 @@ async fn pass(gql: &Gql, locales: &[String], pass: Pass, now: NaiveDateTime) -> 
                 s.write.unknown_tournaments
             )),
             Err(e) if locale == "en-US" => return Err(e),
-            Err(e) => log(format!("v2 matches ({pass}) {locale} stopped: {e:#}")),
+            Err(e) => log(format!("{who} ({pass}) {locale} stopped: {e:#}")),
         }
     }
     Ok(())
+}
+
+/// The recent pass in en-US only: the live loop's check that a match that left the live
+/// answer is `completed` (state and outcome don't depend on the locale)
+pub async fn recent_en_us(gql: &Gql) -> Result<()> {
+    pass(
+        gql,
+        "v2 live end check",
+        &["en-US".to_string()],
+        Pass::Recent,
+        Utc::now().naive_utc(),
+    )
+    .await
 }
 
 /// The recent pass on every tick, so live and upcoming matches never wait on the history.
 /// Then the full pass when it's due
 pub async fn matches_once(gql: &Gql, locales: &[String]) -> Result<()> {
     let now = Utc::now().naive_utc();
-    pass(gql, locales, Pass::Recent, now).await?;
+    pass(gql, "v2 matches", locales, Pass::Recent, now).await?;
     // game winners of sweeps, for games whose sides are already stored
     match sweep_results().await {
         Ok(0) => {}
@@ -193,7 +213,7 @@ pub async fn matches_once(gql: &Gql, locales: &[String]) -> Result<()> {
     ) {
         return Ok(());
     }
-    match pass(gql, locales, Pass::Full, now).await {
+    match pass(gql, "v2 matches", locales, Pass::Full, now).await {
         Ok(()) => set_job_ok(FULL_JOB, now).await,
         Err(e) => {
             if let Err(w) = set_job_ok(FULL_TRY_JOB, now).await {

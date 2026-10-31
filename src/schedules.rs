@@ -12,6 +12,9 @@ use crate::client::log;
 const V2: &str = "0 15 */2 ? * *";
 /// Every 30 minutes at :05 and :35, away from the v1 schedule loop
 const V2_MATCHES: &str = "0 5,35 * ? * *";
+/// Every minute at :30 s: the answer is cached 2 min, a tick a minute catches each new one
+/// early, and :30 keeps it away from the matches loop's :05/:35 ticks
+const V2_LIVE: &str = "30 * * ? * *";
 /// Every 2 hours
 const LEAGUES: &str = "0 0 */2 ? * *";
 /// Every 2 hours
@@ -28,6 +31,7 @@ const LIVE: &str = "0 */2 * ? * *";
 pub const LOOPS: &[(&str, &str)] = &[
     ("V2", V2),
     ("V2_MATCHES", V2_MATCHES),
+    ("V2_LIVE", V2_LIVE),
     ("LEAGUES", LEAGUES),
     ("TOURNAMENTS", TOURNAMENTS),
     ("TEAMS", TEAMS),
@@ -38,6 +42,7 @@ pub const LOOPS: &[(&str, &str)] = &[
 pub struct Schedules {
     pub v2: Schedule,
     pub v2_matches: Schedule,
+    pub v2_live: Schedule,
     pub leagues: Schedule,
     pub tournaments: Schedule,
     pub teams: Schedule,
@@ -50,6 +55,7 @@ pub fn all_from_env() -> Result<Schedules> {
     Ok(Schedules {
         v2: loop_from_env("V2")?,
         v2_matches: loop_from_env("V2_MATCHES")?,
+        v2_live: loop_from_env("V2_LIVE")?,
         leagues: loop_from_env("LEAGUES")?,
         tournaments: loop_from_env("TOURNAMENTS")?,
         teams: loop_from_env("TEAMS")?,

@@ -227,6 +227,18 @@ pub struct GameDetailsRow {
     pub remapped: Option<(i64, i64)>,
 }
 
+/// A game being played, from the live feed
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiveGameRow {
+    pub game_ext_id: i64,
+    /// First frame
+    pub start_time: NaiveDateTime,
+    /// Last frame, once the feed says `finished`
+    pub end_time: Option<NaiveDateTime>,
+    /// Blue then red, totals right now
+    pub teams: Vec<GameTeamRow>,
+}
+
 /// A team in a game: its side and its totals in the last frame
 #[derive(Debug, Clone, PartialEq)]
 pub struct GameTeamRow {
@@ -281,9 +293,10 @@ pub struct PlayerStub {
     pub role: String,
 }
 
-/// Sides of the finished games of one event, from `watchVodQuery` (no feed for them)
+/// Blue and red team of one game, from `watchVodQuery` (finished games without feed) or
+/// `watchLiveQuery`
 #[derive(Debug, Clone, PartialEq)]
-pub struct VodSides {
+pub struct GameSides {
     pub game_ext_id: i64,
     /// (team ext_id, `blue`/`red`)
     pub sides: Vec<(i64, &'static str)>,

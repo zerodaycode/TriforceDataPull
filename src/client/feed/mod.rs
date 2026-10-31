@@ -31,12 +31,30 @@ fn server_now(date: Option<&str>, age: Option<&str>, received: DateTime<Utc>) ->
         .unwrap_or(received)
 }
 
-/// A window must have ended 20 s ago: a minute back, on a 10 s boundary
+/// A window must have ended 50 s ago (`400 … end time less than 50 sec old`), and a minute
+/// back was too close: 90 s back, on a 10 s boundary
 pub fn starting_time(server_now: DateTime<Utc>) -> String {
-    let t = server_now - TimeDelta::seconds(60);
+    let t = server_now - TimeDelta::seconds(90);
     let t = t.duration_trunc(TimeDelta::seconds(10)).unwrap_or(t);
     t.format("%Y-%m-%dT%H:%M:%S.000Z").to_string()
 }
+
+/// No stats for this game at that time: a 404 (seen live for the first minutes of a game:
+/// "Stats are disabled for game …"), or a 400 for a window too recent. The caller decides if
+/// that's an error
+#[derive(Debug)]
+pub struct NoStats {
+    pub path: String,
+    pub status: reqwest::StatusCode,
+}
+
+impl std::fmt::Display for NoStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "feed {}: HTTP {}", self.path, self.status)
+    }
+}
+
+impl std::error::Error for NoStats {}
 
 /// `None` on 204 (no feed for this game). Also returns the server's now
 async fn get<T: DeserializeOwned>(path: &str) -> Result<Option<(T, DateTime<Utc>)>> {
@@ -50,6 +68,20 @@ async fn get<T: DeserializeOwned>(path: &str) -> Result<Option<(T, DateTime<Utc>
     let status = response.status();
     if status == reqwest::StatusCode::NO_CONTENT {
         return Ok(None);
+    }
+    let no_stats = || NoStats {
+        path: path.to_string(),
+        status,
+    };
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return Err(no_stats().into());
+    }
+    if status == reqwest::StatusCode::BAD_REQUEST {
+        let body = read_text_max(response, MAX_BODY).await.unwrap_or_default();
+        if body.contains("sec old") {
+            return Err(no_stats().into());
+        }
+        return Err(eyre!("feed {path}: HTTP {status}: {}", body.trim()));
     }
     if !status.is_success() {
         return Err(eyre!("feed {path}: HTTP {status}"));
@@ -111,10 +143,10 @@ mod tests {
     }
 
     #[test]
-    fn starting_time_is_a_minute_back_on_10_s() {
+    fn starting_time_is_90_s_back_on_10_s() {
         let now =
             Utc.with_ymd_and_hms(2026, 10, 16, 23, 22, 47).unwrap() + TimeDelta::milliseconds(500);
-        assert_eq!(starting_time(now), "2026-10-16T23:21:40.000Z");
+        assert_eq!(starting_time(now), "2026-10-16T23:21:10.000Z");
     }
 
     #[test]

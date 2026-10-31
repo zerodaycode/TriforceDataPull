@@ -9,7 +9,7 @@ use color_eyre::{
 };
 
 use super::{
-    rows::{GameDetailsRow, PlayerStub, VodSides},
+    rows::{GameDetailsRow, GameSides, LiveGameRow, PlayerStub},
     upsert::{Col, MAX_PARAMS, Upsert, Val, run, t},
 };
 
@@ -201,7 +201,7 @@ fn details_sql(players: usize) -> String {
         .map(|c| format!("{c} = EXCLUDED.{c}"))
         .collect();
     format!(
-        "WITH g AS (SELECT id FROM v2_game WHERE ext_id = $1::bigint), \
+        "WITH g AS (SELECT id FROM v2_game WHERE ext_id = $1::bigint FOR UPDATE), \
          gt AS (INSERT INTO v2_game_team (game_id, team_id, side_source, {tcols}) \
            SELECT g.id, t.id, 'feed', {tvcols} \
            FROM g, (VALUES {teams}) AS v ({}) JOIN v2_team t ON t.ext_id = v.team_ext \
@@ -307,7 +307,9 @@ pub async fn write_details(row: &GameDetailsRow) -> Result<()> {
     }
 }
 
-fn vod_sql(rows: usize) -> String {
+/// `v (game_ext, team_ext, side)` from the params and `r (game_id, team_id, side)`: only teams of
+/// the game's match, and `filter` on `g` (the game)
+fn sides_cte(rows: usize, filter: &str) -> String {
     let mut n = 0;
     let v = values(
         rows,
@@ -322,33 +324,122 @@ fn vod_sql(rows: usize) -> String {
         "WITH v (game_ext, team_ext, side) AS (VALUES {v}), \
          r AS (SELECT g.id AS game_id, t.id AS team_id, v.side FROM v \
            JOIN v2_game g ON g.ext_id = v.game_ext JOIN v2_team t ON t.ext_id = v.team_ext \
-           WHERE g.details IS NULL AND g.state = 'completed'), \
-         ins AS (INSERT INTO v2_game_team (game_id, team_id, side, side_source) \
-           SELECT game_id, team_id, side, 'api' FROM r \
-           ON CONFLICT (game_id, team_id) DO UPDATE SET side = EXCLUDED.side, side_source = 'api' \
-           WHERE v2_game_team.side_source <> 'feed') \
-         UPDATE v2_game SET details = 'no_feed' \
-         WHERE id IN (SELECT game_id FROM r GROUP BY game_id HAVING count(*) = 2) RETURNING ext_id"
+           JOIN v2_event_team et ON et.event_id = g.event_id AND et.team_id = t.id \
+           WHERE {filter})"
     )
 }
 
-/// Sides from `watchVodQuery` for finished games still without details: `side_source = 'api'`
-/// (never over a `feed` one), the game becomes `no_feed`. Returns the games the DB marked
-pub async fn write_vod_sides(sides: &[VodSides]) -> Result<Vec<i64>> {
-    let flat: Vec<(i64, i64, &str)> = sides
+/// (game, team, side) rows sorted by game and team, each pair once: every writer of
+/// `v2_game_team` locks the rows in the same order, and one statement never hits a row twice
+fn side_rows(sides: &[GameSides]) -> Vec<(i64, i64, String)> {
+    let mut flat: Vec<(i64, i64, String)> = sides
         .iter()
         .flat_map(|g| {
             g.sides
                 .iter()
-                .map(|(team, side)| (g.game_ext_id, *team, *side))
+                .map(|(team, side)| (g.game_ext_id, *team, side.to_string()))
         })
         .collect();
-    let mut marked = Vec::new();
-    // 2 rows a game and an even chunk size: a game is never split
-    for chunk in flat.chunks(MAX_PARAMS / 3 / 2 * 2) {
+    flat.sort_by_key(|(g, t, _)| (*g, *t));
+    flat.dedup_by_key(|(g, t, _)| (*g, *t));
+    flat
+}
+
+/// 2 rows a game and an even chunk size: a game is never split
+const SIDE_CHUNK: usize = MAX_PARAMS / 3 / 2 * 2;
+
+fn vod_sql(rows: usize) -> String {
+    format!(
+        "{}, ins AS ({API_SIDES}) \
+         UPDATE v2_game SET details = 'no_feed' \
+         WHERE id IN (SELECT game_id FROM r GROUP BY game_id HAVING count(*) = 2) RETURNING ext_id",
+        sides_cte(rows, "g.details IS NULL AND g.state = 'completed'")
+    )
+}
+
+/// Sides from the API from `r (game_id, team_id, side)`: `side_source = 'api'`, never over a
+/// `feed` one
+const API_SIDES: &str = "INSERT INTO v2_game_team (game_id, team_id, side, side_source) \
+    SELECT game_id, team_id, side, 'api' FROM r \
+    ON CONFLICT (game_id, team_id) DO UPDATE SET side = EXCLUDED.side, side_source = 'api' \
+    WHERE v2_game_team.side_source <> 'feed' AND v2_game_team.side <> EXCLUDED.side";
+
+/// Games that end up `unneeded` (a 2-0 in a Bo3) get no sides: they were never played
+fn live_sides_sql(rows: usize) -> String {
+    format!("{} {API_SIDES}", sides_cte(rows, "g.state <> 'unneeded'"))
+}
+
+/// A game being played (`LiveGameRow`), one statement: start/end times when still empty, and the
+/// two teams with `side_source = 'feed'` and their totals right now. Games with details
+/// (`done`/`no_feed`) are left alone: the details loop writes the final numbers. The game row is
+/// locked first (same order as `write_details`), so details written meanwhile are seen.
+/// Never touches `result`. Returns the team rows written (0 = game not stored or with details,
+/// 1 = a team not stored)
+pub async fn write_live_game(row: &LiveGameRow) -> Result<u64> {
+    if row.teams.len() != 2 {
+        return Err(eyre!("game {}: {} teams", row.game_ext_id, row.teams.len()));
+    }
+    let sql = "WITH g AS (SELECT id FROM v2_game WHERE ext_id = $1::bigint AND details IS NULL FOR UPDATE), \
+         times AS (UPDATE v2_game SET start_time = COALESCE(v2_game.start_time, $2::timestamp), \
+           end_time = COALESCE(v2_game.end_time, $3::timestamp) FROM g WHERE v2_game.id = g.id RETURNING 1) \
+         INSERT INTO v2_game_team (game_id, team_id, side_source, side, gold, kills, towers, inhibitors, barons, dragons) \
+         SELECT g.id, t.id, 'feed', v.side, v.gold, v.kills, v.towers, v.inhibitors, v.barons, v.dragons \
+         FROM g, (VALUES ($4::bigint, $5::text, $6::bigint, $7::int, $8::int, $9::int, $10::int, $11::text), \
+                         ($12::bigint, $13::text, $14::bigint, $15::int, $16::int, $17::int, $18::int, $19::text)) \
+           AS v (team_ext, side, gold, kills, towers, inhibitors, barons, dragons) \
+         JOIN v2_team t ON t.ext_id = v.team_ext \
+         ON CONFLICT (game_id, team_id) DO UPDATE SET side = EXCLUDED.side, side_source = 'feed', \
+           gold = EXCLUDED.gold, kills = EXCLUDED.kills, towers = EXCLUDED.towers, \
+           inhibitors = EXCLUDED.inhibitors, barons = EXCLUDED.barons, dragons = EXCLUDED.dragons";
+    let sides: Vec<String> = row.teams.iter().map(|t| t.side.to_string()).collect();
+    let mut params: Vec<&dyn QueryParameter> =
+        vec![&row.game_ext_id, &row.start_time, &row.end_time];
+    for (t, side) in row.teams.iter().zip(&sides) {
+        params.push(&t.team_ext_id);
+        params.push(side);
+        params.push(&t.gold);
+        params.push(&t.kills);
+        params.push(&t.towers);
+        params.push(&t.inhibitors);
+        params.push(&t.barons);
+        params.push(&t.dragons);
+    }
+    "".execute(sql, &params)
+        .await
+        .map_err(|e| eyre!(e))
+        .wrap_err_with(|| format!("v2 live game {}", row.game_ext_id))
+}
+
+/// Sides from `watchLiveQuery`, for games not played yet too (they can change until the game
+/// starts), never for `unneeded` ones. Games or teams we don't have, or teams not in the game's
+/// match, are left out. Returns the rows written
+pub async fn write_live_sides(sides: &[GameSides]) -> Result<u64> {
+    let flat = side_rows(sides);
+    let mut written = 0;
+    for chunk in flat.chunks(SIDE_CHUNK) {
         let mut params: Vec<&dyn QueryParameter> = Vec::with_capacity(chunk.len() * 3);
-        let sides: Vec<String> = chunk.iter().map(|(_, _, s)| s.to_string()).collect();
-        for ((g, team, _), side) in chunk.iter().zip(&sides) {
+        for (g, team, side) in chunk {
+            params.push(g);
+            params.push(team);
+            params.push(side);
+        }
+        written += ""
+            .execute(&live_sides_sql(chunk.len()), &params)
+            .await
+            .map_err(|e| eyre!(e))
+            .wrap_err("v2 game sides from watchLiveQuery")?;
+    }
+    Ok(written)
+}
+
+/// Sides from `watchVodQuery` for finished games still without details: `side_source = 'api'`
+/// (never over a `feed` one), the game becomes `no_feed`. Returns the games the DB marked
+pub async fn write_vod_sides(sides: &[GameSides]) -> Result<Vec<i64>> {
+    let flat = side_rows(sides);
+    let mut marked = Vec::new();
+    for chunk in flat.chunks(SIDE_CHUNK) {
+        let mut params: Vec<&dyn QueryParameter> = Vec::with_capacity(chunk.len() * 3);
+        for (g, team, side) in chunk {
             params.push(g);
             params.push(team);
             params.push(side);
@@ -404,6 +495,7 @@ pub async fn sweep_results() -> Result<u64> {
 mod tests {
     use super::*;
     use crate::dao::v2::{events::write_events, rows::*};
+    use canyon_sql::date_time::NaiveDateTime;
 
     #[test]
     fn details_sql_numbering() {
@@ -612,11 +704,11 @@ mod tests {
         );
         // watchVodQuery sides: never over feed sides, only games still without details are marked
         let vod = vec![
-            VodSides {
+            GameSides {
                 game_ext_id: -320,
                 sides: vec![(-302, "red"), (-303, "blue")],
             },
-            VodSides {
+            GameSides {
                 game_ext_id: -321,
                 sides: vec![(-302, "red"), (-303, "blue")],
             },
@@ -645,7 +737,7 @@ mod tests {
         }
         assert!(!in_queue(next_games(100_000).await.unwrap()));
         // sweep: -310 (2-0) gets results, -311 (1-1) doesn't
-        write_vod_sides(&[VodSides {
+        write_vod_sides(&[GameSides {
             game_ext_id: -324,
             sides: vec![(-302, "blue"), (-303, "red")],
         }])
@@ -656,6 +748,70 @@ mod tests {
         assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id IN (-320, -321) AND gt.result = 'loss'").await, 2);
         assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -324").await, 2);
         assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -324 AND gt.result IS NOT NULL").await, 0);
+        crate::dao::v2::test_cleanup().await;
+    }
+
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn live_game_until_its_details() {
+        let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
+        setup().await;
+        let at = |m: u32| {
+            NaiveDateTime::parse_from_str(&format!("2026-10-31 18:{m:02}:00"), "%Y-%m-%d %H:%M:%S")
+                .unwrap()
+        };
+        let row = |gold: i64, start: u32, end: Option<u32>| LiveGameRow {
+            game_ext_id: -323,
+            start_time: at(start),
+            end_time: end.map(at),
+            teams: vec![
+                GameTeamRow {
+                    team_ext_id: -302,
+                    side: "blue",
+                    gold: Some(gold),
+                    kills: Some(1),
+                    towers: Some(0),
+                    inhibitors: Some(0),
+                    barons: Some(0),
+                    dragons: None,
+                },
+                GameTeamRow {
+                    team_ext_id: -303,
+                    side: "red",
+                    gold: Some(gold + 1),
+                    kills: Some(2),
+                    towers: Some(1),
+                    inhibitors: Some(0),
+                    barons: Some(0),
+                    dragons: Some("ocean".into()),
+                },
+            ],
+        };
+        let state = "SELECT string_agg(t.ext_id || ':' || gt.side || ':' || gt.side_source || ':' || gt.gold || ':' || coalesce(gt.result, '-'), ',' ORDER BY t.ext_id) \
+            FROM v2_game_team gt JOIN v2_team t ON t.id = gt.team_id JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -323";
+        let times = "SELECT to_char(start_time, 'HH24:MI') || '-' || coalesce(to_char(end_time, 'HH24:MI'), '?') FROM v2_game WHERE ext_id = -323";
+        assert_eq!(write_live_game(&row(1000, 5, None)).await.unwrap(), 2);
+        let s: String = "".query_one_for(state, &[]).await.unwrap();
+        assert_eq!(s, "-303:red:feed:1001:-,-302:blue:feed:1000:-");
+        let t: String = "".query_one_for(times, &[]).await.unwrap();
+        assert_eq!(t, "18:05-?");
+        // a winner from the score is kept; totals move on, the start doesn't, the end is set
+        "".execute("UPDATE v2_game_team SET result = CASE WHEN team_id = (SELECT id FROM v2_team WHERE ext_id = -302) THEN 'win' ELSE 'loss' END WHERE game_id = (SELECT id FROM v2_game WHERE ext_id = -323)", &[]).await.unwrap();
+        assert_eq!(write_live_game(&row(5000, 9, Some(40))).await.unwrap(), 2);
+        let s: String = "".query_one_for(state, &[]).await.unwrap();
+        assert_eq!(s, "-303:red:feed:5001:loss,-302:blue:feed:5000:win");
+        let t: String = "".query_one_for(times, &[]).await.unwrap();
+        assert_eq!(t, "18:05-18:40");
+        // once the details loop wrote the game, live leaves it alone
+        "".execute(
+            "UPDATE v2_game SET details = 'done' WHERE ext_id = -323",
+            &[],
+        )
+        .await
+        .unwrap();
+        assert_eq!(write_live_game(&row(9999, 1, Some(50))).await.unwrap(), 0);
+        let s: String = "".query_one_for(state, &[]).await.unwrap();
+        assert_eq!(s, "-303:red:feed:5001:loss,-302:blue:feed:5000:win");
         crate::dao::v2::test_cleanup().await;
     }
 }

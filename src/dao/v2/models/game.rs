@@ -12,7 +12,7 @@ pub struct V2Game {
     pub event_id: i32,
     pub number: i32,
     pub state: String,
-    // from the live feed when the game is done (game details)
+    // from the live feed: start and end while the game is played, all of it with the details
     pub patch: Option<String>,
     pub start_time: Option<NaiveDateTime>,
     pub end_time: Option<NaiveDateTime>,

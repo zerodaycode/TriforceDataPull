@@ -71,7 +71,8 @@ const EVENT: Upsert = Upsert {
         Col::Plain("state"),
         Col::Plain("strategy_type"),
         Col::Plain("strategy_count"),
-        Col::Plain("match_type"),
+        // watchLiveQuery has no match type
+        Col::KeepIfNull("match_type"),
     ],
     conflict: &[0],
     update: true,
@@ -143,6 +144,8 @@ pub struct WriteStats {
     pub unknown_tournaments: usize,
     /// Game ids that another event or number already has: skipped, logged
     pub moved_games: usize,
+    /// Game winners stored from a score change (`score_winner`)
+    pub winners: usize,
 }
 
 impl std::ops::AddAssign for WriteStats {
@@ -151,6 +154,7 @@ impl std::ops::AddAssign for WriteStats {
         self.went_back += o.went_back;
         self.unknown_tournaments += o.unknown_tournaments;
         self.moved_games += o.moved_games;
+        self.winners += o.winners;
     }
 }
 
@@ -159,6 +163,28 @@ fn bigint_list(from: usize, n: usize) -> String {
         .map(|i| format!("${i}::bigint"))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// Games whose end is stored (the feed's `finished` frame, or their details)
+pub async fn ended_games(ext_ids: &[i64]) -> Result<HashSet<i64>> {
+    let mut out = HashSet::new();
+    for chunk in ext_ids.chunks(MAX_PARAMS) {
+        let sql = format!(
+            "SELECT ext_id FROM v2_game WHERE ext_id IN ({}) AND end_time IS NOT NULL",
+            bigint_list(1, chunk.len())
+        );
+        let params: Vec<&dyn QueryParameter> =
+            chunk.iter().map(|x| x as &dyn QueryParameter).collect();
+        let rows = ""
+            .query_rows(&sql, &params)
+            .await
+            .map_err(|e| eyre!(e))
+            .wrap_err("v2_game ended")?;
+        for row in rows.get_postgres_rows().map_err(|e| eyre!(e))? {
+            out.insert(row.try_get::<_, i64>(0).wrap_err("v2_game.ext_id")?);
+        }
+    }
+    Ok(out)
 }
 
 /// Progress of the events we have, by ext_id
@@ -191,6 +217,77 @@ pub async fn stored_progress(ext_ids: &[i64]) -> Result<HashMap<i64, Progress>> 
         }
     }
     Ok(out)
+}
+
+/// Wins of each team of the events we have: event ext_id → team ext_id → wins
+async fn stored_team_wins(ext_ids: &[i64]) -> Result<HashMap<i64, HashMap<i64, i32>>> {
+    let mut out: HashMap<i64, HashMap<i64, i32>> = HashMap::new();
+    for chunk in ext_ids.chunks(MAX_PARAMS) {
+        let sql = format!(
+            "SELECT e.ext_id, t.ext_id, et.game_wins FROM v2_event e \
+             JOIN v2_event_team et ON et.event_id = e.id JOIN v2_team t ON t.id = et.team_id \
+             WHERE e.ext_id IN ({}) AND et.game_wins IS NOT NULL",
+            bigint_list(1, chunk.len())
+        );
+        let params: Vec<&dyn QueryParameter> =
+            chunk.iter().map(|x| x as &dyn QueryParameter).collect();
+        let rows = ""
+            .query_rows(&sql, &params)
+            .await
+            .map_err(|e| eyre!(e))
+            .wrap_err("v2_event_team stored wins")?;
+        for row in rows.get_postgres_rows().map_err(|e| eyre!(e))? {
+            out.entry(row.try_get(0).wrap_err("v2_event.ext_id")?)
+                .or_default()
+                .insert(
+                    row.try_get(1).wrap_err("v2_team.ext_id")?,
+                    row.try_get(2).wrap_err("v2_event_team.game_wins")?,
+                );
+        }
+    }
+    Ok(out)
+}
+
+/// `(game ext_id, winner team ext_id)` when the score shows who won a game: between the stored
+/// wins and the answer exactly one team got exactly one more, the other(s) the same. The game
+/// is number `total wins` (games are played in order), and it must be live or finished. A
+/// missed update (+2, both +1) or a team we didn't have before gives nothing
+pub fn score_winner(before: &HashMap<i64, i32>, row: &EventRow) -> Option<(i64, i64)> {
+    if row.teams.len() != 2 {
+        return None;
+    }
+    let mut up = None;
+    for t in &row.teams {
+        let team = t.team_ext_id?;
+        match t.game_wins? - *before.get(&team)? {
+            0 => {}
+            1 if up.is_none() => up = Some(team),
+            _ => return None,
+        }
+    }
+    let team = up?;
+    let total: i32 = row.teams.iter().filter_map(|t| t.game_wins).sum();
+    let game = row.games.iter().find(|g| g.number == total)?;
+    matches!(game.state.as_str(), "inProgress" | "completed").then_some((game.ext_id, team))
+}
+
+/// `win`/`loss` on the 2 sides of a game that has no result yet. Needs the sides (`side` can't
+/// be NULL): false when they aren't stored, the winner isn't one of them, or it has a result
+async fn write_winner(game: i64, team: i64) -> Result<bool> {
+    let n = ""
+        .execute(
+            "UPDATE v2_game_team gt SET result = CASE WHEN t.ext_id = $2 THEN 'win' ELSE 'loss' END \
+             FROM v2_game g, v2_team t \
+             WHERE g.ext_id = $1 AND gt.game_id = g.id AND t.id = gt.team_id AND gt.result IS NULL \
+               AND (SELECT count(*) FROM v2_game_team c WHERE c.game_id = g.id AND c.result IS NULL) = 2 \
+               AND EXISTS (SELECT 1 FROM v2_game_team w JOIN v2_team wt ON wt.id = w.team_id \
+                 WHERE w.game_id = g.id AND wt.ext_id = $2)",
+            &[&game, &team],
+        )
+        .await
+        .map_err(|e| eyre!(e))
+        .wrap_err_with(|| format!("v2 winner of game {game}"))?;
+    Ok(n == 2)
 }
 
 /// Insert/update the streams of `events` and delete their other streams, one statement
@@ -353,8 +450,17 @@ async fn known_tournaments(ext_ids: &[i64]) -> Result<HashSet<i64>> {
     Ok(out)
 }
 
+/// One en-US writer at a time (matches and live loops): the went-back check reads, then writes.
+/// Only DB work runs under it, never HTTP
+static EN_US_WRITE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// One page. en-US writes everything; another locale only its block names, for stored events
 pub async fn write_events(rows: &EventRows, locale: &str) -> Result<WriteStats> {
+    let _one_writer = if locale == "en-US" {
+        Some(EN_US_WRITE.lock().await)
+    } else {
+        None
+    };
     let mut stats = WriteStats::default();
     let ids: Vec<i64> = rows.events.iter().map(|e| e.ext_id).collect();
     let stored = stored_progress(&ids).await?;
@@ -390,6 +496,48 @@ pub async fn write_events(rows: &EventRows, locale: &str) -> Result<WriteStats> 
         }
     }
     stats.written = accepted.len();
+    // before the new wins are written: a score change gives a game winner
+    let accepted_ids: Vec<i64> = accepted.iter().map(|e| e.ext_id).collect();
+    let before_wins = stored_team_wins(&accepted_ids).await?;
+    let page_games: Vec<(i64, i64, i32)> = accepted
+        .iter()
+        .flat_map(|e| e.games.iter().map(|g| (g.ext_id, e.ext_id, g.number)))
+        .collect();
+    // an id under two (event, number) keys in the same answer would fail the insert too
+    let mut keys: HashMap<i64, (i64, i32)> = HashMap::new();
+    let twice: Vec<i64> = page_games
+        .iter()
+        .filter(|(g, ev, n)| *keys.entry(*g).or_insert((*ev, *n)) != (*ev, *n))
+        .map(|(g, _, _)| *g)
+        .collect();
+    let mut moved = moved_games(&page_games).await?;
+    moved.extend(twice);
+    stats.moved_games = moved.len();
+    for g in &moved {
+        // two games that swapped ids stay as stored and come back on every tick: logged once
+        if first_time_moved(*g) {
+            log(format!(
+                "v2 matches: game {g} is under another event or number, skipped (kept as stored)"
+            ));
+        }
+    }
+    // winners first: if a later write fails, the next tick still sees the score change
+    for e in &accepted {
+        let Some((game, team)) = before_wins.get(&e.ext_id).and_then(|b| score_winner(b, e)) else {
+            continue;
+        };
+        if moved.contains(&game) {
+            continue;
+        }
+        if write_winner(game, team).await? {
+            stats.winners += 1;
+            log(format!("v2: game {game} won by team {team} (score change)"));
+        } else {
+            log(format!(
+                "v2: game {game} won by team {team} (score change), not stored: no sides for it yet, or it already has a result"
+            ));
+        }
+    }
     run(
         &LEAGUE_STUB,
         rows.league_stubs
@@ -482,28 +630,6 @@ pub async fn write_events(rows: &EventRows, locale: &str) -> Result<WriteStats> 
             .collect(),
     )
     .await?;
-    let page_games: Vec<(i64, i64, i32)> = accepted
-        .iter()
-        .flat_map(|e| e.games.iter().map(|g| (g.ext_id, e.ext_id, g.number)))
-        .collect();
-    // an id under two (event, number) keys in the same answer would fail the insert too
-    let mut keys: HashMap<i64, (i64, i32)> = HashMap::new();
-    let twice: Vec<i64> = page_games
-        .iter()
-        .filter(|(g, ev, n)| *keys.entry(*g).or_insert((*ev, *n)) != (*ev, *n))
-        .map(|(g, _, _)| *g)
-        .collect();
-    let mut moved = moved_games(&page_games).await?;
-    moved.extend(twice);
-    stats.moved_games = moved.len();
-    for g in &moved {
-        // two games that swapped ids stay as stored and come back on every tick: logged once
-        if first_time_moved(*g) {
-            log(format!(
-                "v2 matches: game {g} is under another event or number, skipped (kept as stored)"
-            ));
-        }
-    }
     run(
         &GAME,
         accepted
@@ -524,8 +650,32 @@ pub async fn write_events(rows: &EventRows, locale: &str) -> Result<WriteStats> 
             .collect(),
     )
     .await?;
+    drop_unneeded_sides(&page_games).await?;
     replace_streams(&accepted).await?;
     Ok(stats)
+}
+
+/// The `api` sides of this page's games that ended up `unneeded` (written by the live loop
+/// before the game, never played)
+async fn drop_unneeded_sides(page_games: &[(i64, i64, i32)]) -> Result<u64> {
+    let ids: Vec<i64> = page_games.iter().map(|(g, _, _)| *g).collect();
+    let mut dropped = 0;
+    for chunk in ids.chunks(MAX_PARAMS) {
+        let sql = format!(
+            "DELETE FROM v2_game_team gt USING v2_game g \
+             WHERE gt.game_id = g.id AND g.ext_id IN ({}) AND g.state = 'unneeded' \
+               AND gt.side_source = 'api' AND gt.result IS NULL",
+            bigint_list(1, chunk.len())
+        );
+        let params: Vec<&dyn QueryParameter> =
+            chunk.iter().map(|x| x as &dyn QueryParameter).collect();
+        dropped += ""
+            .execute(&sql, &params)
+            .await
+            .map_err(|e| eyre!(e))
+            .wrap_err("v2 sides of unneeded games")?;
+    }
+    Ok(dropped)
 }
 
 /// A locale the reference loop stored names for (it skips the ones answering in English)
@@ -576,6 +726,13 @@ mod tests {
         let some = streams_sql(2, 1);
         assert!(some.contains("($1::bigint, $2::text, $3::text, $4::text, $5::text), ($6::bigint"));
         assert!(some.contains("IN ($11::bigint)"));
+    }
+
+    #[test]
+    fn event_keeps_match_type_on_null() {
+        // watchLiveQuery has no match type: a NULL never wipes a stored `tiebreaker`
+        let sql = crate::dao::v2::upsert::build_sql(&EVENT, 1);
+        assert!(sql.contains("match_type = COALESCE(EXCLUDED.match_type, v2_event.match_type)"));
     }
 
     #[test]
@@ -688,7 +845,8 @@ mod tests {
                 written: 1,
                 went_back: 0,
                 unknown_tournaments: 1,
-                moved_games: 0
+                moved_games: 0,
+                winners: 0
             }
         );
         let id = count("SELECT id::bigint FROM v2_event WHERE ext_id = -210").await;
@@ -865,6 +1023,166 @@ mod tests {
             job_last_ok("test_job").await.unwrap(),
             Some(at + chrono::TimeDelta::hours(1))
         );
+        cleanup().await;
+    }
+
+    /// `event()` with a second team (-203), for the winner rule
+    fn two_teams(wins: [i32; 2], games: &[&str]) -> EventRow {
+        let mut e = event("inProgress", [Some(wins[0]), Some(wins[1])], games, 0);
+        e.teams[1].team_ext_id = Some(-203);
+        e
+    }
+
+    fn before(a: i32, b: i32) -> HashMap<i64, i32> {
+        HashMap::from([(-202, a), (-203, b)])
+    }
+
+    #[test]
+    fn winner_from_one_more_win() {
+        let live = ["completed", "inProgress", "unstarted"];
+        // 1-0 → 1-1: game 2 is the one just won
+        let done = ["completed", "completed", "unstarted"];
+        assert_eq!(
+            score_winner(&before(1, 0), &two_teams([1, 1], &done)),
+            Some((-221, -203))
+        );
+        // the score can come before the game state: game 2 still inProgress counts
+        assert_eq!(
+            score_winner(&before(1, 0), &two_teams([1, 1], &live)),
+            Some((-221, -203))
+        );
+        // 0-0 → 1-0: game 1
+        assert_eq!(
+            score_winner(&before(0, 0), &two_teams([1, 0], &live)),
+            Some((-220, -202))
+        );
+    }
+
+    #[test]
+    fn no_winner_when_unsure() {
+        let g = ["completed", "completed", "inProgress"];
+        // same score, missed update (+2), both +1, going back
+        assert_eq!(score_winner(&before(1, 0), &two_teams([1, 0], &g)), None);
+        assert_eq!(score_winner(&before(0, 0), &two_teams([2, 0], &g)), None);
+        assert_eq!(score_winner(&before(0, 0), &two_teams([1, 1], &g)), None);
+        assert_eq!(score_winner(&before(1, 1), &two_teams([1, 0], &g)), None);
+        // a team we didn't have before (was TBD)
+        assert_eq!(
+            score_winner(&HashMap::from([(-202, 0)]), &two_teams([0, 1], &g)),
+            None
+        );
+        // game `total wins` not played (unstarted) or not in the answer
+        let unstarted = ["completed", "unstarted", "unstarted"];
+        assert_eq!(
+            score_winner(&before(1, 0), &two_teams([1, 1], &unstarted)),
+            None
+        );
+        assert_eq!(
+            score_winner(&before(1, 0), &two_teams([1, 1], &["completed"])),
+            None
+        );
+    }
+
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn winner_written_from_a_score_change() {
+        use crate::dao::v2::{details::write_live_sides, rows::GameSides};
+        let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
+        crate::dao::v2::schema::apply().await.unwrap();
+        cleanup().await;
+        let answer = |wins: [i32; 2], games: &[&str]| {
+            let mut p = page(vec![two_teams(wins, games)], "Team A");
+            p.team_stubs.push(TeamStub {
+                ext_id: -203,
+                name: "Team B".into(),
+                code: "TB".into(),
+                image_url: "i".into(),
+            });
+            p
+        };
+        let live = ["inProgress", "unstarted", "unstarted"];
+        let mut first = answer([0, 0], &live);
+        first.team_stubs.push(TeamStub {
+            ext_id: -204,
+            name: "Team C".into(),
+            code: "TC".into(),
+            image_url: "i".into(),
+        });
+        write_events(&first, "en-US").await.unwrap();
+        // game 3 before it's played; team C is stored but not in the match: never written
+        let game_3 = GameSides {
+            game_ext_id: -222,
+            sides: vec![(-204, "red"), (-202, "blue")],
+        };
+        assert_eq!(
+            write_live_sides(std::slice::from_ref(&game_3))
+                .await
+                .unwrap(),
+            1
+        );
+        // sides of game 1 while it's played; game 2 never gets sides
+        let sides = |game, a| GameSides {
+            game_ext_id: game,
+            sides: vec![(-202, a), (-203, if a == "blue" { "red" } else { "blue" })],
+        };
+        assert_eq!(write_live_sides(&[sides(-220, "red")]).await.unwrap(), 2);
+        // sides can still change before the game: the last one stays
+        assert_eq!(write_live_sides(&[sides(-220, "blue")]).await.unwrap(), 2);
+        assert_eq!(write_live_sides(&[sides(-220, "blue")]).await.unwrap(), 0);
+        let results = "SELECT string_agg(t.ext_id || ':' || gt.side || ':' || coalesce(gt.result, '-'), ',' ORDER BY t.ext_id) \
+            FROM v2_game_team gt JOIN v2_team t ON t.id = gt.team_id JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -220";
+        let r: String = "".query_one_for(results, &[]).await.unwrap();
+        assert_eq!(r, "-203:red:-,-202:blue:-");
+        // 1-0: team A won game 1
+        let s = write_events(
+            &answer([1, 0], &["completed", "inProgress", "unstarted"]),
+            "en-US",
+        )
+        .await
+        .unwrap();
+        assert_eq!(s.winners, 1);
+        let r: String = "".query_one_for(results, &[]).await.unwrap();
+        assert_eq!(r, "-203:red:loss,-202:blue:win");
+        // the same answer again: nothing new
+        let s = write_events(
+            &answer([1, 0], &["completed", "inProgress", "unstarted"]),
+            "en-US",
+        )
+        .await
+        .unwrap();
+        assert_eq!(s.winners, 0);
+        // 1-1, but game 2 has no sides: nothing stored, nothing fails
+        let s = write_events(
+            &answer([1, 1], &["completed", "completed", "inProgress"]),
+            "en-US",
+        )
+        .await
+        .unwrap();
+        assert_eq!(s.winners, 0);
+        assert_eq!(
+            count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -221").await,
+            0
+        );
+        // no match type in the answer (watchLiveQuery): the stored one stays
+        let mut p = answer([1, 1], &["completed", "completed", "inProgress"]);
+        p.events[0].match_type = None;
+        write_events(&p, "en-US").await.unwrap();
+        assert_eq!(
+            count("SELECT count(*) FROM v2_event WHERE ext_id = -210 AND match_type = 'normal'")
+                .await,
+            1
+        );
+        // game 3 ends up unneeded: its sides from before the game go, and never come back
+        let three = "SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -222";
+        assert_eq!(count(three).await, 1);
+        write_events(
+            &answer([2, 0], &["completed", "completed", "unneeded"]),
+            "en-US",
+        )
+        .await
+        .unwrap();
+        assert_eq!(count(three).await, 0);
+        assert_eq!(write_live_sides(&[game_3]).await.unwrap(), 0);
         cleanup().await;
     }
 }

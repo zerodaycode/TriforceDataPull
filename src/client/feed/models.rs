@@ -46,6 +46,8 @@ pub struct ParticipantMeta {
 #[serde(rename_all = "camelCase")]
 pub struct WindowFrame {
     pub rfc460_timestamp: DateTime<Utc>,
+    /// `in_game`, `paused` or `finished`
+    pub game_state: Option<String>,
     pub blue_team: TeamFrame,
     pub red_team: TeamFrame,
 }

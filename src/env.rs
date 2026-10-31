@@ -19,6 +19,7 @@ const SETTINGS: &[&str] = &[
     "TRIFORCE_SOURCE_TEAMS",
     "TRIFORCE_V2",
     "TRIFORCE_V2_DETAILS",
+    "TRIFORCE_V2_LIVE",
     "TRIFORCE_LOCALES",
     "TRIFORCE_GQL_MANIFEST",
 ];
@@ -121,6 +122,24 @@ fn lookup(file: Option<&HashMap<String, String>>, name: &str) -> Result<String, 
 }
 
 /// Like `std::env::var`, falling back to the `--env` file
+/// An on/off setting like `TRIFORCE_V2_DETAILS`: `on` (default when unset) or `off`
+pub fn parse_switch(name: &str, value: Option<&str>) -> Result<bool> {
+    match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
+        None | Some("on") => Ok(true),
+        Some("off") => Ok(false),
+        Some(_) => Err(eyre!("{name} must be on or off, got {value:?}")),
+    }
+}
+
+/// An on/off setting from the environment (`parse_switch`)
+pub fn switch(name: &str) -> Result<bool> {
+    match var(name) {
+        Err(VarError::NotPresent) => parse_switch(name, None),
+        Err(e) => Err(eyre!("{name}: {e}")),
+        Ok(v) => parse_switch(name, Some(&v)),
+    }
+}
+
 pub fn var(name: &str) -> Result<String, VarError> {
     lookup(FILE.get(), name)
 }
@@ -134,6 +153,14 @@ pub fn var_os(name: &str) -> Option<OsString> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn switch() {
+        assert!(parse_switch("TRIFORCE_V2_DETAILS", None).unwrap());
+        assert!(!parse_switch("TRIFORCE_V2_DETAILS", Some(" OFF ")).unwrap());
+        assert!(parse_switch("TRIFORCE_V2_DETAILS", Some("on")).unwrap());
+        assert!(parse_switch("TRIFORCE_V2_DETAILS", Some("yes")).is_err());
+    }
 
     fn p(args: &[&str]) -> Result<Cli> {
         parse_args(args.iter().map(|s| s.to_string()))
@@ -245,9 +272,10 @@ mod tests {
             parse_locales(None)
         );
         assert_eq!(read["TRIFORCE_GQL_MANIFEST"], DEFAULT_PATH);
+        assert!(parse_switch("TRIFORCE_V2_LIVE", Some(&read["TRIFORCE_V2_LIVE"])).unwrap());
         assert_eq!(
-            crate::service::v2_details::parse_switch(Some(&read["TRIFORCE_V2_DETAILS"])).unwrap(),
-            crate::service::v2_details::parse_switch(None).unwrap()
+            parse_switch("TRIFORCE_V2_DETAILS", Some(&read["TRIFORCE_V2_DETAILS"])).unwrap(),
+            parse_switch("TRIFORCE_V2_DETAILS", None).unwrap()
         );
         for (name, default) in crate::schedules::LOOPS {
             assert_eq!(read[&format!("TRIFORCE_CRON_{name}")], *default, "{name}");

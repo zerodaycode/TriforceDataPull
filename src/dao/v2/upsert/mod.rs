@@ -42,12 +42,14 @@ pub enum Col {
         name: &'static str,
         table: &'static str,
     },
+    /// A NULL from an answer keeps the stored value (a query that doesn't have the field)
+    KeepIfNull(&'static str),
 }
 
 impl Col {
     fn name(&self) -> &'static str {
         match self {
-            Col::Plain(n) | Col::ByExt { name: n, .. } => n,
+            Col::Plain(n) | Col::KeepIfNull(n) | Col::ByExt { name: n, .. } => n,
         }
     }
 }
@@ -73,7 +75,7 @@ pub fn build_sql(u: &Upsert, rows: usize) -> String {
                 .map(|c| {
                     n += 1;
                     match c {
-                        Col::Plain(_) => format!("${n}"),
+                        Col::Plain(_) | Col::KeepIfNull(_) => format!("${n}"),
                         Col::ByExt { table, .. } => {
                             format!("(SELECT id FROM {table} WHERE ext_id = ${n})")
                         }
@@ -84,18 +86,30 @@ pub fn build_sql(u: &Upsert, rows: usize) -> String {
         })
         .collect();
     let conflict: Vec<&str> = u.conflict.iter().map(|i| names[*i]).collect();
-    let set: Vec<&str> = names
+    let set: Vec<&Col> = u
+        .cols
         .iter()
         .enumerate()
         .filter(|(i, _)| !u.conflict.contains(i))
-        .map(|(_, c)| *c)
+        .map(|(_, c)| c)
         .collect();
+    // the value written: EXCLUDED, or the stored one for a NULL in a KeepIfNull column
+    let new_val = |c: &Col| match c {
+        Col::KeepIfNull(n) => format!("COALESCE(EXCLUDED.{n}, {}.{n})", u.table),
+        _ => format!("EXCLUDED.{}", c.name()),
+    };
     // nothing to update (all columns are in the key): DO NOTHING
     let action = if u.update && !set.is_empty() {
-        let assign: Vec<String> = set.iter().map(|c| format!("{c} = EXCLUDED.{c}")).collect();
+        let assign: Vec<String> = set
+            .iter()
+            .map(|c| format!("{} = {}", c.name(), new_val(c)))
+            .collect();
         // skip rows that didn't change: no new tuple, no WAL, no dead rows
-        let old: Vec<String> = set.iter().map(|c| format!("{}.{c}", u.table)).collect();
-        let new: Vec<String> = set.iter().map(|c| format!("EXCLUDED.{c}")).collect();
+        let old: Vec<String> = set
+            .iter()
+            .map(|c| format!("{}.{}", u.table, c.name()))
+            .collect();
+        let new: Vec<String> = set.iter().map(|c| new_val(c)).collect();
         let guard = u.guard.map(|g| format!(" AND ({g})")).unwrap_or_default();
         format!(
             "DO UPDATE SET {} WHERE ({}) IS DISTINCT FROM ({}){guard}",
@@ -186,6 +200,21 @@ mod tests {
         ));
         let u = Upsert { update: false, ..u };
         assert!(build_sql(&u, 1).ends_with("DO NOTHING"));
+    }
+
+    #[test]
+    fn keep_if_null_keeps_the_stored_value() {
+        let u = Upsert {
+            table: "t",
+            cols: &[Col::Plain("ext_id"), Col::KeepIfNull("kind")],
+            conflict: &[0],
+            update: true,
+            guard: None,
+        };
+        assert!(build_sql(&u, 1).ends_with(
+            "DO UPDATE SET kind = COALESCE(EXCLUDED.kind, t.kind) \
+             WHERE (t.kind) IS DISTINCT FROM (COALESCE(EXCLUDED.kind, t.kind))"
+        ));
     }
 
     #[test]

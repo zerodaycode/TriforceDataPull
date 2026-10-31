@@ -7,7 +7,7 @@ use color_eyre::{Result, eyre::eyre};
 
 use crate::{
     client::{
-        feed::models::{Details, GameMetadata, PlayerFrame, TeamMeta, Window},
+        feed::models::{Details, GameMetadata, PlayerFrame, TeamFrame, TeamMeta, Window},
         gql::ops::watch_vod::VodMatchEvent,
     },
     dao::v2::rows::*,
@@ -55,22 +55,21 @@ fn naive(t: DateTime<Utc>) -> chrono::NaiveDateTime {
     t.naive_utc()
 }
 
+/// The match's team for blue and red, and (team in the answer, match team) when one was taken
+pub(crate) type Matched = ([i64; 2], Option<(i64, i64)>);
+
 /// The match's team for each feed side. When only one feed team is in the match, the other
 /// one takes the match's remaining team: the schedule is what results and standings use (LIT
 /// 2026: the game ran under Aeterna's id, the match lists TEAM AQUA)
-pub(crate) fn match_teams(
-    game: i64,
-    feed: [i64; 2],
-    event_teams: &[(i64, String)],
-) -> Result<([i64; 2], Option<(i64, i64)>)> {
-    let known = |t: i64| event_teams.iter().any(|(e, _)| *e == t);
+pub(crate) fn match_teams(game: i64, feed: [i64; 2], event_teams: &[i64]) -> Result<Matched> {
+    let known = |t: i64| event_teams.contains(&t);
     match (known(feed[0]), known(feed[1])) {
         (true, true) => Ok((feed, None)),
         (true, false) | (false, true) => {
             let (kept, unknown) = if known(feed[0]) { (0, 1) } else { (1, 0) };
             let others: Vec<i64> = event_teams
                 .iter()
-                .map(|(t, _)| *t)
+                .copied()
                 .filter(|t| *t != feed[kept])
                 .collect();
             let [other] = others[..] else {
@@ -91,6 +90,50 @@ pub(crate) fn match_teams(
     }
 }
 
+/// Both windows are of `game`, and the game's metadata (from the first one, else the latest)
+fn checked_meta<'a>(game: i64, first: &'a Window, last: &'a Window) -> Result<&'a GameMetadata> {
+    for w in [first, last] {
+        if id(&w.esports_game_id)? != game {
+            return Err(eyre!(
+                "feed answered game {} for game {game}",
+                w.esports_game_id
+            ));
+        }
+    }
+    first
+        .game_metadata
+        .as_ref()
+        .or(last.game_metadata.as_ref())
+        .ok_or_else(|| eyre!("game {game}: feed without metadata"))
+}
+
+/// The match's team for the feed's blue and red team (`match_teams`), never the same twice
+fn feed_teams(game: i64, meta: &GameMetadata, event_teams: &[i64]) -> Result<Matched> {
+    let feed = [
+        id(&meta.blue_team_metadata.esports_team_id)?,
+        id(&meta.red_team_metadata.esports_team_id)?,
+    ];
+    let (ids, remapped) = match_teams(game, feed, event_teams)?;
+    if ids[0] == ids[1] {
+        return Err(eyre!("game {game}: feed has the same team on both sides"));
+    }
+    Ok((ids, remapped))
+}
+
+/// A team's totals in one frame
+fn team_row(team_ext_id: i64, side: &'static str, total: &TeamFrame) -> GameTeamRow {
+    GameTeamRow {
+        team_ext_id,
+        side,
+        gold: total.total_gold,
+        kills: total.total_kills,
+        towers: total.towers,
+        inhibitors: total.inhibitors,
+        barons: total.barons,
+        dragons: list(&total.dragons),
+    }
+}
+
 /// `first`: window with no time (metadata, first frames). `last` and `details`: asked for a
 /// time after the end (last frames). `event_teams`: (ext_id, code) of the match's teams. One feed
 /// team not in the match takes the match's other team (`remapped`); both unknown, or no other
@@ -102,19 +145,7 @@ pub fn from_feed(
     last: &Window,
     details: &Details,
 ) -> Result<GameDetailsRow> {
-    for w in [first, last] {
-        if id(&w.esports_game_id)? != game_ext_id {
-            return Err(eyre!(
-                "feed answered game {} for game {game_ext_id}",
-                w.esports_game_id
-            ));
-        }
-    }
-    let meta: &GameMetadata = first
-        .game_metadata
-        .as_ref()
-        .or(last.game_metadata.as_ref())
-        .ok_or_else(|| eyre!("game {game_ext_id}: feed without metadata"))?;
+    let meta = checked_meta(game_ext_id, first, last)?;
     let code = |team: i64| {
         event_teams
             .iter()
@@ -125,11 +156,8 @@ pub fn from_feed(
         ("blue", &meta.blue_team_metadata),
         ("red", &meta.red_team_metadata),
     ];
-    let feed_teams = [
-        id(&sides[0].1.esports_team_id)?,
-        id(&sides[1].1.esports_team_id)?,
-    ];
-    let (team_ids, remapped) = match_teams(game_ext_id, feed_teams, event_teams)?;
+    let ids: Vec<i64> = event_teams.iter().map(|(t, _)| *t).collect();
+    let (team_ids, remapped) = feed_teams(game_ext_id, meta, &ids)?;
     // 5 players a side, participant ids 1-10 once each: anything else is a broken answer
     let mut seen = std::collections::HashSet::new();
     for (side, t) in &sides {
@@ -147,11 +175,6 @@ pub fn from_feed(
                 ));
             }
         }
-    }
-    if team_ids[0] == team_ids[1] {
-        return Err(eyre!(
-            "game {game_ext_id}: feed has the same team on both sides"
-        ));
     }
     let frame = last
         .frames
@@ -176,16 +199,7 @@ pub fn from_feed(
     let mut players = Vec::with_capacity(10);
     let mut player_stubs = Vec::with_capacity(10);
     for (((side, t), team), total) in sides.iter().zip(&team_ids).zip(totals) {
-        teams.push(GameTeamRow {
-            team_ext_id: *team,
-            side,
-            gold: total.total_gold,
-            kills: total.total_kills,
-            towers: total.towers,
-            inhibitors: total.inhibitors,
-            barons: total.barons,
-            dragons: list(&total.dragons),
-        });
+        teams.push(team_row(*team, side, total));
         for p in &t.participant_metadata {
             // a player the feed has no id for (missing or "-") keeps the slot, without a player row
             let player = p.esports_player_id.as_deref().and_then(|x| id(x).ok());
@@ -242,35 +256,46 @@ pub fn from_feed(
     })
 }
 
+/// A game being played, from its first and its latest feed window: when it started, when it
+/// ended (`finished` in the latest frame), the sides and each team's totals right now
+pub fn from_live_feed(
+    game_ext_id: i64,
+    event_teams: &[i64],
+    first: &Window,
+    last: &Window,
+) -> Result<LiveGameRow> {
+    let meta = checked_meta(game_ext_id, first, last)?;
+    let (team_ids, _) = feed_teams(game_ext_id, meta, event_teams)?;
+    let start = first
+        .frames
+        .first()
+        .ok_or_else(|| eyre!("game {game_ext_id}: feed without frames"))?;
+    let frame = last.frames.last().unwrap_or(start);
+    let totals = [&frame.blue_team, &frame.red_team];
+    let teams = ["blue", "red"]
+        .into_iter()
+        .zip(team_ids)
+        .zip(totals)
+        .map(|((side, team), total)| team_row(team, side, total))
+        .collect();
+    Ok(LiveGameRow {
+        game_ext_id,
+        start_time: start.rfc460_timestamp.naive_utc(),
+        end_time: (frame.game_state.as_deref() == Some("finished"))
+            .then(|| frame.rfc460_timestamp.naive_utc()),
+        teams,
+    })
+}
+
 /// Sides of the event's completed games, for games the feed has nothing for. A game without
 /// one blue and one red team is left out
-pub fn from_vod(event: &VodMatchEvent) -> Vec<VodSides> {
+pub fn from_vod(event: &VodMatchEvent) -> Vec<GameSides> {
     event
         .r#match
         .games
         .iter()
         .filter(|g| g.state == "completed")
-        .filter_map(|g| {
-            let sides: Vec<(i64, &'static str)> = g
-                .teams
-                .iter()
-                .filter_map(|t| {
-                    let side = match t.side.as_str() {
-                        "blue" => "blue",
-                        "red" => "red",
-                        _ => return None,
-                    };
-                    Some((id(&t.id).ok()?, side))
-                })
-                .collect();
-            if sides.len() != 2 || sides[0].1 == sides[1].1 {
-                return None;
-            }
-            Some(VodSides {
-                game_ext_id: id(&g.id).ok()?,
-                sides,
-            })
-        })
+        .filter_map(|g| super::game_sides(&g.id, &g.teams))
         .collect()
 }
 
@@ -296,6 +321,45 @@ mod tests {
 
     fn teams() -> Vec<(i64, String)> {
         vec![(FUR, "FUR".into()), (C9, "C9".into())]
+    }
+
+    #[test]
+    fn live_game_from_the_feed() {
+        let (first, last, _) = feed();
+        // finished: start from the first frame, end from the last one, totals right now
+        let row = from_live_feed(GAME, &[FUR, C9], &first, &last).unwrap();
+        assert_eq!(row.start_time, first.frames[0].rfc460_timestamp.naive_utc());
+        let end = last.frames.last().unwrap();
+        assert_eq!(row.end_time, Some(end.rfc460_timestamp.naive_utc()));
+        assert_eq!(row.teams.len(), 2);
+        assert_eq!(row.teams[0].side, "blue");
+        assert_eq!(row.teams[0].gold, end.blue_team.total_gold);
+        assert_eq!(row.teams[1].kills, end.red_team.total_kills);
+        let sides: Vec<i64> = row.teams.iter().map(|t| t.team_ext_id).collect();
+        assert!(sides.contains(&FUR) && sides.contains(&C9));
+        // still playing (the latest window is the first one): no end yet
+        let row = from_live_feed(GAME, &[FUR, C9], &first, &first).unwrap();
+        assert_eq!(row.end_time, None);
+        // the latest window without frames: the first frame's totals, no end
+        let mut empty = feed().1;
+        empty.frames.clear();
+        let row = from_live_feed(GAME, &[FUR, C9], &first, &empty).unwrap();
+        assert_eq!(
+            (row.end_time, row.teams[0].gold),
+            (None, first.frames[0].blue_team.total_gold)
+        );
+        // paused: not the end
+        let mut paused = feed().1;
+        paused.frames.last_mut().unwrap().game_state = Some("paused".into());
+        assert_eq!(
+            from_live_feed(GAME, &[FUR, C9], &first, &paused)
+                .unwrap()
+                .end_time,
+            None
+        );
+        // another game's feed, or teams that aren't the match's
+        assert!(from_live_feed(GAME + 1, &[FUR, C9], &first, &last).is_err());
+        assert!(from_live_feed(GAME, &[-1, -2], &first, &last).is_err());
     }
 
     #[test]
@@ -381,7 +445,7 @@ mod tests {
 
     #[test]
     fn match_teams_edges() {
-        let ev = |v: &[i64]| v.iter().map(|t| (*t, String::new())).collect::<Vec<_>>();
+        let ev = |v: &[i64]| v.to_vec();
         assert_eq!(
             match_teams(1, [2, 3], &ev(&[3, 2])).unwrap(),
             ([2, 3], None)
@@ -458,6 +522,23 @@ mod tests {
             panic!("a match")
         };
         assert!(from_vod(&e).is_empty());
+        // the same team on both sides, or a side not picked (`null`)
+        for teams in [
+            r#"[{"id":"1","side":"blue"},{"id":"1","side":"red"}]"#,
+            r#"[{"id":"1","side":"blue"},{"id":"3","side":null}]"#,
+        ] {
+            let body = body.replace(
+                r#"[{"id":"1","side":"blue"},{"id":"3","side":"blue"}]"#,
+                teams,
+            );
+            let Some(VodEvent::Match(e)) = parse_body::<GetWatchVod>(200, &body)
+                .unwrap()
+                .scheduled_event
+            else {
+                panic!("a match")
+            };
+            assert!(from_vod(&e).is_empty());
+        }
     }
 
     #[test]
