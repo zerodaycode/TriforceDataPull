@@ -248,11 +248,16 @@ fn main() -> Result<()> {
         .await
         .bulk_players_in_database(&data_pull.lock().await.players)
         .await?;
-    database_ops
+    if let Err(e) = database_ops
         .lock()
         .await
         .bulk_team_player_in_database(&data_pull.lock().await.teams)
-        .await?;
+        .await
+    {
+        client::log(format!(
+            "Initial team_player sync failed, the teams loop tries again: {e:#}"
+        ));
+    }
 
     println!(
         "{} - Initial schedule fetch",
@@ -355,11 +360,14 @@ fn main() -> Result<()> {
                     .await
                     .bulk_players_in_database(&data_pull.lock().await.players)
                     .await;
-                let _ = database_ops
+                if let Err(e) = database_ops
                     .lock()
                     .await
                     .bulk_team_player_in_database(&data_pull.lock().await.teams)
-                    .await;
+                    .await
+                {
+                    client::log(format!("team_player sync failed: {e:#}"));
+                }
             }
         });
     }

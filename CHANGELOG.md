@@ -29,7 +29,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dependencies updated: serde 1.0.229, serde_json 1.0.154, reqwest 0.13.5, color-eyre 0.6.5, itertools 0.15.0, chrono 0.4.45, cron 0.17.0, tokio 1.53.3.
 - Canyon-SQL 0.4.2 → `develop` branch with the typed foreign key fix, pinned to commit `cc563d7` with `rev`. See [ADR 0001](docs/decisions/0001-use-canyon-sql-develop-branch.md) and [ADR 0006](docs/decisions/0006-canyon-sql-develop-with-typed-fk-fix.md).
 - Data access ported to the new Canyon API (`Crud` derive, `Read`/`Insert`/`Update`/`Delete` traits, query builder with `where_value`).
-- `team_player` rows are inserted one by one (Canyon removed `multi_insert`).
+- `team_player` is synced with the fetched rosters instead of deleted and inserted again: new pairs added, pairs no longer sent and duplicated rows removed, all in one SQL statement per chunk of teams. Teams not in the answer keep their pairs, an answer without players changes nothing, and a team or player we don't have is skipped and logged (up to 20 per run) instead of stopping the job. A failed sync is logged and the app keeps running.
 - PostgreSQL docker image 15.2 → 18.6 (alpine 3.24). Volume mount moved to `/var/lib/postgresql`, required by 18+. Old 15.x data folders can't be reused. Dump the data **before** upgrading, with the old compose file still running 15.2:
   ```sh
   docker compose -f docker/docker-compose.yml exec -T postgres pg_dumpall -U postgres > dump.sql
@@ -45,4 +45,5 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The app stopped at start when a live match had a VOD without `firstFrameTime` (`null`) in the old `getLive`.
 - Cron schedules rejected by cron 0.17 (`*/120` and `*/90` minute steps). Leagues and tournaments now really run every 2 hours (before they ran every hour). Teams and players run every hour.
 - reqwest `query` feature enabled, it's opt-in since 0.13.
-- `team_player` delete errors are logged instead of ignored. The inserts still run after a failed delete, see [ROADMAP](ROADMAP.md).
+- Each teams run added one more copy of every `team_player` pair (16,308 rows for 5,436 pairs on the dev DB). The first sync removes the copies.
+- With the old API, tournaments, teams and players were added to the fetched lists on every run instead of replacing them, so player changes after start up were never written.

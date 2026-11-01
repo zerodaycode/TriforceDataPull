@@ -30,8 +30,8 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 - [ ] [Medium] v2: API corrections that lower a result are skipped today (an answer with a lower state, score or outcome is taken as an old copy). Design how to accept a real one ([live match state](docs/investigations/2026-10-16-live-match-state-design.md) rule 8)
 - [ ] [Low] v2 game details: if the feed goes away for good each game burns its 5 tries (~14 h). Notice it and stop the loop (`TRIFORCE_V2_DETAILS=off` does it by hand)
 - [ ] [Low] v2: a Postgres deadlock between the sweep results and a game details write fails one of them. Retry it without counting a try
-- [ ] [High] Refresh `team_player` in one go. Today we delete all rows, then `.expect()` and `todo!()` can panic, which leaves the table empty and stops the hourly job for good. Build the rows first (skip unknown teams/players with a log), then delete and insert in one SQL statement with `DbConnection::execute`. Canyon's query builder only inserts one row and has no transactions, see [investigation](docs/investigations/2026-10-16-canyon-main-vs-develop.md).
-- [ ] [High] Replace `tournaments`, `teams` and `players` on every fetch instead of adding to them. Today each run appends a full copy: every hourly run stores each `team_player` link once more, and player changes after start up are never written (the dedupe keeps the first copy)
+- [x] [High] Refresh `team_player` in one go: new pairs added, pairs not sent removed, duplicates removed, in one SQL statement. Unknown teams/players are skipped with a log
+- [x] [High] Replace `tournaments`, `teams` and `players` on every fetch instead of adding to them
 - [ ] [Medium] Stop ignoring DB errors (`let _ = …`, unused `Result`s in `main.rs`)
 - [ ] [Medium] Don't hold the `DataPull` lock during HTTP fetches and DB writes (a GraphQL manifest refresh also runs under it)
 - [ ] [Medium] Ignore API answers older than the last one we got (keep the time each answer was made). The old `getLive` went `completed` → `inProgress` → `completed` during a live game ([live check](docs/investigations/2026-10-17-old-vs-new-api-comparison.md#the-old-api-went-back))
@@ -39,8 +39,8 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 - [ ] [Medium] The live match found at start up is never saved: `fetch_change_in_events` runs at start without `bulk_eventdetails_in_database`, and the next tick sees no change, so the match and its streams aren't stored until something changes
 - [ ] [Medium] No panics in the scheduled loops (`text().await.unwrap()`, `Deserialize` impls that panic, `leagues[0]`). Run each v1 pass in its own task like v2 does, so a panic skips one run instead of stopping the loop
 - [ ] [Low] Retry policy for the old API: transport errors, 5xx and 429 with backoff, `error_for_status` for the rest
-- [ ] [Low] Shut down cleanly on ctrl-c: let in-flight writes finish (today it can stop between the `team_player` delete and the inserts)
-- [ ] [Low] Don't delete `team_player` when the team list is empty
+- [ ] [Low] Shut down cleanly on ctrl-c: let in-flight writes finish (today it can stop between two `team_player` chunks, or halfway through the v1 per-row upserts)
+- [x] [Low] Don't delete `team_player` when the team list is empty (an answer without players changes nothing, teams not in the answer keep their pairs)
 - [ ] [Low] GraphQL client: retry a timeout while reading the body. Cap the size of the old API answers too (GraphQL, manifest and `getTeams` are capped at 32 MB)
 - [ ] [Low] Manifest refresh: one deadline for the whole refresh, retry a chunk that timed out once
 

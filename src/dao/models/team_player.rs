@@ -3,6 +3,7 @@ use super::teams::Team;
 use canyon_sql::macros::*;
 use serde::Serialize;
 
+// Only defines the table for the Canyon migrations, rows are written by `dao::team_player_sync`
 #[derive(Debug, Clone, Crud, CanyonMapper, Serialize, Default, Fields)]
 #[canyon_entity(table_name = "team_player")]
 pub struct TeamPlayer {
