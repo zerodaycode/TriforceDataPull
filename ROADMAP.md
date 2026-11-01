@@ -30,6 +30,9 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 - [ ] [Medium] v2: API corrections that lower a result are skipped today (an answer with a lower state, score or outcome is taken as an old copy). Design how to accept a real one ([live match state](docs/investigations/2026-10-16-live-match-state-design.md) rule 8)
 - [ ] [Low] v2 game details: if the feed goes away for good each game burns its 5 tries (~14 h). Notice it and stop the loop (`TRIFORCE_V2_DETAILS=off` does it by hand)
 - [ ] [Low] v2: a Postgres deadlock between the sweep results and a game details write fails one of them. Retry it without counting a try
+- [ ] [Low] v2: `vod_sql` writes `v2_game_team` before it updates `v2_game`, the live writer locks `v2_game` first. Lock `v2_game` first in `vod_sql` too (a deadlock costs one try)
+- [ ] [Low] Fall back to the old API by itself when a v1 GraphQL fetch fails, per run (today only by hand with `TRIFORCE_SOURCE_*=old`). `keep_alt_image` follows `teams_source`, check it
+- [ ] [Low] v1 start up steps log and go on instead of `?`, which stops the app and the v2 loops already running
 - [x] [High] Refresh `team_player` in one go: new pairs added, pairs not sent removed, duplicates removed, in one SQL statement. Unknown teams/players are skipped with a log
 - [x] [High] Replace `tournaments`, `teams` and `players` on every fetch instead of adding to them
 - [ ] [Medium] Stop ignoring DB errors (`let _ = …`, unused `Result`s in `main.rs`)
@@ -52,6 +55,8 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 - [ ] [Low] Save the time each API answer was made (column or `schedule_change` table) for the P3 corrections. Canyon migration + rebuild
 - [ ] [Low] Live change detection (`EventDetails::eq`) misses added or removed games and rescheduled shows
 - [ ] [Low] Skip and log tournaments whose league isn't stored, instead of saving them with `league = 0`
+- [ ] [Low] Store why a game is `no_feed` (a 204 or a feed without 5 players a side), so a reset can pick one kind
+- [ ] [Low] Unique `(team_id, player_id)` index on `team_player` and `ON CONFLICT DO NOTHING` in the sync. Today only the `DatabaseOps` lock stops two syncs at once (one process)
 
 ## Dependencies
 - [ ] [Low] Report Canyon-SQL issues upstream ([0.5.1 cfg bug](docs/investigations/2026-10-16-canyon-0.5.1-cfg-bug.md), [book vs code](docs/investigations/2026-10-16-canyon-main-vs-develop.md), config lookup takes the first `canyon*.toml` it finds, [features Triforce needs](docs/investigations/2026-10-17-canyon-features-for-triforce.md)). Ask for multi-row insert in the query builder.
@@ -69,6 +74,8 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 - [ ] [Low] Fix the remaining clippy warnings
 - [ ] [Low] Base URL for the GraphQL client and the manifest download set from tests, to test unknown hash → refresh → retry without the network
 - [ ] [Low] `parse_body` without the full `serde_json::Value` tree (`RawValue`), the big answers are parsed twice
+- [ ] [Low] One chunk-by-cost helper with a boundary test for `team_player_sync.rs`, `v2/reference.rs` and `v2/events.rs`
+- [ ] [Low] Shared `#[cfg(test)]` DB helpers (lock, `count`, `exec`) for the v1 and v2 tests
 
 ## Observability & config
 - [ ] [Low] Use `tracing` instead of `println!`
