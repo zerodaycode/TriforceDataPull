@@ -22,6 +22,8 @@ pub struct QueueGame {
     pub game_ext_id: i64,
     pub event_ext_id: i64,
     pub teams: Vec<(i64, String)>,
+    /// Failed tries so far
+    pub tries: i32,
 }
 
 /// Feed players we don't have: added with what the feed knows, never changed from here
@@ -54,7 +56,7 @@ async fn rows(
 /// match first
 pub async fn next_games(limit: i64) -> Result<Vec<QueueGame>> {
     let found = rows(
-        "SELECT g.ext_id, e.ext_id FROM v2_game g JOIN v2_event e ON e.id = g.event_id \
+        "SELECT g.ext_id, e.ext_id, COALESCE(g.details_tries, 0) FROM v2_game g JOIN v2_event e ON e.id = g.event_id \
          WHERE g.state = 'completed' AND g.details IS NULL AND COALESCE(g.details_tries, 0) < $1::int \
            AND (g.details_next_try IS NULL OR g.details_next_try <= now() AT TIME ZONE 'UTC') \
          ORDER BY COALESCE(g.details_tries, 0), e.start_time DESC NULLS LAST, e.ext_id, g.number \
@@ -69,6 +71,7 @@ pub async fn next_games(limit: i64) -> Result<Vec<QueueGame>> {
             game_ext_id: r.try_get(0).wrap_err("v2_game.ext_id")?,
             event_ext_id: r.try_get(1).wrap_err("v2_event.ext_id")?,
             teams: vec![],
+            tries: r.try_get(2).wrap_err("v2_game.details_tries")?,
         });
     }
     if games.is_empty() {

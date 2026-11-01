@@ -84,12 +84,18 @@ On start everything is fetched and saved once (live events are saved from the fi
 | v2 reference tables (`GetOtherLeagues` and `GetSeasonTournament` per locale + `GetLoLTeamOverview` → `v2_*`, alternative team images from the old `getTeams`) | 2 hours at :15 (first run at start) | `TRIFORCE_CRON_V2` |
 | v2 matches (`scheduleEvents` → `v2_event`, `v2_event_i18n`, `v2_event_team`, `v2_game`, `v2_stream`, game winners in `v2_game_team.result` (sweeps, and a score that went up by one win), last full pass in `v2_job_run`): the last 3 days and the next year on every run, the whole history from 2023-10 at most once a day. Starts after the first v2 reference run | 30 minutes at :05 and :35 (first run at start) | `TRIFORCE_CRON_V2_MATCHES` |
 | v2 live (`watchLiveQuery` → state, score, games, streams and the side of each game of the live matches, and the winner of a game when the score shows it, in `v2_game_team.result`). For each game being played, the live feed: when it really started and ended (`v2_game.start_time`/`end_time`) and each team's totals right now (`v2_game_team`, `side_source = 'feed'`, replaced by the final numbers once the game details are written). Sides written before a game are removed if the game ends up `unneeded`. A match that leaves the live answer is read again from the schedule every minute until it's `completed` (20 min at most, also when the schedule fails). The feed is read 90 s back (it refuses windows newer than 50 s), and a minute it has no stats for (404, or a window too recent) is just skipped. The API caches the answer 2 min, a score can be ~3 min old. Starts after the first v2 reference run | 1 minute (at :30 s) | `TRIFORCE_CRON_V2_LIVE`, `TRIFORCE_V2_LIVE=off` stops it |
-| v2 game details (live feed → sides, lineups with champions and roles, and the final stats in `v2_game_team` / `v2_game_player`; `watchVodQuery` sides when the feed has nothing): finished games without details, untried and newest first, about 1 game per second. Starts after the first v2 reference run. Stop and start any time, the queue is in the DB | all the time, 5 min pause when there's nothing left or after 5 failures in a row | `TRIFORCE_V2_DETAILS=off` stops only this |
+| v2 game details (live feed → sides, lineups with champions and roles, and the final stats in `v2_game_team` / `v2_game_player`; `watchVodQuery` sides when the feed has nothing, or still doesn't have 5 players a side on the second try): finished games without details, untried and newest first, about 1 game per second. Starts after the first v2 reference run. Stop and start any time, the queue is in the DB | all the time, 5 min pause when there's nothing left or after 5 failures in a row | `TRIFORCE_V2_DETAILS=off` stops only this |
 
 A game whose details fail waits 10 min, 40 min, 2 h 40 and 10 h 40 between tries, after 5 tries it leaves the queue. After a fix, put those games back:
 
 ```sql
 UPDATE v2_game SET details_tries = NULL, details_next_try = NULL WHERE details IS NULL;
+```
+
+Games taken as no feed (a 204, or a feed without 5 players a side) only get their sides. To try their feed again (this also asks again for the real 204 ones):
+
+```sql
+UPDATE v2_game SET details = NULL, details_tries = NULL, details_next_try = NULL WHERE details = 'no_feed';
 ```
 
 Defaults are in `src/schedules.rs`. The `TRIFORCE_CRON_*` variables take a cron expression with seconds (`sec min hour day month weekday`), useful to test a loop without waiting for its tick:

@@ -55,6 +55,19 @@ fn naive(t: DateTime<Utc>) -> chrono::NaiveDateTime {
     t.naive_utc()
 }
 
+const PLAYERS_A_SIDE: usize = 5;
+
+/// Players per side (blue, red) when the game's metadata (the one `from_feed` uses) doesn't
+/// have 5 a side. Some feeds stay broken for good (game 116878159559794392: 1 blue, 0 red)
+pub fn short_sides(game: i64, first: &Window, last: &Window) -> Result<Option<[usize; 2]>> {
+    let meta = checked_meta(game, first, last)?;
+    let sides = [
+        meta.blue_team_metadata.participant_metadata.len(),
+        meta.red_team_metadata.participant_metadata.len(),
+    ];
+    Ok((sides != [PLAYERS_A_SIDE; 2]).then_some(sides))
+}
+
 /// The match's team for blue and red, and (team in the answer, match team) when one was taken
 pub(crate) type Matched = ([i64; 2], Option<(i64, i64)>);
 
@@ -161,7 +174,7 @@ pub fn from_feed(
     // 5 players a side, participant ids 1-10 once each: anything else is a broken answer
     let mut seen = std::collections::HashSet::new();
     for (side, t) in &sides {
-        if t.participant_metadata.len() != 5 {
+        if t.participant_metadata.len() != PLAYERS_A_SIDE {
             return Err(eyre!(
                 "game {game_ext_id}: feed {side} has {} players",
                 t.participant_metadata.len()
@@ -510,6 +523,28 @@ mod tests {
             .participant_metadata[0]
             .participant_id = 1;
         assert!(from_feed(GAME, &teams(), &f, &last, &details).is_err());
+    }
+
+    #[test]
+    fn feed_without_5_players_a_side_is_short() {
+        let (first, last, _) = feed();
+        assert_eq!(short_sides(GAME, &first, &last).unwrap(), None);
+        // game 116878159559794392: 1 player blue, 0 red
+        let short = |w: &mut Window| {
+            let m = w.game_metadata.as_mut().unwrap();
+            m.blue_team_metadata.participant_metadata.truncate(1);
+            m.red_team_metadata.participant_metadata.clear();
+        };
+        let (mut f, last, _) = feed();
+        short(&mut f);
+        assert_eq!(short_sides(GAME, &f, &last).unwrap(), Some([1, 0]));
+        // no metadata in the first window: the last one's, like `from_feed`
+        let (mut f, mut l, _) = feed();
+        l.game_metadata = f.game_metadata.take();
+        short(&mut l);
+        assert_eq!(short_sides(GAME, &f, &l).unwrap(), Some([1, 0]));
+        // an answer for another game is an error, not a short feed
+        assert!(short_sides(GAME + 1, &first, &last).is_err());
     }
 
     #[test]
