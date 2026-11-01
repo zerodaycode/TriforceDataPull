@@ -51,19 +51,17 @@ pub struct DataPull {
 }
 
 impl DataPull {
-    pub fn new(gql: Option<Arc<Gql>>) -> Result<Self> {
-        let leagues_source = Source::from_env("TRIFORCE_SOURCE_LEAGUES")?;
+    pub fn new(gql: Option<Arc<Gql>>, leagues_source: Source, teams_source: Source) -> Self {
         client::log(format!(
             "Leagues and tournaments from the {leagues_source} API"
         ));
-        let teams_source = Source::from_env("TRIFORCE_SOURCE_TEAMS")?;
         client::log(format!("Teams and players from the {teams_source} API"));
-        Ok(Self {
+        Self {
             leagues_source,
             teams_source,
             gql,
             ..Default::default()
-        })
+        }
     }
 
     fn gql(&self) -> Result<&Gql> {
@@ -78,7 +76,10 @@ impl DataPull {
             .gql()?
             .call::<GetOtherLeagues>(&Default::default())
             .await
-            .with_context(|| "A failure happened retrieving GetOtherLeagues from lolesports.com")?;
+            .with_context(|| {
+                "A failure happened retrieving GetOtherLeagues from lolesports.com \
+                 (TRIFORCE_SOURCE_LEAGUES=old reads the old API)"
+            })?;
         // the CDN can serve an older copy, the time helps to spot it
         client::log(format!("GetOtherLeagues answer made at {}", answer.made_at));
         from_other_leagues(answer.data)
@@ -90,9 +91,10 @@ impl DataPull {
             .gql()?
             .call::<GetLoLTeamOverview>(&Default::default())
             .await
-            .with_context(
-                || "A failure happened retrieving GetLoLTeamOverview from lolesports.com",
-            )?;
+            .with_context(|| {
+                "A failure happened retrieving GetLoLTeamOverview from lolesports.com \
+                 (TRIFORCE_SOURCE_TEAMS=old reads the old API)"
+            })?;
         client::log(format!(
             "GetLoLTeamOverview answer made at {}",
             answer.made_at

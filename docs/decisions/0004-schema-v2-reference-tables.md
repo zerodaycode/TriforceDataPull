@@ -24,7 +24,7 @@ The v1 tables follow the old API: names in one language, teams found by name, no
   - Names in several languages without touching v1.
   - Unchanged rows are not rewritten.
 - Bad:
-  - While a v1 source is `new` the API is called twice for the same data (accepted while v1 lives).
+  - With the default v1 sources (`new`, since 2026-11-01) the API is called twice for the same data (accepted while v1 lives).
   - No transaction across statements (Canyon), a failed run can leave part of the data written until the next run.
   - The tables are created even with `TRIFORCE_V2=off`.
   - Every v2 run also calls the old `getTeams` for `alt_image_url`. When the old API goes away the stored values stay, they just stop updating.

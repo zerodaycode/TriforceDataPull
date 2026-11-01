@@ -26,6 +26,8 @@ Move the reads to the GraphQL API, one data set at a time, keeping the old API a
 3. Schedule: `scheduleEvents`.
 4. Live and event details: `watchLiveQuery` + `watchVodQuery` (checked live on 2026-10-16). The adapter sets the event `state` itself.
 
+Steps 1 and 2 are the default since 2026-11-01 (`TRIFORCE_SOURCE_LEAGUES` / `TRIFORCE_SOURCE_TEAMS` = `new`). `old` stays as fallback until this ADR is accepted.
+
 The query hashes are kept in a manifest file next to Triforce (not in the repo). Triforce downloads it again from the site when a hash is unknown, and logs `GQL_MANIFEST:` when that fails or when a query we use changed. If we need live in-game stats later, they come from the old feed.
 
 The adapters keep the time each answer was made (Netlify: `Date - Age`) per operation and match, in memory in the live loop, and ignore answers older than the newest one. The old API served an older copy after a newer one during the live check, so this applies to both APIs. Two operations can disagree with the same answer time, so state and score never go back whatever the operation. Live wins are copied by team id, not by position in the array.
@@ -49,7 +51,7 @@ Triforce sends the site headers only (no custom `User-Agent`, the API doesn't ne
 - [ ] Tier 2/3 behavior (P1-P3) in the new API.
 - [x] Tournament dates: our `start_date`/`end_date` are the UTC date of `startTime`/`endTime` in all 513 (2026-10-16). Take the UTC date, no column change.
 - [ ] `team.alt_image_url`: there is no `alternativeImage` in the new API and `update()` writes the whole row. 1,325 teams have one. Keep the stored value or drop the column.
-  Until we find another source, Triforce keeps the stored value when it reads teams from the new API (2026-10-17).
+  Until we find another source, Triforce keeps the stored value when it reads teams from the new API (2026-10-17). This is the default since 2026-11-01.
 - [ ] TBD slots: the new schedule sends `teamId: "0"` there, today we link a "TBD" team. Decide: NULL (and remove the TBD rows) or keep a placeholder. Removing them means: the teams sync skips them (`GetLoLTeamOverview` returns 3 TBD teams), both schedule team columns set to NULL first, and `team_right_id` gets the foreign key `team_left_id` already has.
 - [ ] Shows: check that `EventShow.startTime` gives the same values we match on today, or add an `ext_id` to `schedule`.
 

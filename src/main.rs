@@ -116,9 +116,11 @@ fn main() -> Result<()> {
         live: live_schedule,
     } = schedules::all_from_env()?;
     client::log(format!("v2 tables: {}", if v2 { "on" } else { "off" }));
+    // both read before anything runs: a bad value stops the start, not a v2 run halfway
+    let leagues_source = client::Source::from_env("TRIFORCE_SOURCE_LEAGUES")?;
+    let teams_source = client::Source::from_env("TRIFORCE_SOURCE_TEAMS")?;
     // one GraphQL client for the v1 sources set to new and the v2 loop
-    let v1_new = client::Source::from_env("TRIFORCE_SOURCE_LEAGUES")? == client::Source::New
-        || client::Source::from_env("TRIFORCE_SOURCE_TEAMS")? == client::Source::New;
+    let v1_new = leagues_source == client::Source::New || teams_source == client::Source::New;
     let gql = (v2 || v1_new).then(|| {
         Arc::new(client::gql::Gql::new(
             client::http(),
@@ -185,7 +187,11 @@ fn main() -> Result<()> {
         );
     }
 
-    let data_pull = Arc::new(Mutex::new(service::DataPull::new(gql.clone())?));
+    let data_pull = Arc::new(Mutex::new(service::DataPull::new(
+        gql.clone(),
+        leagues_source,
+        teams_source,
+    )));
     let database_ops = Arc::new(Mutex::new(dao::DatabaseOps::default()));
 
     println!(

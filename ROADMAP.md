@@ -5,8 +5,8 @@ Things we want to do. Priority: High / Medium / Low.
 ## API migration
 See [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (proposed) and the [migration map](docs/investigations/2026-10-16-lolesports-api-migration-map.md).
 - [ ] [High] Close the [ADR 0003 open points](docs/decisions/0003-migrate-to-lolesports-graphql-api.md#open-before-accepting) (Rust spike, hash refresh, tier 2/3, `alt_image_url`, TBD, shows)
-- [ ] [High] Leagues and tournaments from `GetOtherLeagues`: done behind `TRIFORCE_SOURCE_LEAGUES=new`. Left: make `new` the default
-- [ ] [Medium] Teams and players from `GetLoLTeamOverview`: done behind `TRIFORCE_SOURCE_TEAMS=new`. Left: link `homeLeague.id` instead of the name lookup, and make `new` the default
+- [x] [High] Leagues and tournaments from `GetOtherLeagues`, `TRIFORCE_SOURCE_LEAGUES=new` by default
+- [ ] [Medium] Teams and players from `GetLoLTeamOverview`: `TRIFORCE_SOURCE_TEAMS=new` by default. Left: link `homeLeague.id` instead of the name lookup
 - [ ] [Medium] Schedule from `scheduleEvents`, use league and team ids instead of slug/name lookups
 - [x] [Medium] Keep the query manifest up to date and alert when a hash stops working
 - [ ] [Low] Live and event details from `watchLiveQuery` + `watchVodQuery` (checked live on 2026-10-16), the adapter sets `state` itself

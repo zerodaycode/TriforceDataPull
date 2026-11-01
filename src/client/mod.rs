@@ -94,9 +94,9 @@ pub async fn read_text_max(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Source {
     /// esports-api.lolesports.com
-    #[default]
     Old,
     /// lolesports.com GraphQL
+    #[default]
     New,
 }
 
@@ -109,12 +109,19 @@ impl Source {
         }
     }
 
-    /// Reads `var` (`old` or `new`), not set means `old`
+    /// Reads `var` (`old` or `new`), not set means `new`
     pub fn from_env(var: &str) -> color_eyre::Result<Self> {
         match crate::env::var(var) {
-            Err(std::env::VarError::NotPresent) => Ok(Self::Old),
+            Err(std::env::VarError::NotPresent) => Self::from_value(var, None),
             Err(e) => Err(color_eyre::eyre::eyre!("{var}: {e}")),
-            Ok(v) => Self::parse(&v)
+            Ok(v) => Self::from_value(var, Some(&v)),
+        }
+    }
+
+    fn from_value(var: &str, value: Option<&str>) -> color_eyre::Result<Self> {
+        match value {
+            None => Ok(Self::default()),
+            Some(v) => Self::parse(v)
                 .ok_or_else(|| color_eyre::eyre::eyre!("{var} must be old or new, got {v:?}")),
         }
     }
@@ -151,6 +158,15 @@ mod tests {
         assert_eq!(Source::parse("new"), Some(Source::New));
         assert_eq!(Source::parse(" NEW "), Some(Source::New));
         assert_eq!(Source::parse("graphql"), None);
-        assert_eq!(Source::default(), Source::Old);
+        assert_eq!(Source::default(), Source::New);
+    }
+
+    #[test]
+    fn source_from_value() {
+        let v = "TRIFORCE_SOURCE_TEAMS";
+        assert_eq!(Source::from_value(v, None).unwrap(), Source::New);
+        assert_eq!(Source::from_value(v, Some("old")).unwrap(), Source::Old);
+        let e = Source::from_value(v, Some("nwe")).unwrap_err().to_string();
+        assert_eq!(e, r#"TRIFORCE_SOURCE_TEAMS must be old or new, got "nwe""#);
     }
 }

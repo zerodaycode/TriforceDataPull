@@ -60,9 +60,9 @@ cargo run -- --env env/dev.env
 
 | Variable | Default | Use |
 |---|---|---|
-| `TRIFORCE_SOURCE_LEAGUES` | `old` | `new` takes leagues and tournaments from the lolesports.com GraphQL API |
-| `TRIFORCE_SOURCE_TEAMS` | `old` | `new` takes teams and players from `GetLoLTeamOverview` |
-| `TRIFORCE_V2` | `on` | `off` stops filling the `v2_*` tables and skips their startup SQL. Canyon still creates the tables |
+| `TRIFORCE_SOURCE_LEAGUES` | `new` | Leagues and tournaments from the lolesports.com GraphQL API. The first start downloads the query manifest from the site, the app stops if GraphQL fails at start. `old` takes them from the old API |
+| `TRIFORCE_SOURCE_TEAMS` | `new` | Teams and players from `GetLoLTeamOverview`. The new API has no alternative image: stored ones are kept, new teams get none. `old` takes them from the old API |
+| `TRIFORCE_V2` | `on` | `off` stops filling the `v2_*` tables and skips their startup SQL. Canyon still creates the tables. No GraphQL call at all also needs both `TRIFORCE_SOURCE_*=old` |
 | `TRIFORCE_V2_DETAILS` | `on` | `off` stops only the game details from the live feed (`TRIFORCE_V2` must be `on` for them) |
 | `TRIFORCE_V2_LIVE` | `on` | `off` stops only the v2 live matches loop (`TRIFORCE_V2` must be `on` for it) |
 | `TRIFORCE_LOCALES` | (none) | Extra locales for the v2 names and match block names (each one reads `scheduleEvents` again), comma list like `es-ES,ko-KR`. `en-US` is always pulled. A locale the API doesn't know comes back in English and is skipped |

@@ -9,8 +9,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - README, roadmap, development workflow, decisions and investigations in `docs/`.
 - Investigations of the old LoL Esports API, the live feed and the new lolesports.com GraphQL API, with a migration map, a live check and a data comparison between both APIs, and [ADR 0003](docs/decisions/0003-migrate-to-lolesports-graphql-api.md) (proposed).
 - `tools/lolesports-explorer/`: Python tools to call and record both APIs, the query manifest and a Bruno collection.
-- Leagues and tournaments can come from the lolesports.com GraphQL API (`TRIFORCE_SOURCE_LEAGUES=new`), one call instead of 52.
-- Teams and players can come from the lolesports.com GraphQL API (`TRIFORCE_SOURCE_TEAMS=new`). The stored alternative image is kept, the new API doesn't have it.
+- `TRIFORCE_SOURCE_LEAGUES` (`new`/`old`): leagues and tournaments from the lolesports.com GraphQL API take one call instead of 52.
+- `TRIFORCE_SOURCE_TEAMS` (`new`/`old`): teams and players from the lolesports.com GraphQL API. The stored alternative image is kept, the new API doesn't have it.
 - GraphQL query manifest kept in `gql-manifest.json`, downloaded again when a query hash stops working, or with `cargo run -- refresh-manifest`.
 - v2 reference tables (`v2_*`), created by the Canyon migrations and filled from the new API at start and every 2 hours. On by default, `TRIFORCE_V2=off` stops the filling and the startup SQL. Names in `en-US` plus `TRIFORCE_LOCALES` (like `es-ES,ko-KR`). Unique indexes and checks Canyon can't create are in `src/dao/v2/schema.sql`, the app doesn't start if they fail. Stage names in every locale come from `GetSeasonTournament`. Alternative team images come from the old API. Player photos that are only a placeholder are stored as `NULL`. See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) (proposed).
 - v2 match tables (`v2_event`, `v2_event_i18n`, `v2_event_team`, `v2_game`, `v2_stream`) from `scheduleEvents`: the last 3 days and the next year every 30 minutes (`TRIFORCE_CRON_V2_MATCHES`), the whole history from 2023-10 at most once a day. Teams by id, TBD as `NULL`, an answer with a lower state, score or outcome than what we have is skipped. See [ADR 0005](docs/decisions/0005-v2-matches-and-game-details.md) (proposed).
@@ -20,6 +20,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `TRIFORCE_CRON_<LOOP>` to change the schedule of a loop, like `TRIFORCE_CRON_V2="0 * * ? * *"` to run v2 every minute when testing.
 
 ### Changed
+- Leagues, tournaments, teams and players come from the lolesports.com GraphQL API by default. `TRIFORCE_SOURCE_LEAGUES=old` and `TRIFORCE_SOURCE_TEAMS=old` go back to the old API. With `new`, `team.alt_image_url` keeps the stored value and new teams get none. The first start downloads the query manifest, and the app stops if GraphQL fails at start. `TRIFORCE_V2=off` alone no longer stops the GraphQL calls, set both sources to `old` too.
 - Test data moved from `src/**/testdata/` to `tests/fixtures/`.
 - Rust edition 2021 → 2024.
 - New dependency: sha2 0.11.1, to check the manifest hashes.
