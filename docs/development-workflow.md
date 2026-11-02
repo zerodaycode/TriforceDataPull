@@ -20,6 +20,8 @@ refactor(dao): migrate to Canyon-SQL develop branch API
 
 The why goes to `docs/decisions` or `docs/investigations`, not to the commit.
 
+Every commit on a branch follows this, so the branch can go to a PR as it is. A commit that isn't finished ends with a short `WIP: <a few words>` line.
+
 ## Before merging
 
 1. Review the changes.
