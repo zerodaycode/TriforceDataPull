@@ -126,7 +126,7 @@ impl From<Report> for WalkError {
 }
 
 /// `window` and `details` must start and end within this of each other
-const ENDS_MATCH: TimeDelta = TimeDelta::seconds(2);
+const ENDS_MATCH: TimeDelta = TimeDelta::seconds(10);
 /// A walk goes on until this close to the game's known end
 const END_SLACK: TimeDelta = TimeDelta::seconds(10);
 
