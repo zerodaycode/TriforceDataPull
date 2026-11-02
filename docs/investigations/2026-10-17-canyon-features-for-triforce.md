@@ -98,7 +98,7 @@ pub damage_share: Option<f64>, // → double precision
 |---|---|---|---|
 | 5 | Upsert (`ON CONFLICT`) | small generic builder with raw SQL, FKs resolved with `(SELECT id FROM t WHERE ext_id = $n)` | `src/dao/v2/upsert/mod.rs` |
 | 6 | Multi-row insert | `VALUES` lists, batches under 65535 params | `src/dao/v2/upsert/mod.rs` (`run`) |
-| 7 | DB transactions | one statement with CTEs where it must be atomic | `src/dao/v2/reference.rs` (`sync_team_players`) |
+| 7 | DB transactions | one statement with CTEs where it must be atomic | `src/dao/v2/reference.rs` (`sync_team_players`), `src/dao/team_player_sync.rs` (`sync`) |
 | 8 | Multi-statement execute | split the SQL file and run one by one | `src/dao/v2/schema.rs` (`statements`) |
 | 9 | Partial update | v1 keeps the stored value before `update()`, v2 leaves columns out of the upsert | `src/dao/models/teams.rs` (`keep_alt_image_from`), `src/dao/v2/reference.rs` (`TEAM`) |
 | 19 | `Crud` derive without the FK target in scope | `use super::<file>::<Struct>;` in FK entities | `src/dao/v2/models/*` |

@@ -20,6 +20,8 @@ refactor(dao): migrate to Canyon-SQL develop branch API
 
 The why goes to `docs/decisions` or `docs/investigations`, not to the commit.
 
+Every commit on a branch follows this, so the branch can go to a PR as it is. A commit that isn't finished ends with a short `WIP: <a few words>` line.
+
 ## Before merging
 
 1. Review the changes.
@@ -37,3 +39,4 @@ The why goes to `docs/decisions` or `docs/investigations`, not to the commit.
 | A decision with trade-offs | new ADR in `docs/decisions/` from `0000-template.md`. A proposed ADR can be updated until it's accepted, after that don't edit it, write a new one that supersedes it |
 | Research behind a decision | `docs/investigations/YYYY-MM-DD-topic.md`, linked from the ADR |
 | Plans change | `ROADMAP.md`, with `[High]`/`[Medium]`/`[Low]` |
+| A `v2_*` table, column, check, state, fill logic, schedule or switch | the matching file in `docs/data/`, in the same branch. Check: columns match the entities and `schema.sql`, how it's filled, states, relations, the SQL examples still run, "What isn't there" is still true |

@@ -1,5 +1,7 @@
 pub mod v2;
 pub mod v2_details;
+pub mod v2_frames;
+pub mod v2_frames_live;
 pub mod v2_live;
 pub mod v2_matches;
 
@@ -51,19 +53,17 @@ pub struct DataPull {
 }
 
 impl DataPull {
-    pub fn new(gql: Option<Arc<Gql>>) -> Result<Self> {
-        let leagues_source = Source::from_env("TRIFORCE_SOURCE_LEAGUES")?;
+    pub fn new(gql: Option<Arc<Gql>>, leagues_source: Source, teams_source: Source) -> Self {
         client::log(format!(
             "Leagues and tournaments from the {leagues_source} API"
         ));
-        let teams_source = Source::from_env("TRIFORCE_SOURCE_TEAMS")?;
         client::log(format!("Teams and players from the {teams_source} API"));
-        Ok(Self {
+        Self {
             leagues_source,
             teams_source,
             gql,
             ..Default::default()
-        })
+        }
     }
 
     fn gql(&self) -> Result<&Gql> {
@@ -78,7 +78,10 @@ impl DataPull {
             .gql()?
             .call::<GetOtherLeagues>(&Default::default())
             .await
-            .with_context(|| "A failure happened retrieving GetOtherLeagues from lolesports.com")?;
+            .with_context(|| {
+                "A failure happened retrieving GetOtherLeagues from lolesports.com \
+                 (TRIFORCE_SOURCE_LEAGUES=old reads the old API)"
+            })?;
         // the CDN can serve an older copy, the time helps to spot it
         client::log(format!("GetOtherLeagues answer made at {}", answer.made_at));
         from_other_leagues(answer.data)
@@ -90,9 +93,10 @@ impl DataPull {
             .gql()?
             .call::<GetLoLTeamOverview>(&Default::default())
             .await
-            .with_context(
-                || "A failure happened retrieving GetLoLTeamOverview from lolesports.com",
-            )?;
+            .with_context(|| {
+                "A failure happened retrieving GetLoLTeamOverview from lolesports.com \
+                 (TRIFORCE_SOURCE_TEAMS=old reads the old API)"
+            })?;
         client::log(format!(
             "GetLoLTeamOverview answer made at {}",
             answer.made_at
@@ -131,6 +135,8 @@ impl DataPull {
             // filled by fetch_leagues from the same answer
             return Ok(());
         }
+        // replaced, not extended: each run used to add a full copy
+        let mut tournaments = Vec::new();
         for league in &self.leagues.leagues {
             println!(
                 "{} - Fetching Tournaments for League ID: {:?}",
@@ -151,11 +157,11 @@ impl DataPull {
                         .tournaments
                         .iter_mut()
                         .for_each(|e| e.league_id = league.id);
-                    self.tournaments.extend(tournaments_in_league.tournaments)
+                    tournaments.extend(tournaments_in_league.tournaments)
                 })
                 .with_context(|| "A failure happened parsing the Tournaments from Lolesports")?;
         }
-
+        self.tournaments = tournaments;
         Ok(())
     }
 
@@ -165,7 +171,6 @@ impl DataPull {
             Local::now().format("%Y-%m-%d %H:%M:%S.%f")
         );
         if self.teams_source == Source::New {
-            // replaced, not extended (the old path keeps adding copies, ROADMAP)
             (self.teams, self.players) = self.fetch_team_overview().await?;
             return Ok(());
         }
@@ -175,17 +180,20 @@ impl DataPull {
                 || "A failure happened retrieving the Teams and players from Lolesports",
             )?;
 
-        serde_json::from_str::<Wrapper<TeamsPlayers>>(&body)
-            .map(|parsed| {
-                for mut team in parsed.data.teams {
-                    if let Some(home_league) = &mut team.home_league {
-                        home_league.league_id = self.search_league_by_name(&home_league.name);
-                    }
-                    self.teams.push(team.clone());
-                    self.players.extend(team.players)
-                }
-            })
-            .with_context(|| "A failure happened parsing the Tournaments from Lolesports")
+        let parsed = serde_json::from_str::<Wrapper<TeamsPlayers>>(&body)
+            .with_context(|| "A failure happened parsing the Teams from Lolesports")?;
+        // replaced, not extended: each run used to add a full copy
+        let mut teams = Vec::with_capacity(parsed.data.teams.len());
+        let mut players = Vec::new();
+        for mut team in parsed.data.teams {
+            if let Some(home_league) = &mut team.home_league {
+                home_league.league_id = self.search_league_by_name(&home_league.name);
+            }
+            players.extend(team.players.iter().cloned());
+            teams.push(team);
+        }
+        (self.teams, self.players) = (teams, players);
+        Ok(())
     }
 
     pub async fn fetch_current_page_schedule(&mut self) -> Result<()> {

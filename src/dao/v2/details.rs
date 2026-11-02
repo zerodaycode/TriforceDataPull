@@ -22,6 +22,8 @@ pub struct QueueGame {
     pub game_ext_id: i64,
     pub event_ext_id: i64,
     pub teams: Vec<(i64, String)>,
+    /// Failed tries so far
+    pub tries: i32,
 }
 
 /// Feed players we don't have: added with what the feed knows, never changed from here
@@ -51,15 +53,17 @@ async fn rows(
 }
 
 /// Finished games without details, with tries left and past their wait, untried and newest
-/// match first
-pub async fn next_games(limit: i64) -> Result<Vec<QueueGame>> {
+/// match first. `backfill` off: only matches of the last `RECENT_DAYS` (or without a start time)
+pub async fn next_games(limit: i64, backfill: bool) -> Result<Vec<QueueGame>> {
+    let recent_days = crate::backfill::RECENT_DAYS;
     let found = rows(
-        "SELECT g.ext_id, e.ext_id FROM v2_game g JOIN v2_event e ON e.id = g.event_id \
+        "SELECT g.ext_id, e.ext_id, COALESCE(g.details_tries, 0) FROM v2_game g JOIN v2_event e ON e.id = g.event_id \
          WHERE g.state = 'completed' AND g.details IS NULL AND COALESCE(g.details_tries, 0) < $1::int \
            AND (g.details_next_try IS NULL OR g.details_next_try <= now() AT TIME ZONE 'UTC') \
+           AND ($3::bool OR e.start_time IS NULL OR e.start_time >= (now() AT TIME ZONE 'UTC') - make_interval(days => $4::int)) \
          ORDER BY COALESCE(g.details_tries, 0), e.start_time DESC NULLS LAST, e.ext_id, g.number \
          LIMIT $2::bigint",
-        &[&MAX_TRIES, &limit],
+        &[&MAX_TRIES, &limit, &backfill, &recent_days],
         "v2_game queue",
     )
     .await?;
@@ -69,6 +73,7 @@ pub async fn next_games(limit: i64) -> Result<Vec<QueueGame>> {
             game_ext_id: r.try_get(0).wrap_err("v2_game.ext_id")?,
             event_ext_id: r.try_get(1).wrap_err("v2_event.ext_id")?,
             teams: vec![],
+            tries: r.try_get(2).wrap_err("v2_game.details_tries")?,
         });
     }
     if games.is_empty() {
@@ -655,13 +660,26 @@ mod tests {
         let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
         setup().await;
         // the queue has the 4 completed test games (and real ones): ours are there with teams
-        let q = next_games(100_000).await.unwrap();
+        let q = next_games(100_000, true).await.unwrap();
         let g = q.iter().find(|g| g.game_ext_id == -320).unwrap();
         assert_eq!(
             g.teams,
             [(-302, "BT".to_string()), (-303, "RT".to_string())]
         );
         assert!(!q.iter().any(|g| g.game_ext_id == -322));
+        // backfill off: an old match leaves the queue, a recent one stays
+        "".execute("UPDATE v2_event SET start_time = (now() AT TIME ZONE 'UTC') - interval '10 days' WHERE ext_id = -310", &[]).await.unwrap();
+        "".execute("UPDATE v2_event SET start_time = (now() AT TIME ZONE 'UTC') - interval '1 day' WHERE ext_id = -311", &[]).await.unwrap();
+        let recent = next_games(100_000, false).await.unwrap();
+        assert!(!recent.iter().any(|g| g.game_ext_id == -320));
+        assert!(recent.iter().any(|g| g.game_ext_id == -323));
+        assert!(
+            next_games(100_000, true)
+                .await
+                .unwrap()
+                .iter()
+                .any(|g| g.game_ext_id == -320)
+        );
         // a player we don't have: nothing is marked done
         let row = details(-320, 10);
         let err = write_details(&row).await.unwrap_err();
@@ -721,11 +739,11 @@ mod tests {
         );
         // a failed try waits before the next one; the 5th takes the game out of the queue
         let in_queue = |q: Vec<QueueGame>| q.iter().any(|g| g.game_ext_id == -323);
-        assert!(in_queue(next_games(100_000).await.unwrap()));
+        assert!(in_queue(next_games(100_000, true).await.unwrap()));
         for i in 1..=MAX_TRIES {
             assert_eq!(bump_tries(-323).await.unwrap(), i);
             assert!(
-                !in_queue(next_games(100_000).await.unwrap()),
+                !in_queue(next_games(100_000, true).await.unwrap()),
                 "waiting after try {i}"
             );
             "".execute(
@@ -735,7 +753,7 @@ mod tests {
             .await
             .unwrap();
         }
-        assert!(!in_queue(next_games(100_000).await.unwrap()));
+        assert!(!in_queue(next_games(100_000, true).await.unwrap()));
         // sweep: -310 (2-0) gets results, -311 (1-1) doesn't
         write_vod_sides(&[GameSides {
             game_ext_id: -324,

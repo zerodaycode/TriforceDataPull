@@ -14,12 +14,17 @@ use color_eyre::{Result, eyre::eyre};
 static FILE: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 /// Every setting besides the `TRIFORCE_CRON_<loop>` ones (`schedules::LOOPS`)
-const SETTINGS: &[&str] = &[
+pub const SETTINGS: &[&str] = &[
     "TRIFORCE_SOURCE_LEAGUES",
     "TRIFORCE_SOURCE_TEAMS",
     "TRIFORCE_V2",
     "TRIFORCE_V2_DETAILS",
     "TRIFORCE_V2_LIVE",
+    "TRIFORCE_V2_FRAMES",
+    "TRIFORCE_V2_FRAMES_LIVE",
+    "TRIFORCE_BACKFILL_MATCHES",
+    "TRIFORCE_BACKFILL_DETAILS",
+    "TRIFORCE_BACKFILL_FRAMES",
     "TRIFORCE_LOCALES",
     "TRIFORCE_GQL_MANIFEST",
 ];
@@ -31,13 +36,24 @@ fn is_known(name: &str) -> bool {
             .is_some_and(|l| crate::schedules::LOOPS.iter().any(|(n, _)| *n == l))
 }
 
+/// `rebuild-timeline`: which games
+#[derive(Debug, Clone, PartialEq)]
+pub enum Rebuild {
+    All,
+    Games(Vec<i64>),
+}
+
 #[derive(Debug, Default, PartialEq)]
 pub struct Cli {
     pub env_file: Option<PathBuf>,
     pub refresh_manifest: bool,
+    pub rebuild: Option<Rebuild>,
 }
 
-/// `[--env <file>] [refresh-manifest]`, in any order
+const USAGE: &str =
+    "[--env <file>] [refresh-manifest | rebuild-timeline (--all | <game ext id>...)]";
+
+/// `[--env <file>] [refresh-manifest | rebuild-timeline (--all | <game ext id>...)]`, in any order
 pub fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Cli> {
     let mut cli = Cli::default();
     let mut args = args.into_iter();
@@ -45,7 +61,10 @@ pub fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Cli> {
         match a.as_str() {
             "--env" => {
                 let file = args.next().ok_or_else(|| eyre!("--env needs a file"))?;
-                if file == "refresh-manifest" || file.starts_with("--") {
+                if file == "refresh-manifest"
+                    || file == "rebuild-timeline"
+                    || file.starts_with("--")
+                {
                     return Err(eyre!("--env needs a file, got {file:?}"));
                 }
                 if cli.env_file.replace(file.into()).is_some() {
@@ -53,12 +72,32 @@ pub fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Cli> {
                 }
             }
             "refresh-manifest" => cli.refresh_manifest = true,
-            other => {
-                return Err(eyre!(
-                    "unknown argument {other:?}, expected [--env <file>] [refresh-manifest]"
-                ));
+            "rebuild-timeline" => {
+                if cli.rebuild.replace(Rebuild::Games(vec![])).is_some() {
+                    return Err(eyre!("rebuild-timeline given twice"));
+                }
             }
+            "--all" => match &cli.rebuild {
+                Some(Rebuild::Games(ids)) if ids.is_empty() => cli.rebuild = Some(Rebuild::All),
+                Some(_) => return Err(eyre!("rebuild-timeline: --all or game ids, not both")),
+                None => return Err(eyre!("--all only goes with rebuild-timeline")),
+            },
+            other => match (&mut cli.rebuild, other.parse::<i64>()) {
+                (Some(Rebuild::Games(ids)), Ok(id)) => ids.push(id),
+                (Some(Rebuild::All), Ok(_)) => {
+                    return Err(eyre!("rebuild-timeline: --all or game ids, not both"));
+                }
+                _ => return Err(eyre!("unknown argument {other:?}, expected {USAGE}")),
+            },
         }
+    }
+    if cli.rebuild == Some(Rebuild::Games(vec![])) {
+        return Err(eyre!("rebuild-timeline needs --all or game ext ids"));
+    }
+    if cli.refresh_manifest && cli.rebuild.is_some() {
+        return Err(eyre!(
+            "refresh-manifest and rebuild-timeline: one at a time"
+        ));
     }
     Ok(cli)
 }
@@ -188,6 +227,32 @@ mod tests {
     }
 
     #[test]
+    fn rebuild_args() {
+        assert_eq!(
+            p(&["rebuild-timeline", "--all"]).unwrap().rebuild,
+            Some(Rebuild::All)
+        );
+        let cli = p(&["--env", "x.env", "rebuild-timeline", "1", "-2"]).unwrap();
+        assert_eq!(cli.rebuild, Some(Rebuild::Games(vec![1, -2])));
+        assert!(cli.env_file.is_some());
+        assert_eq!(
+            p(&["rebuild-timeline", "3", "--env", "x.env"])
+                .unwrap()
+                .rebuild,
+            Some(Rebuild::Games(vec![3]))
+        );
+        assert!(p(&["rebuild-timeline"]).is_err());
+        assert!(p(&["rebuild-timeline", "--all", "1"]).is_err());
+        assert!(p(&["rebuild-timeline", "1", "--all"]).is_err());
+        assert!(p(&["rebuild-timeline", "x"]).is_err());
+        assert!(p(&["--all"]).is_err());
+        assert!(p(&["1"]).is_err());
+        assert!(p(&["rebuild-timeline", "--all", "rebuild-timeline"]).is_err());
+        assert!(p(&["refresh-manifest", "rebuild-timeline", "--all"]).is_err());
+        assert!(p(&["--env", "rebuild-timeline"]).is_err());
+    }
+
+    #[test]
     fn file_values_and_the_process_wins() {
         let vars = parse(
             "# comment\nTRIFORCE_TEST_ONLY_A=from-file\nPATH=nope\n".as_bytes(),
@@ -273,6 +338,9 @@ mod tests {
         );
         assert_eq!(read["TRIFORCE_GQL_MANIFEST"], DEFAULT_PATH);
         assert!(parse_switch("TRIFORCE_V2_LIVE", Some(&read["TRIFORCE_V2_LIVE"])).unwrap());
+        for v in ["TRIFORCE_V2_FRAMES", "TRIFORCE_V2_FRAMES_LIVE"] {
+            assert!(parse_switch(v, Some(&read[v])).unwrap(), "{v}");
+        }
         assert_eq!(
             parse_switch("TRIFORCE_V2_DETAILS", Some(&read["TRIFORCE_V2_DETAILS"])).unwrap(),
             parse_switch("TRIFORCE_V2_DETAILS", None).unwrap()

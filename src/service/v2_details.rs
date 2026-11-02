@@ -4,13 +4,16 @@
 
 use std::{sync::Arc, time::Duration};
 
-use color_eyre::{Result, eyre::eyre};
+use color_eyre::{
+    Result,
+    eyre::{WrapErr, eyre},
+};
 use tokio::time::{Instant, sleep};
 
 use crate::{
     client::{
         adapters::v2::{
-            details::{from_feed, from_vod},
+            details::{from_feed, from_vod, short_sides},
             remap_sides,
         },
         feed,
@@ -49,7 +52,8 @@ enum Outcome {
     NoFeed,
 }
 
-/// No feed (204): the sides of the match's finished games from `watchVodQuery`
+/// No feed (204), or one without 5 players a side: the sides of the match's finished games from
+/// `watchVodQuery`
 async fn from_watch_vod(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
     let vars = watch_vod::Vars {
         event_id: g.event_ext_id.to_string(),
@@ -99,6 +103,22 @@ async fn one_game(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
     let (last, _) = feed::window(g.game_ext_id, Some(&at))
         .await?
         .ok_or_else(|| eyre!("game {}: last window empty", g.game_ext_id))?;
+    if let Some([blue, red]) = short_sides(g.game_ext_id, &first, &last)? {
+        // one normal try first: a feed short only for a while keeps its stats
+        if g.tries == 0 {
+            return Err(eyre!(
+                "game {}: feed has {blue} blue and {red} red players",
+                g.game_ext_id
+            ));
+        }
+        log(format!(
+            "v2 details: game {}: feed has {blue} blue and {red} red players, taken as no feed",
+            g.game_ext_id
+        ));
+        return from_watch_vod(gql, g)
+            .await
+            .wrap_err_with(|| format!("feed with {blue} blue and {red} red players"));
+    }
     let details = feed::details(g.game_ext_id, &at)
         .await?
         .ok_or_else(|| eyre!("game {}: details empty", g.game_ext_id))?;
@@ -115,11 +135,11 @@ async fn one_game(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
 }
 
 /// Never returns. Each game in its own task: a panic is one failed try, not the loop
-pub async fn details_loop(gql: Arc<Gql>) {
+pub async fn details_loop(gql: Arc<Gql>, backfill: bool) {
     let mut stats = Stats::default();
     let mut fails_in_a_row = 0;
     loop {
-        let games = match next_games(BATCH).await {
+        let games = match next_games(BATCH, backfill).await {
             Ok(g) => g,
             Err(e) => {
                 log(format!("v2 details: queue not read: {e:#}"));

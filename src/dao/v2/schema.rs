@@ -63,7 +63,7 @@ mod tests {
                 "ALTER TABLE t\n  ADD CONSTRAINT c CHECK (x > 0);"
             ]
         );
-        assert_eq!(statements(SQL).len(), 51);
+        assert_eq!(statements(SQL).len(), 80);
     }
 
     #[test]
@@ -75,6 +75,7 @@ mod tests {
             ("v2_event_strategy", STRATEGIES),
             ("v2_event_match_type", MATCH_TYPES),
             ("v2_event_team_outcome", OUTCOMES),
+            ("v2_game_frames_state", FRAMES_STATES),
         ] {
             let line = SQL
                 .lines()
@@ -113,20 +114,123 @@ mod tests {
             "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname LIKE 'v2\\_%' AND indexname NOT LIKE '%\\_pkey'",
             &[],
         ).await?;
-        assert_eq!(n, 32);
+        assert_eq!(n, 36);
         let c: i64 = ""
             .query_one_for(
                 "SELECT count(*) FROM pg_constraint WHERE contype = 'c' AND conname LIKE 'v2\\_%'",
                 &[],
             )
             .await?;
-        assert_eq!(c, 18);
+        assert_eq!(c, 27);
         // the SQL ranks are the Rust ones
         for st in ["unstarted", "inProgress", "completed", "unneeded", "other"] {
             let db: i32 = ""
                 .query_one_for("SELECT v2_state_rank($1)", &[&st.to_string()])
                 .await?;
             assert_eq!(db, crate::dao::v2::rows::state_rank(st), "{st}");
+        }
+    }
+
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn frames_tables_reject_bad_rows() {
+        let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
+        apply().await.unwrap();
+        // the archive is stored as it comes, Postgres doesn't compress it again
+        let storage: String = ""
+            .query_one_for(
+                "SELECT attstorage::text FROM pg_attribute WHERE attrelid = 'v2_game_frames'::regclass AND attname = 'data'",
+                &[],
+            )
+            .await?;
+        assert_eq!(storage, "e");
+        // a point's items: counts 2, NULL (no data), 0, 3
+        for (k, want) in [
+            (0, "{1,2}"),
+            (1, "null"),
+            (2, "{}"),
+            (3, "{3,4,5}"),
+            (4, "null"),
+        ] {
+            let got: String = ""
+                .query_one_for(
+                    &format!(
+                        "SELECT coalesce(v2_items_at('{{1,2,3,4,5}}', '{{2,NULL,0,3}}', {k})::text, 'null')"
+                    ),
+                    &[],
+                )
+                .await?;
+            assert_eq!(got, want, "point {k}");
+        }
+        // jsonb → typed arrays keep order and nulls
+        let ints: String = ""
+            .query_one_for("SELECT v2_jsonb_ints('[1,null,3]')::text", &[])
+            .await?;
+        assert_eq!(ints, "{1,NULL,3}");
+        let empty: String = ""
+            .query_one_for("SELECT v2_jsonb_ints('[]')::text", &[])
+            .await?;
+        assert_eq!(empty, "{}");
+        let reals: String = ""
+            .query_one_for("SELECT v2_jsonb_reals('[0.25,null]')::text", &[])
+            .await?;
+        assert_eq!(reals, "{0.25,NULL}");
+        let texts: String = ""
+            .query_one_for("SELECT v2_jsonb_texts('[\"Q\",\"W\"]')::text", &[])
+            .await?;
+        assert_eq!(texts, "{Q,W}");
+        let times: String = ""
+            .query_one_for(
+                "SELECT v2_jsonb_times('[\"2026-10-31T23:05:07.091\"]')::text",
+                &[],
+            )
+            .await?;
+        assert_eq!(times, "{\"2026-10-31 23:05:07.091\"}");
+        // checks: every bad value fails inside a rolled back statement
+        for (what, sql) in [
+            (
+                "frames",
+                "UPDATE v2_game SET frames = 'x' WHERE id = (SELECT min(id) FROM v2_game)",
+            ),
+            (
+                "endpoint",
+                "INSERT INTO v2_game_frames SELECT min(id), 'other', 1, 0, now(), now(), 0, now(), '\\x00' FROM v2_game",
+            ),
+            (
+                "participant",
+                "INSERT INTO v2_game_player_series (game_id, participant_id, gold, level, kills, deaths, assists, cs, hp, max_hp, gold_earned, kill_participation, damage_share, wards_placed, wards_destroyed, attack_damage, ability_power, crit_chance, attack_speed, life_steal, armor, magic_resist, tenacity, items, item_counts, skill_order, skill_time) SELECT min(id), 11, '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}' FROM v2_game",
+            ),
+            (
+                "marker",
+                "INSERT INTO v2_game_marker SELECT (SELECT min(id) FROM v2_game), 0, 'herald', (SELECT min(id) FROM v2_team), NULL",
+            ),
+            (
+                "rollback participant",
+                "INSERT INTO v2_game_rollback_player VALUES ((SELECT min(id) FROM v2_game), 1, 11, 0, 0, 0, 0, 0)",
+            ),
+            (
+                "undone marker without its pause",
+                "INSERT INTO v2_game_marker SELECT (SELECT min(id) FROM v2_game), 0, 'tower', (SELECT min(id) FROM v2_team), NULL, 99",
+            ),
+            (
+                "pause order",
+                "INSERT INTO v2_game_pause SELECT min(id), 1, 0, now(), now() - interval '1 s' FROM v2_game",
+            ),
+            (
+                "source",
+                "INSERT INTO v2_game_timeline SELECT min(id), 'guess', 10, now(), 0, 0, '{}', NULL, now() FROM v2_game",
+            ),
+            (
+                "step",
+                "INSERT INTO v2_game_timeline SELECT min(id), 'live', 0, now(), 0, 0, '{}', NULL, now() FROM v2_game",
+            ),
+            (
+                "side",
+                "INSERT INTO v2_game_team_series SELECT (SELECT min(id) FROM v2_game), (SELECT min(id) FROM v2_team), 'green', '{}', '{}', '{}', '{}', '{}', '{}'",
+            ),
+        ] {
+            let e = "".execute(sql, &[]).await;
+            assert!(e.is_err(), "{what} accepted");
         }
     }
 
@@ -137,8 +241,13 @@ mod tests {
         team_player.team_id>team,tournament.league>league,v2_event.league_id>v2_league,\
         v2_event.tournament_id>v2_tournament,v2_event_i18n.event_id>v2_event,\
         v2_event_team.event_id>v2_event,v2_event_team.team_id>v2_team,v2_game.event_id>v2_event,\
+        v2_game_frames.game_id>v2_game,v2_game_marker.game_id>v2_game,v2_game_marker.game_id>v2_game_pause,v2_game_marker.team_id>v2_team,v2_game_pause.game_id>v2_game,\
         v2_game_player.game_id>v2_game,v2_game_player.player_id>v2_player,\
-        v2_game_player.team_id>v2_team,v2_game_team.game_id>v2_game,v2_game_team.team_id>v2_team,\
+        v2_game_player.team_id>v2_team,v2_game_player_series.game_id>v2_game,v2_game_rollback_player.game_id>v2_game_pause,\
+        v2_game_rollback_team.game_id>v2_game_pause,v2_game_rollback_team.team_id>v2_team,\
+        v2_game_team.game_id>v2_game,v2_game_team.team_id>v2_team,\
+        v2_game_team_series.game_id>v2_game,v2_game_team_series.team_id>v2_team,\
+        v2_game_timeline.game_id>v2_game,\
         v2_league_i18n.league_id>v2_league,v2_season_i18n.season_id>v2_season,\
         v2_stage.tournament_id>v2_tournament,v2_stage_i18n.stage_id>v2_stage,\
         v2_stream.event_id>v2_event,v2_team.home_league_id>v2_league,\

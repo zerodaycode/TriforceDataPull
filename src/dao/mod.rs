@@ -5,19 +5,22 @@ use self::models::{
     leagues::League,
     players::Player,
     streams::Stream,
-    team_player::{TeamPlayer, TeamPlayerFieldValue},
     teams::Team,
     tournaments::Tournament,
 };
-use crate::{client::legacy::models as api, service::OurTournaments};
+use crate::{
+    client::{legacy::models as api, log},
+    service::OurTournaments,
+};
 use canyon_sql::{
-    crud::{Delete, Insert, Read, Update},
+    crud::{Insert, Read, Update},
     query::{operators::Operator, querybuilder::QueryBuilderExt},
 };
 use chrono::{Days, Local, Utc};
 use color_eyre::Result;
 use itertools::Itertools;
 mod models;
+mod team_player_sync;
 pub mod v2;
 
 #[derive(Debug, Default)]
@@ -207,82 +210,19 @@ impl DatabaseOps {
         Ok(())
     }
 
+    /// Rosters of the fetched teams: new pairs added, pairs not sent removed. Teams not in the
+    /// answer keep theirs, an answer without players changes nothing
     pub async fn bulk_team_player_in_database(
         &mut self,
-        fetched_teams: &Vec<api::Team>,
+        fetched_teams: &[api::Team],
     ) -> Result<()> {
-        println!(
-            "{} - Processing players and teams to insert on database",
-            Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-        );
-
-        let db_teams = Team::find_all().await;
-
-        let db_players = Player::find_all().await;
-
-        match (db_players, db_teams) {
-            (Ok(on_db_players), Ok(on_db_teams)) => {
-                let mut vec_team_player: Vec<TeamPlayer> = vec![];
-
-                println!(
-                    "{} - Deleting all rows in the table",
-                    Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-                );
-
-                if let Err(e) = TeamPlayer::delete_query()?
-                    .where_value(&TeamPlayerFieldValue::id(0), Operator::Gt)
-                    .build()?
-                    .launch_default::<TeamPlayer>()
-                    .await
-                {
-                    println!("Error deleting team_player rows: {e}");
-                }
-
-                println!(
-                    "{} - All rows delete !\nStarting to process the data to insert",
-                    Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-                );
-
-                fetched_teams.iter().for_each(|serde_team| {
-                    let team_id = on_db_teams
-                        .iter()
-                        .find(|db_team| db_team.ext_id == serde_team.id.0)
-                        .map(|db_team| db_team.id)
-                        .expect("Error matching Team Id");
-
-                    for serde_player in &serde_team.players {
-                        let player_id = on_db_players
-                            .iter()
-                            .find(|db_player| db_player.ext_id == serde_player.id.0)
-                            .map(|db_player| db_player.id)
-                            .expect("Error matching Player Id");
-
-                        let team_player = TeamPlayer {
-                            id: Default::default(),
-                            team_id: Some(team_id.into()),
-                            player_id: Some(player_id.into()),
-                        };
-
-                        vec_team_player.push(team_player)
-                    }
-                });
-                println!(
-                    "{} - Inserting all Team-Player relation rows",
-                    Local::now().format("%Y-%m-%d %H:%M:%S.%f")
-                );
-
-                for team_player in &mut vec_team_player {
-                    if let Err(e) = team_player.insert().await {
-                        println!("{e}");
-                        todo!()
-                    }
-                }
-                Ok(())
-            }
-            _ => Ok({
-                println!("No se pudo recuperar los datos de base de datos");
-            }),
-        }
+        log("Syncing team_player with the fetched rosters");
+        let synced = team_player_sync::sync(&team_player_sync::rosters(fetched_teams)).await?;
+        log(format!(
+            "team_player: {} added, {} removed, {} skipped (team or player not stored)",
+            synced.inserted, synced.deleted, synced.unknown
+        ));
+        Ok(())
     }
 
     pub async fn bulk_schedule_in_database(&mut self, events: &Vec<api::Event>) -> Result<()> {

@@ -6,7 +6,9 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
+serde_json = { version = "1.0.154", features = ["raw_value"] }
+# only encode_all/decode_all: no legacy formats or dictionaries
+zstd = { version = "0.13.4", default-features = false }
 
 # develop + the typed foreign key fix, pinned to a commit (docs/decisions/0006-canyon-sql-develop-with-typed-fk-fix.md)
 canyon_sql = { git = "https://github.com/zerodaycode/Canyon-SQL.git", rev = "cc563d7b085919369273461dd9bd1ae78c4a6bba", features = ["postgres", "migrations"] }
