@@ -163,6 +163,9 @@ pub struct TeamStub {
 /// An event with any other value is skipped by the adapter, so it can't fail a whole page
 pub const EVENT_STATES: &[&str] = &["unstarted", "inProgress", "completed"];
 pub const GAME_STATES: &[&str] = &["unstarted", "inProgress", "completed", "unneeded"];
+/// `v2_game.frames`, checked against schema.sql
+#[cfg(test)]
+pub const FRAMES_STATES: &[&str] = &["live", "done", "no_feed"];
 pub const STRATEGIES: &[&str] = &["bestOf", "playAll"];
 pub const MATCH_TYPES: &[&str] = &["normal", "tiebreaker"];
 /// `tie`: a `playAll 2` ending 1-1

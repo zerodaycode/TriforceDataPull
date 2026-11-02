@@ -17,7 +17,9 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 - [x] [High] Live loop for v2: `watchLiveQuery` + the feed while a game is played (`TRIFORCE_CRON_V2_LIVE`, ADR 0005). Score and state within a minute, winner of each game (only known when watched live, sweeps aside), streams, sides before the game (`side_source = 'api'`), start/end and team totals from the feed
 - [ ] [Medium] Move WSC-Triforce to the v2 tables ([notes](docs/investigations/2026-10-17-wsc-triforce-on-schema-v2.md)), then the app
 - [ ] [Medium] Roster history (who played where and when) and the teams that played each tournament, maybe from another API (`GetSeasonTournament.teams` only has them for 263 of 514 tournaments)
-- [ ] [Medium] In-game stats per game from the live feed: the final stats are done (`v2_game_team`, `v2_game_player`, last frame). Left: every frame, for graphs (storage to design: rows every N seconds, compressed blobs or both)
+- [x] [Medium] In-game stats per game from the live feed: final stats (`v2_game_team`, `v2_game_player`) and every frame (archive + 10 s series and markers, live and after the game, [ADR 0007](docs/decisions/0007-v2-game-frames.md))
+- [ ] [Medium] Faster frames backfill: one game takes ~4 min (500 calls, one game at a time), the whole history ~2 months. Walk a few games at once, with a limit on calls per second
+- [ ] [Low] Live frames: each tick rewrites every series array of the game (WAL grows with the square of the game length). Write every N ticks if it shows in WAL or autovacuum
 - [x] [Medium] Stage names in `v2_stage_i18n` from `GetSeasonTournament` (every locale, 100 tournaments per call)
 - [ ] [Low] Stage sections (groups, brackets) and their standings from `GetSeasonStage`, with the match tables
 - [ ] [Low] Games, team slots and block names the API stops sending stay in v2 (a Bo5 changed to a Bo3 keeps games 4 and 5). Remove them without breaking the game details that point at them
@@ -42,6 +44,7 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 - [ ] [Medium] The live match found at start up is never saved: `fetch_change_in_events` runs at start without `bulk_eventdetails_in_database`, and the next tick sees no change, so the match and its streams aren't stored until something changes
 - [ ] [Medium] No panics in the scheduled loops (`text().await.unwrap()`, `Deserialize` impls that panic, `leagues[0]`). Run each v1 pass in its own task like v2 does, so a panic skips one run instead of stopping the loop
 - [ ] [Low] Retry policy for the old API: transport errors, 5xx and 429 with backoff, `error_for_status` for the rest
+- [ ] [Medium] One queue loop for the game details and the game frames (today two copies): the frames one already pauses on feed outages without counting a try and waits between games, the details one should too. Feed pace set from env and `Retry-After` on 429
 - [ ] [Low] Shut down cleanly on ctrl-c: let in-flight writes finish (today it can stop between two `team_player` chunks, or halfway through the v1 per-row upserts)
 - [x] [Low] Don't delete `team_player` when the team list is empty (an answer without players changes nothing, teams not in the answer keep their pairs)
 - [ ] [Low] GraphQL client: retry a timeout while reading the body. Cap the size of the old API answers too (GraphQL, manifest and `getTeams` are capped at 32 MB)

@@ -1,6 +1,7 @@
 //! `feed.lolesports.com/livestats/v1` answers, only what we store
 
 use chrono::{DateTime, Utc};
+use color_eyre::{Result, eyre::WrapErr};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -18,6 +19,24 @@ pub struct GameMetadata {
     pub patch_version: Option<String>,
     pub blue_team_metadata: TeamMeta,
     pub red_team_metadata: TeamMeta,
+}
+
+impl GameMetadata {
+    /// (blue, red) team ext ids as the feed has them (not mapped to the match's yet)
+    pub fn team_ext_ids(&self) -> Result<(i64, i64)> {
+        let id = |s: &str| {
+            s.parse::<i64>()
+                .wrap_err_with(|| format!("team id {s:?} in gameMetadata"))
+        };
+        Ok((
+            id(&self.blue_team_metadata.esports_team_id)?,
+            id(&self.red_team_metadata.esports_team_id)?,
+        ))
+    }
+
+    pub fn parse(raw: &serde_json::value::RawValue) -> Result<Self> {
+        serde_json::from_str(raw.get()).wrap_err("gameMetadata")
+    }
 }
 
 #[derive(Debug, Deserialize)]

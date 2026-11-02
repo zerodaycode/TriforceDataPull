@@ -1,5 +1,7 @@
 pub mod v2;
 pub mod v2_details;
+pub mod v2_frames;
+pub mod v2_frames_live;
 pub mod v2_live;
 pub mod v2_matches;
 

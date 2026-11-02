@@ -2,6 +2,7 @@
 //! no time = the first frames, a time after the end = the last ones
 
 pub mod models;
+pub mod walk;
 
 use chrono::{DateTime, DurationRound, TimeDelta, Utc};
 use color_eyre::{
@@ -11,7 +12,7 @@ use color_eyre::{
 use serde::de::DeserializeOwned;
 
 use self::models::{Details, Window};
-use crate::client::{http, read_text_max};
+use crate::client::{BodyError, http, read_text_max};
 
 const FEED_URL: &str = "https://feed.lolesports.com/livestats/v1";
 /// A normal answer is 17-70 KB
@@ -56,14 +57,49 @@ impl std::fmt::Display for NoStats {
 
 impl std::error::Error for NoStats {}
 
-/// `None` on 204 (no feed for this game). Also returns the server's now
-async fn get<T: DeserializeOwned>(path: &str) -> Result<Option<(T, DateTime<Utc>)>> {
-    let response = http()
-        .get(format!("{FEED_URL}/{path}"))
-        .send()
-        .await
-        .map_err(|e| e.without_url())
-        .wrap_err_with(|| format!("feed {path}"))?;
+/// A failure that can go away: no answer (network), a 5xx or a 429. Worth another try
+#[derive(Debug)]
+pub struct Transient {
+    pub what: String,
+    pub source: Option<Box<dyn std::error::Error + Send + Sync>>,
+}
+
+impl Transient {
+    pub fn new(what: impl Into<String>) -> Self {
+        Self {
+            what: what.into(),
+            source: None,
+        }
+    }
+}
+
+impl std::fmt::Display for Transient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.what)
+    }
+}
+
+impl std::error::Error for Transient {
+    // the reqwest cause (timeout, refused, DNS) stays in the chain for `{e:#}`
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.source
+            .as_deref()
+            .map(|e| e as &(dyn std::error::Error + 'static))
+    }
+}
+
+/// The body as sent, `None` on 204 (no feed for this game). Also returns the server's now
+pub async fn get_raw(path: &str) -> Result<Option<(String, DateTime<Utc>)>> {
+    let response = match http().get(format!("{FEED_URL}/{path}")).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            return Err(Transient {
+                what: format!("feed {path}"),
+                source: Some(Box::new(e.without_url())),
+            }
+            .into());
+        }
+    };
     let received = Utc::now();
     let status = response.status();
     if status == reqwest::StatusCode::NO_CONTENT {
@@ -83,6 +119,9 @@ async fn get<T: DeserializeOwned>(path: &str) -> Result<Option<(T, DateTime<Utc>
         }
         return Err(eyre!("feed {path}: HTTP {status}: {}", body.trim()));
     }
+    if status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Err(Transient::new(format!("feed {path}: HTTP {status}")).into());
+    }
     if !status.is_success() {
         return Err(eyre!("feed {path}: HTTP {status}"));
     }
@@ -98,9 +137,25 @@ async fn get<T: DeserializeOwned>(path: &str) -> Result<Option<(T, DateTime<Utc>
         header(reqwest::header::AGE).as_deref(),
         received,
     );
-    let body = read_text_max(response, MAX_BODY)
-        .await
-        .wrap_err_with(|| format!("feed {path}"))?;
+    let body = match read_text_max(response, MAX_BODY).await {
+        Ok(b) => b,
+        Err(e @ BodyError::Network(_)) => {
+            return Err(Transient {
+                what: format!("feed {path}"),
+                source: Some(Box::new(e)),
+            }
+            .into());
+        }
+        Err(e) => return Err(color_eyre::Report::new(e).wrap_err(format!("feed {path}"))),
+    };
+    Ok(Some((body, now)))
+}
+
+/// `None` on 204 (no feed for this game). Also returns the server's now
+async fn get<T: DeserializeOwned>(path: &str) -> Result<Option<(T, DateTime<Utc>)>> {
+    let Some((body, now)) = get_raw(path).await? else {
+        return Ok(None);
+    };
     let parsed = serde_json::from_str(&body).wrap_err_with(|| format!("feed {path}"))?;
     Ok(Some((parsed, now)))
 }

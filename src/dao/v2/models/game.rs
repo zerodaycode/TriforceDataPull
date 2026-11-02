@@ -21,4 +21,10 @@ pub struct V2Game {
     pub details_tries: Option<i32>,
     // a failed game waits until then: 10 min, 40 min, 2 h 40, 10 h 40
     pub details_next_try: Option<NaiveDateTime>,
+    // NULL = nothing yet, `live` (series from the live loop), `done` (archive + series built
+    // from it), `no_feed`. Tables in schema.sql
+    pub frames: Option<String>,
+    pub frames_tries: Option<i32>,
+    // a failed game waits like the details: 10 min, 40 min, 2 h 40, 10 h 40
+    pub frames_next_try: Option<NaiveDateTime>,
 }

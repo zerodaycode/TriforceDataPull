@@ -135,11 +135,11 @@ async fn one_game(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
 }
 
 /// Never returns. Each game in its own task: a panic is one failed try, not the loop
-pub async fn details_loop(gql: Arc<Gql>) {
+pub async fn details_loop(gql: Arc<Gql>, backfill: bool) {
     let mut stats = Stats::default();
     let mut fails_in_a_row = 0;
     loop {
-        let games = match next_games(BATCH).await {
+        let games = match next_games(BATCH, backfill).await {
             Ok(g) => g,
             Err(e) => {
                 log(format!("v2 details: queue not read: {e:#}"));

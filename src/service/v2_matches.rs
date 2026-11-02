@@ -33,7 +33,6 @@ const FULL_TRY_JOB: &str = "matches_full_try";
 /// A few minutes under 24 h: tick jitter doesn't push the full pass to the next tick
 const FULL_EVERY: TimeDelta = TimeDelta::minutes(24 * 60 - 5);
 const FULL_RETRY: TimeDelta = TimeDelta::hours(6);
-const RECENT_DAYS: i64 = 3;
 const AHEAD_DAYS: i64 = 365;
 /// ~115 pages today: far more means the paging is broken
 const MAX_PAGES: usize = 3_000;
@@ -71,7 +70,9 @@ pub fn date_range(pass: Pass, now: NaiveDateTime) -> (String, String) {
     let day = |d: NaiveDate| d.format("%Y-%m-%d").to_string();
     let start = match pass {
         Pass::Full => HISTORY_START.to_string(),
-        Pass::Recent => day((now - TimeDelta::days(RECENT_DAYS)).date()),
+        Pass::Recent => {
+            day((now - TimeDelta::days(i64::from(crate::backfill::RECENT_DAYS))).date())
+        }
     };
     (start, day((now + TimeDelta::days(AHEAD_DAYS)).date()))
 }
@@ -196,8 +197,8 @@ pub async fn recent_en_us(gql: &Gql) -> Result<()> {
 }
 
 /// The recent pass on every tick, so live and upcoming matches never wait on the history.
-/// Then the full pass when it's due
-pub async fn matches_once(gql: &Gql, locales: &[String]) -> Result<()> {
+/// Then the full pass when it's due, if the backfill is on
+pub async fn matches_once(gql: &Gql, locales: &[String], backfill: bool) -> Result<()> {
     let now = Utc::now().naive_utc();
     pass(gql, "v2 matches", locales, Pass::Recent, now).await?;
     // game winners of sweeps, for games whose sides are already stored
@@ -206,11 +207,14 @@ pub async fn matches_once(gql: &Gql, locales: &[String]) -> Result<()> {
         Ok(n) => log(format!("v2 matches: {n} game results from sweeps")),
         Err(e) => log(format!("v2 matches: sweep results not written: {e:#}")),
     }
-    if !full_due(
-        job_last_ok(FULL_JOB).await?,
-        job_last_ok(FULL_TRY_JOB).await?,
-        now,
-    ) {
+    // the full pass only with TRIFORCE_BACKFILL_MATCHES=on
+    if !backfill
+        || !full_due(
+            job_last_ok(FULL_JOB).await?,
+            job_last_ok(FULL_TRY_JOB).await?,
+            now,
+        )
+    {
         return Ok(());
     }
     match pass(gql, "v2 matches", locales, Pass::Full, now).await {

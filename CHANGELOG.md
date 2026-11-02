@@ -18,6 +18,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - v2 live matches from `watchLiveQuery` once a minute (`TRIFORCE_CRON_V2_LIVE`, `TRIFORCE_V2_LIVE=off` stops it): state, score, games, streams and the side of each game as soon as it's picked. The winner of a game is stored when the score changes by one win, also from the matches loop. For the game being played, the live feed gives the real start and end time and each team's totals (gold, kills, towers, inhibitors, barons, dragons) every minute. A match that leaves the live answer is marked `completed` from the schedule within a few minutes, not on the next 30 min tick. Live sides use the match's teams, and the ones of a game that ends up `unneeded` are removed. See [ADR 0005](docs/decisions/0005-v2-matches-and-game-details.md).
 - `--env <file>` to read the settings from a file, `env/example.env` lists them all with their defaults. Shell variables win over the file. The app stops if the file isn't there.
 - `TRIFORCE_CRON_<LOOP>` to change the schedule of a loop, like `TRIFORCE_CRON_V2="0 * * ? * *"` to run v2 every minute when testing.
+- v2 game frames: every frame of the live feed for each finished game, kept compressed in `v2_game_frames` (~233 KB a game), and a point every 10 s of game time for each team and player in `v2_game_team_series` and `v2_game_player_series` (gold, KDA, CS, items, stats), plus dragons, barons, towers and inhibitors in `v2_game_marker`. Paused time doesn't count. While a game is played the series fill every 10 s, 60-90 s behind the game; the archive replaces them after the game. `TRIFORCE_V2_FRAMES=off` and `TRIFORCE_V2_FRAMES_LIVE=off` stop them, `cargo run -- rebuild-timeline --all` builds the series again from the archive. See [ADR 0007](docs/decisions/0007-v2-game-frames.md) (proposed) and [docs/data/game-frames.md](docs/data/game-frames.md).
+- `TRIFORCE_BACKFILL_MATCHES`, `TRIFORCE_BACKFILL_DETAILS` (on) and `TRIFORCE_BACKFILL_FRAMES` (off): jobs that go through the history do only the last 3 days when off.
+- `docs/data/`: what every `v2_*` table has, how it's filled and how the tables relate.
 
 ### Changed
 - Leagues, tournaments, teams and players come from the lolesports.com GraphQL API by default. `TRIFORCE_SOURCE_LEAGUES=old` and `TRIFORCE_SOURCE_TEAMS=old` go back to the old API. With `new`, `team.alt_image_url` keeps the stored value and new teams get none. The first start downloads the query manifest, and the app stops if GraphQL fails at start. `TRIFORCE_V2=off` alone no longer stops the GraphQL calls, set both sources to `old` too.
@@ -25,6 +28,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Rust edition 2021 → 2024.
 - New dependency: sha2 0.11.1, to check the manifest hashes.
 - New dependency: dotenvy 0.15.7, to read the `--env` file.
+- New dependency: zstd 0.13.4, to compress the game frames archive. It builds libzstd 1.5.7 from source: the build needs a C compiler.
+- serde_json `raw_value` feature: the archive keeps the frames byte for byte.
 - reqwest `gzip` and `brotli` features: API answers come compressed (a 100 tournaments `GetSeasonTournament` answer goes from 1.2 MB to 193 KB with gzip, 52 KB with brotli, the CDN sends brotli). GraphQL, manifest and `getTeams` answers are read up to 32 MB.
 - Dependencies updated: serde 1.0.229, serde_json 1.0.154, reqwest 0.13.5, color-eyre 0.6.5, itertools 0.15.0, chrono 0.4.45, cron 0.17.0, tokio 1.53.3.
 - Canyon-SQL 0.4.2 → `develop` branch with the typed foreign key fix, pinned to commit `cc563d7` with `rev`. See [ADR 0001](docs/decisions/0001-use-canyon-sql-develop-branch.md) and [ADR 0006](docs/decisions/0006-canyon-sql-develop-with-typed-fk-fix.md).

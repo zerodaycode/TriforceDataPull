@@ -11,9 +11,11 @@ macro_rules! fixture {
     };
 }
 
+mod backfill;
 mod client;
 mod dao;
 mod env;
+mod frames;
 mod schedules;
 mod service;
 
@@ -90,7 +92,7 @@ fn spawn_v2_loop<F, Fut>(
 
 #[canyon_sql::main]
 fn main() -> Result<()> {
-    // `triforce-data-pull [--env <file>] [refresh-manifest]`
+    // `triforce-data-pull [--env <file>] [refresh-manifest | rebuild-timeline (--all | <game ext id>...)]`
     let cli = env::parse_args(std::env::args().skip(1))?;
     if let Some(path) = &cli.env_file {
         env::load(path)?;
@@ -101,10 +103,17 @@ fn main() -> Result<()> {
         store.refresh(client::http()).await?;
         return Ok(());
     }
+    // build the game series again from the archive and exit
+    if let Some(which) = &cli.rebuild {
+        dao::v2::schema::apply().await?;
+        return service::v2_frames::rebuild(which).await;
+    }
 
     let v2 = service::v2::v2_enabled()?;
     let v2_details = service::v2_details::enabled()?;
     let v2_live = service::v2_live::enabled()?;
+    let v2_frames = service::v2_frames::enabled()?;
+    let v2_frames_live = service::v2_frames_live::enabled()?;
     let schedules::Schedules {
         v2: v2_reference_schedule,
         v2_matches: v2_matches_schedule,
@@ -116,6 +125,11 @@ fn main() -> Result<()> {
         live: live_schedule,
     } = schedules::all_from_env()?;
     client::log(format!("v2 tables: {}", if v2 { "on" } else { "off" }));
+    let backfills = backfill::all_from_env()?;
+    client::log(backfill::log_line(&backfills));
+    let backfill_matches = backfill::is_on(&backfills, backfill::Backfill::Matches);
+    let backfill_details = backfill::is_on(&backfills, backfill::Backfill::Details);
+    let backfill_frames = backfill::is_on(&backfills, backfill::Backfill::Frames);
     // both read before anything runs: a bad value stops the start, not a v2 run halfway
     let leagues_source = client::Source::from_env("TRIFORCE_SOURCE_LEAGUES")?;
     let teams_source = client::Source::from_env("TRIFORCE_SOURCE_TEAMS")?;
@@ -156,10 +170,32 @@ fn main() -> Result<()> {
             tokio::spawn(async move {
                 wait_other_loop("v2 details", wait).await;
                 client::log("v2 details: starting");
-                service::v2_details::details_loop(gql).await;
+                service::v2_details::details_loop(gql, backfill_details).await;
             });
         } else {
             client::log("v2 details: off (TRIFORCE_V2_DETAILS=off)");
+        }
+        // game frames after the game: its own queue, after the first good reference run
+        if v2_frames {
+            let wait = wait_reference.clone();
+            tokio::spawn(async move {
+                wait_other_loop("v2 frames", wait).await;
+                client::log("v2 frames: starting");
+                service::v2_frames::frames_loop(backfill_frames).await;
+            });
+        } else {
+            client::log("v2 frames: off (TRIFORCE_V2_FRAMES=off)");
+        }
+        // live series: the games v2 live marks inProgress, every 10 s
+        if service::v2_frames_live::live_on(v2_frames, v2_frames_live) {
+            let wait = wait_reference.clone();
+            tokio::spawn(async move {
+                wait_other_loop("v2 frames live", wait).await;
+                client::log("v2 frames live: starting (every 10 s, quiet while nothing is live)");
+                service::v2_frames_live::live_loop().await;
+            });
+        } else {
+            client::log("v2 frames live: off");
         }
         // live: teams and tournaments come from the reference loop too
         if v2_live {
@@ -183,7 +219,7 @@ fn main() -> Result<()> {
             locales,
             Some(wait_reference),
             None,
-            |g, l| async move { service::v2_matches::matches_once(&g, &l).await },
+            move |g, l| async move { service::v2_matches::matches_once(&g, &l, backfill_matches).await },
         );
     }
 

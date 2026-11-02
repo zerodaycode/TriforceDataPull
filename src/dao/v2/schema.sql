@@ -54,3 +54,31 @@ ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_side, ADD CONSTR
 ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_source, ADD CONSTRAINT v2_game_team_source CHECK (side_source IN ('api', 'feed'));
 ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_result, ADD CONSTRAINT v2_game_team_result CHECK (result IN ('win', 'loss'));
 ALTER TABLE v2_game_player DROP CONSTRAINT IF EXISTS v2_game_player_participant, ADD CONSTRAINT v2_game_player_participant CHECK (participant_id BETWEEN 1 AND 10);
+-- Game frames (not Canyon entities: Canyon has no bytea or arrays, and never touches a table it doesn't know)
+ALTER TABLE v2_game DROP CONSTRAINT IF EXISTS v2_game_frames_state, ADD CONSTRAINT v2_game_frames_state CHECK (frames IN ('live', 'done', 'no_feed'));
+-- same predicate as the frames queue (IS DISTINCT FROM can't be matched by the planner)
+DROP INDEX IF EXISTS v2_game_frames_queue;
+CREATE INDEX IF NOT EXISTS v2_game_frames_todo ON v2_game (event_id) WHERE state = 'completed' AND (frames IS NULL OR frames = 'live');
+CREATE INDEX IF NOT EXISTS v2_game_in_progress ON v2_game (id) WHERE state = 'inProgress';
+-- Raw archive: every frame of an endpoint, zstd JSON ({"gameMetadata", "frames"} for format 1)
+CREATE TABLE IF NOT EXISTS v2_game_frames (game_id int NOT NULL REFERENCES v2_game (id), endpoint text NOT NULL, format smallint NOT NULL, frame_count int NOT NULL, first_frame timestamp NOT NULL, last_frame timestamp NOT NULL, raw_bytes int NOT NULL, fetched_at timestamp NOT NULL, data bytea NOT NULL, PRIMARY KEY (game_id, endpoint));
+-- already compressed: no TOAST compression on top
+ALTER TABLE v2_game_frames ALTER COLUMN data SET STORAGE EXTERNAL;
+ALTER TABLE v2_game_frames DROP CONSTRAINT IF EXISTS v2_game_frames_endpoint, ADD CONSTRAINT v2_game_frames_endpoint CHECK (endpoint IN ('window', 'details'));
+-- Series: one point every step_s of game time, every array `points` long
+CREATE TABLE IF NOT EXISTS v2_game_timeline (game_id int PRIMARY KEY REFERENCES v2_game (id), source text NOT NULL, step_s smallint NOT NULL, first_frame timestamp NOT NULL, duration_s int NOT NULL, points int NOT NULL, wall_time timestamp[] NOT NULL, live_state jsonb, built_at timestamp NOT NULL);
+ALTER TABLE v2_game_timeline DROP CONSTRAINT IF EXISTS v2_game_timeline_source, ADD CONSTRAINT v2_game_timeline_source CHECK (source IN ('live', 'archive'));
+ALTER TABLE v2_game_timeline DROP CONSTRAINT IF EXISTS v2_game_timeline_step, ADD CONSTRAINT v2_game_timeline_step CHECK (step_s > 0);
+CREATE TABLE IF NOT EXISTS v2_game_team_series (game_id int NOT NULL REFERENCES v2_game (id), team_id int NOT NULL REFERENCES v2_team (id), side text NOT NULL, gold int[] NOT NULL, kills int[] NOT NULL, towers int[] NOT NULL, inhibitors int[] NOT NULL, barons int[] NOT NULL, dragons int[] NOT NULL, PRIMARY KEY (game_id, team_id));
+ALTER TABLE v2_game_team_series DROP CONSTRAINT IF EXISTS v2_game_team_series_side, ADD CONSTRAINT v2_game_team_series_side CHECK (side IN ('blue', 'red'));
+CREATE TABLE IF NOT EXISTS v2_game_player_series (game_id int NOT NULL REFERENCES v2_game (id), participant_id smallint NOT NULL, gold int[] NOT NULL, level int[] NOT NULL, kills int[] NOT NULL, deaths int[] NOT NULL, assists int[] NOT NULL, cs int[] NOT NULL, hp int[] NOT NULL, max_hp int[] NOT NULL, gold_earned int[] NOT NULL, kill_participation real[] NOT NULL, damage_share real[] NOT NULL, wards_placed int[] NOT NULL, wards_destroyed int[] NOT NULL, attack_damage int[] NOT NULL, ability_power int[] NOT NULL, crit_chance real[] NOT NULL, attack_speed int[] NOT NULL, life_steal int[] NOT NULL, armor int[] NOT NULL, magic_resist int[] NOT NULL, tenacity real[] NOT NULL, items int[] NOT NULL, rune_style int, rune_sub_style int, runes int[], skill_order text[] NOT NULL, skill_time int[] NOT NULL, PRIMARY KEY (game_id, participant_id));
+ALTER TABLE v2_game_player_series DROP CONSTRAINT IF EXISTS v2_game_player_series_participant, ADD CONSTRAINT v2_game_player_series_participant CHECK (participant_id BETWEEN 1 AND 10);
+CREATE TABLE IF NOT EXISTS v2_game_marker (game_id int NOT NULL REFERENCES v2_game (id), t int NOT NULL, kind text NOT NULL, team_id int NOT NULL REFERENCES v2_team (id), detail text);
+ALTER TABLE v2_game_marker DROP CONSTRAINT IF EXISTS v2_game_marker_kind, ADD CONSTRAINT v2_game_marker_kind CHECK (kind IN ('dragon', 'baron', 'tower', 'inhibitor'));
+CREATE INDEX IF NOT EXISTS v2_game_marker_game ON v2_game_marker (game_id, t);
+CREATE INDEX IF NOT EXISTS v2_game_team_series_team ON v2_game_team_series (team_id);
+-- jsonb arrays (how the series are sent: Canyon binds no arrays) to typed ones, in order, nulls kept
+CREATE OR REPLACE FUNCTION v2_jsonb_ints(j jsonb) RETURNS int[] IMMUTABLE LANGUAGE sql AS $$ SELECT COALESCE(array_agg(e::int ORDER BY i), '{}') FROM jsonb_array_elements_text(j) WITH ORDINALITY AS x(e, i) $$;
+CREATE OR REPLACE FUNCTION v2_jsonb_reals(j jsonb) RETURNS real[] IMMUTABLE LANGUAGE sql AS $$ SELECT COALESCE(array_agg(e::real ORDER BY i), '{}') FROM jsonb_array_elements_text(j) WITH ORDINALITY AS x(e, i) $$;
+CREATE OR REPLACE FUNCTION v2_jsonb_texts(j jsonb) RETURNS text[] IMMUTABLE LANGUAGE sql AS $$ SELECT COALESCE(array_agg(e ORDER BY i), '{}') FROM jsonb_array_elements_text(j) WITH ORDINALITY AS x(e, i) $$;
+CREATE OR REPLACE FUNCTION v2_jsonb_times(j jsonb) RETURNS timestamp[] IMMUTABLE LANGUAGE sql AS $$ SELECT COALESCE(array_agg(e::timestamp ORDER BY i), '{}') FROM jsonb_array_elements_text(j) WITH ORDINALITY AS x(e, i) $$;
