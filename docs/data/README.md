@@ -8,7 +8,7 @@ What Triforce stores in the `v2_*` tables, how each table is filled and how they
 | [teams-players.md](teams-players.md) | teams, players, rosters |
 | [matches.md](matches.md) | events (matches and shows), their teams, games, streams |
 | [game-details.md](game-details.md) | per game: sides, lineups, champions, final stats (box score) |
-| [game-frames.md](game-frames.md) | per game: every feed frame (archive), 10 s series, markers |
+| [game-frames.md](game-frames.md) | per game: every feed frame (archive), 10 s series, markers, pauses and chronobreaks |
 
 The v1 tables (`league`, `team`, `schedule`, …) are not described here: they go away when v2 is complete (ADR 0004).
 
@@ -30,7 +30,9 @@ v2_league ─┬─ v2_league_i18n
                                     ├─ v2_game_timeline                (series)
                                     ├─ v2_game_team_series ── v2_team  (series)
                                     ├─ v2_game_player_series           (series)
-                                    └─ v2_game_marker ── v2_team       (series)
+                                    ├─ v2_game_marker ── v2_team       (series)
+                                    └─ v2_game_pause ─┬─ v2_game_rollback_team ── v2_team  (series)
+                                                      └─ v2_game_rollback_player           (series)
 v2_job_run (internal: when long jobs last ran)
 ```
 
@@ -55,7 +57,7 @@ The new API has nothing before Worlds 2023 (2023-10-15): no v2 match is older th
 - `id` is ours (a Postgres serial), `ext_id` is the API's id. Join on `id`, look things up from outside with `ext_id`. v1 and v2 ids are different numbers for the same league or team.
 - Times are `timestamp` in UTC, no time zone in the column.
 - Texts in other languages live in `*_i18n` tables, one row per locale (`en-US` always, more with `TRIFORCE_LOCALES`). A missing locale falls back to `en-US` in the reader's query, Triforce doesn't copy rows.
-- Teams, players, events and games are never deleted: an id never disappears from under a foreign key. Rows that follow the API are replaced: rosters (`v2_team_player`), streams (`v2_stream`), API sides of a game that ends up `unneeded`, and a game's series and markers when they are built again.
+- Teams, players, events and games are never deleted: an id never disappears from under a foreign key. Rows that follow the API are replaced: rosters (`v2_team_player`), streams (`v2_stream`), API sides of a game that ends up `unneeded`, and a game's series, markers, pauses and rollbacks when they are built again.
 - States only go forward: `unstarted` → `inProgress` → `completed` (ADR 0005). An older or wrong answer never moves a match or game back.
 - `NULL` means "we don't know (yet)", never zero.
 - Unique keys, checks and indexes not expressed by the Canyon entities are in `src/dao/v2/schema.sql`, applied at every start. The frames tables are only there (Canyon has no `bytea` or arrays).

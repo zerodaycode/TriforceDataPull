@@ -103,7 +103,7 @@ Pauses of the game, one row each, primary key `(game_id, number)`. No rows: the 
 
 What a chronobreak took back, one row per team (`team_id`) or player (`participant_id`), primary key `(game_id, number, …)` with `number` → the pause in `v2_game_pause`. Values are what was there at the pause minus what the game went back to: `kills`, `gold`, `towers`, `inhibitors`, `barons`, `dragons` for teams; `kills`, `deaths`, `assists`, `gold`, `cs` for players. Only for pauses with `rollback_s`.
 
-The feed sends very few frames during a pause, often one and then nothing for minutes (24 min seen). Seen: 3 pauses of 11, 16 and 38 min in one game (DK-DRX 2024-02-25).
+The feed sends very few frames during a pause, often one and then nothing for minutes (80 min seen, DK-DRX 2024-02-25 game 2). Seen: 3 pauses of 11, 16 and 38 min in game 1 of that series, 2 of 59 and 80 min in game 2 (2:58 of wall time for 39 min of game).
 
 ## Game time and points
 
@@ -112,7 +112,7 @@ The feed sends very few frames during a pause, often one and then nothing for mi
 - Between two frames more than 30 s apart in play, the points in between are NULL (feed hole). Up to 30 s, the last value is kept. During a pause there are no points at all.
 - Markers come from counters going above the highest count seen so far. A counter going down (a chronobreak or a feed fix) is logged and makes no marker, also when it comes back up. A jump of more than 11 between two frames is a feed error: logged, no markers.
 - A frame without a dragon list gives a NULL point, not 0.
-- A frame more than 12 h from the first one is a feed error: the game fails that try (a DDoS paused one game for ~6 h).
+- A frame more than 6 h from the first one is a feed error: the game fails that try (the longest game seen took 2:58 with its pauses).
 - A NULL value in an array: no data for that point.
 
 ## Chronobreaks
@@ -144,7 +144,7 @@ What's stored:
 
 - The after-game write is all or nothing: archive, timeline, 2 team rows, 10 player rows, the markers and the pauses, or none of it.
 - Teams are the match's (`v2_event_team`): a feed team the match doesn't list takes the match's other team, like the game details (logged). So the series teams are always the ones in `v2_game_team`.
-- The walk goes on through pauses (the feed can go 24 min without a frame). It stops after 30 min without one only when the game's end isn't known or is already reached, and 12 h after the first frame at most. Without a `finished` frame and before the game details know the end, a walk counts as failed and is tried later (on the last try it's kept).
+- The walk goes on through pauses (the feed can go 80 min without a frame). It stops after 30 min without one only when the game's end isn't known or the walk is past it, and 6 h after the first frame at most. Without a `finished` frame and before the game details know the end, a walk counts as failed and is tried later (on the last try it's kept).
 - A feed or network outage (no answer, 5xx, 429 after 3 retries) pauses the job 5 min and counts no try.
 - Live only writes while the game is `inProgress`. A game whose live write fails waits a minute before the next try.
 - The live points are replaced by the archive's when the game is done. Live holes (missed ticks, restarts) are gone then.

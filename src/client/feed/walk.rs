@@ -61,11 +61,12 @@ pub struct WalkConfig {
     /// Calls in a row without a newer `window` frame before the walk stops (games without a
     /// `finished` frame)
     pub stall_calls: u32,
-    /// Feed time from the first frame after which the walk gives up (DK-DRX 2024-02-25 was
-    /// paused ~6 h by a DDoS)
+    /// Feed time from the first frame after which the walk gives up. The longest game seen was
+    /// 2:58 of wall time with its pauses (DK-DRX 2024-02-25 game 2, a DDoS)
     pub guard: TimeDelta,
     /// Feed time without a new frame after which the walk gives up (a game stuck `paused`),
-    /// unless the game's known end is still ahead. The longest seen without frames was 24 min
+    /// while the walk hasn't reached the game's known end. The longest seen without frames was
+    /// 80 min (DK-DRX 2024-02-25 game 2)
     pub max_gap: TimeDelta,
 }
 
@@ -80,7 +81,7 @@ impl Default for WalkConfig {
                 Duration::from_secs(16),
             ],
             stall_calls: 3,
-            guard: TimeDelta::hours(12),
+            guard: TimeDelta::hours(6),
             max_gap: TimeDelta::minutes(30),
         }
     }
@@ -231,7 +232,7 @@ pub async fn walk_game(
     loop {
         if let Some(last) = window.values().next_back()
             && at - last.ts > cfg.max_gap
-            && !known_end.is_some_and(|end| last.ts.naive_utc() < end - END_SLACK)
+            && !known_end.is_some_and(|end| at.naive_utc() <= end + END_SLACK)
         {
             return Err(eyre!(
                 "no frame for {} min after {}, walk stopped",
@@ -501,16 +502,17 @@ mod tests {
 
     #[tokio::test]
     async fn the_known_end_keeps_the_walk_going() {
-        // frames until 95 s, the details job saw the game end at 200 s: the walk goes on to
-        // the guard instead of keeping half a game
+        // frames until 95 s, the details job saw the game end at 200 s: the walk goes on past
+        // the frames (no half game kept), then `max_gap` after the end stops it, not the guard
         let f = feed(95, false);
         let end = (hand::start() + TimeDelta::seconds(200)).naive_utc();
         let cfg = WalkConfig {
-            guard: TimeDelta::seconds(400),
+            max_gap: TimeDelta::minutes(2),
             ..fast()
         };
         let e = walk_game(&f, 1, Some(end), &cfg).await.unwrap_err();
-        assert!(e.to_string().contains("no end after"), "{e}");
+        assert!(e.to_string().contains("no frame for 2 min"), "{e}");
+        assert!(f.calls() < 60, "{}", f.calls());
         // the right end is fine
         let end = (hand::start() + TimeDelta::seconds(95)).naive_utc();
         assert!(walk_game(&f, 1, Some(end), &fast()).await.is_ok());
@@ -558,11 +560,11 @@ mod tests {
         };
         let e = walk_game(&f, 1, None, &cfg).await.unwrap_err();
         assert!(e.to_string().contains("no frame for 2 min"), "{e}");
-        // about 2 min of 10 s steps, not the 12 h guard
+        // about 2 min of 10 s steps, not the 6 h guard
         assert!(f.calls() < 40, "{}", f.calls());
     }
 
-    /// A pause longer than `max_gap` without frames (DK-DRX 2024-02-25 went 24 min): with
+    /// A pause longer than `max_gap` without frames (DK-DRX 2024-02-25 game 2 went 80 min): with
     /// the end known and still ahead, the walk waits it out
     #[tokio::test]
     async fn a_known_end_outlasts_max_gap() {

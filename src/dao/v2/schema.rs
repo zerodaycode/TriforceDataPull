@@ -63,7 +63,7 @@ mod tests {
                 "ALTER TABLE t\n  ADD CONSTRAINT c CHECK (x > 0);"
             ]
         );
-        assert_eq!(statements(SQL).len(), 78);
+        assert_eq!(statements(SQL).len(), 80);
     }
 
     #[test]
@@ -121,7 +121,7 @@ mod tests {
                 &[],
             )
             .await?;
-        assert_eq!(c, 26);
+        assert_eq!(c, 27);
         // the SQL ranks are the Rust ones
         for st in ["unstarted", "inProgress", "completed", "unneeded", "other"] {
             let db: i32 = ""
@@ -144,6 +144,24 @@ mod tests {
             )
             .await?;
         assert_eq!(storage, "e");
+        // a point's items: counts 2, NULL (no data), 0, 3
+        for (k, want) in [
+            (0, "{1,2}"),
+            (1, "null"),
+            (2, "{}"),
+            (3, "{3,4,5}"),
+            (4, "null"),
+        ] {
+            let got: String = ""
+                .query_one_for(
+                    &format!(
+                        "SELECT coalesce(v2_items_at('{{1,2,3,4,5}}', '{{2,NULL,0,3}}', {k})::text, 'null')"
+                    ),
+                    &[],
+                )
+                .await?;
+            assert_eq!(got, want, "point {k}");
+        }
         // jsonb → typed arrays keep order and nulls
         let ints: String = ""
             .query_one_for("SELECT v2_jsonb_ints('[1,null,3]')::text", &[])
@@ -187,6 +205,14 @@ mod tests {
                 "INSERT INTO v2_game_marker SELECT (SELECT min(id) FROM v2_game), 0, 'herald', (SELECT min(id) FROM v2_team), NULL",
             ),
             (
+                "rollback participant",
+                "INSERT INTO v2_game_rollback_player VALUES ((SELECT min(id) FROM v2_game), 1, 11, 0, 0, 0, 0, 0)",
+            ),
+            (
+                "undone marker without its pause",
+                "INSERT INTO v2_game_marker SELECT (SELECT min(id) FROM v2_game), 0, 'tower', (SELECT min(id) FROM v2_team), NULL, 99",
+            ),
+            (
                 "pause order",
                 "INSERT INTO v2_game_pause SELECT min(id), 1, 0, now(), now() - interval '1 s' FROM v2_game",
             ),
@@ -215,7 +241,7 @@ mod tests {
         team_player.team_id>team,tournament.league>league,v2_event.league_id>v2_league,\
         v2_event.tournament_id>v2_tournament,v2_event_i18n.event_id>v2_event,\
         v2_event_team.event_id>v2_event,v2_event_team.team_id>v2_team,v2_game.event_id>v2_event,\
-        v2_game_frames.game_id>v2_game,v2_game_marker.game_id>v2_game,v2_game_marker.team_id>v2_team,v2_game_pause.game_id>v2_game,\
+        v2_game_frames.game_id>v2_game,v2_game_marker.game_id>v2_game,v2_game_marker.game_id>v2_game_pause,v2_game_marker.team_id>v2_team,v2_game_pause.game_id>v2_game,\
         v2_game_player.game_id>v2_game,v2_game_player.player_id>v2_player,\
         v2_game_player.team_id>v2_team,v2_game_player_series.game_id>v2_game,v2_game_rollback_player.game_id>v2_game_pause,\
         v2_game_rollback_team.game_id>v2_game_pause,v2_game_rollback_team.team_id>v2_team,\

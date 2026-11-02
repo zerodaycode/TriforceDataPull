@@ -82,6 +82,9 @@ ALTER TABLE v2_game_pause DROP CONSTRAINT IF EXISTS v2_game_pause_order, ADD CON
 -- Chronobreaks: what the game going back took away, per team and player (pause rows with rollback_s)
 CREATE TABLE IF NOT EXISTS v2_game_rollback_team (game_id int NOT NULL, number smallint NOT NULL, team_id int NOT NULL REFERENCES v2_team (id), kills int NOT NULL, gold int NOT NULL, towers int NOT NULL, inhibitors int NOT NULL, barons int NOT NULL, dragons int NOT NULL, PRIMARY KEY (game_id, number, team_id), FOREIGN KEY (game_id, number) REFERENCES v2_game_pause (game_id, number) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS v2_game_rollback_player (game_id int NOT NULL, number smallint NOT NULL, participant_id smallint NOT NULL, kills int NOT NULL, deaths int NOT NULL, assists int NOT NULL, gold int NOT NULL, cs int NOT NULL, PRIMARY KEY (game_id, number, participant_id), FOREIGN KEY (game_id, number) REFERENCES v2_game_pause (game_id, number) ON DELETE CASCADE);
+ALTER TABLE v2_game_rollback_player DROP CONSTRAINT IF EXISTS v2_game_rollback_player_participant, ADD CONSTRAINT v2_game_rollback_player_participant CHECK (participant_id BETWEEN 1 AND 10);
+-- an undone marker points at the pause whose chronobreak took it back
+ALTER TABLE v2_game_marker DROP CONSTRAINT IF EXISTS v2_game_marker_pause, ADD CONSTRAINT v2_game_marker_pause FOREIGN KEY (game_id, undone_by_pause) REFERENCES v2_game_pause (game_id, number);
 CREATE INDEX IF NOT EXISTS v2_game_team_series_team ON v2_game_team_series (team_id);
 -- jsonb arrays (how the series are sent: Canyon binds no arrays) to typed ones, in order, nulls kept
 CREATE OR REPLACE FUNCTION v2_jsonb_ints(j jsonb) RETURNS int[] IMMUTABLE LANGUAGE sql AS $$ SELECT COALESCE(array_agg(e::int ORDER BY i), '{}') FROM jsonb_array_elements_text(j) WITH ORDINALITY AS x(e, i) $$;

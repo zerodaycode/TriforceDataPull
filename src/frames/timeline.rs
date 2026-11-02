@@ -1,13 +1,15 @@
 //! Frames → one point every `step_s` of game time, plus markers (dragons, barons, towers,
-//! inhibitors). The same builder takes a whole game (after it ends, from the archive) or 10 s
-//! at a time (live); its state is saved between live ticks, so both give the same points.
+//! inhibitors), pauses and chronobreaks. The same builder takes a whole game (after it ends,
+//! from the archive) or 10 s at a time (live); its state is saved between live ticks, so both
+//! give the same points, except after a chronobreak: only the archive keeps the frames to go
+//! back to the snapshot.
 //!
 //! Game time: wall time between two `window` frames counts only while the earlier one is in
 //! game (`paused` doesn't count, `finished` is the end). Point k = the last frame with game
 //! time ≤ k × step. A gap of more than `MAX_CARRY` between two frames leaves the points inside
 //! it empty
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use chrono::{DateTime, NaiveDateTime, TimeDelta, Utc};
 use color_eyre::{
@@ -21,9 +23,15 @@ use super::RawFrame;
 pub const STEP_S: i32 = 10;
 /// Longer gaps between frames give empty points instead of the last value
 const MAX_CARRY: TimeDelta = TimeDelta::seconds(30);
-/// No game is this long in wall time, pauses included (a DDoS paused one ~6 h): a frame further
-/// from the first one is a feed error (and would make millions of points)
-const MAX_WALL: TimeDelta = TimeDelta::hours(12);
+/// No game is this long in wall time, pauses included (2:58 the longest seen, DK-DRX 2024-02-25
+/// game 2): a frame further from the first one is a feed error (and would make millions of points)
+const MAX_WALL: TimeDelta = TimeDelta::hours(6);
+/// Before this much game time, frames with everything at 0 are the game starting, not a server
+/// starting again after a chronobreak
+const RESTART_AFTER_MS: i64 = 60_000;
+/// A chronobreak goes back seconds (5 and 8 s seen): the snapshot is searched this far back in
+/// game time, and the archive build keeps only these frames
+const MAX_ROLLBACK_MS: i64 = 5 * 60_000;
 /// More objectives of one kind between two frames is a feed error, no markers for it
 const MAX_JUMP: i64 = 11;
 
@@ -166,6 +174,9 @@ pub enum Side {
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Marker {
     pub game_time_s: i64,
+    /// The same in ms, to compare with a chronobreak's snapshot
+    #[serde(skip)]
+    pub game_ms: i64,
     pub kind: &'static str,
     pub side: Side,
     pub detail: Option<String>,
@@ -226,14 +237,22 @@ pub struct PlayerUndone {
 /// frame after it so the series keep adding up
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 struct Offsets {
-    /// blue, red: kills, towers, inhibitors, barons
-    team: [[i64; 4]; 2],
+    /// blue, red
+    team: [TeamOffset; 2],
     dragons: [Vec<String>; 2],
     /// participant id → kills, deaths, assists
     player: HashMap<i64, [i64; 3]>,
     /// participant id → wards placed, wards destroyed
     wards: HashMap<i64, [i64; 2]>,
     abilities: HashMap<i64, Vec<String>>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+struct TeamOffset {
+    kills: i64,
+    towers: i64,
+    inhibitors: i64,
+    barons: i64,
 }
 
 fn add(v: &mut Option<i64>, off: i64) {
@@ -251,10 +270,10 @@ impl Offsets {
     fn window(&self, w: &mut WindowFrame) {
         for (i, t) in [&mut w.blue_team, &mut w.red_team].into_iter().enumerate() {
             let o = self.team[i];
-            add(&mut t.total_kills, o[0]);
-            add(&mut t.towers, o[1]);
-            add(&mut t.inhibitors, o[2]);
-            add(&mut t.barons, o[3]);
+            add(&mut t.total_kills, o.kills);
+            add(&mut t.towers, o.towers);
+            add(&mut t.inhibitors, o.inhibitors);
+            add(&mut t.barons, o.barons);
             if !self.dragons[i].is_empty()
                 && let Some(d) = &mut t.dragons
             {
@@ -286,14 +305,15 @@ impl Offsets {
         }
     }
 
-    /// The counts `raw` (the first frame after the restart, as the feed sent it) restarted from
-    /// `snap` (the frame the game went back to, already with the old offsets) become offsets.
-    /// `true` if any did
+    /// The counts `raw` / `raw_d` (the first frames after the restart, as the feed sent them)
+    /// restarted from `snap` / `snap_d` (the frames the game went back to, already with the old
+    /// offsets) become offsets. `true` if any did
     fn restart(
         &mut self,
         snap: &WindowFrame,
         snap_d: Option<&DetailsFrame>,
         raw: &WindowFrame,
+        raw_d: Option<&DetailsFrame>,
     ) -> bool {
         let mut any = false;
         for (i, (s, r)) in [
@@ -313,7 +333,13 @@ impl Offsets {
             .enumerate()
             {
                 if restarted(now, before) {
-                    self.team[i][k] = before.unwrap_or(0);
+                    let o = &mut self.team[i];
+                    *[
+                        &mut o.kills,
+                        &mut o.towers,
+                        &mut o.inhibitors,
+                        &mut o.barons,
+                    ][k] = before.unwrap_or(0);
                     any = true;
                 }
             }
@@ -347,6 +373,19 @@ impl Offsets {
                 }
             }
         }
+        // before any kill or objective only the details show it: wards back to 0, a shorter
+        // skill list
+        if let (Some(s), Some(r)) = (snap_d, raw_d) {
+            any |= r.participants.iter().any(|rp| {
+                s.participants
+                    .iter()
+                    .find(|sp| sp.participant_id == rp.participant_id)
+                    .is_some_and(|sp| {
+                        restarted(rp.wards_placed, sp.wards_placed)
+                            || rp.abilities.len() < sp.abilities.len()
+                    })
+            });
+        }
         // the details restart with the window (seen together): wards and skills from the
         // frame the game went back to
         if any && let Some(d) = snap_d {
@@ -362,8 +401,9 @@ impl Offsets {
     }
 }
 
-fn gold_sum(w: &WindowFrame) -> i64 {
-    w.blue_team.total_gold.unwrap_or(0) + w.red_team.total_gold.unwrap_or(0)
+/// Both teams' gold, `None` when a team's is missing (no restart is seen from such a frame)
+fn gold_sum(w: &WindowFrame) -> Option<i64> {
+    Some(w.blue_team.total_gold? + w.red_team.total_gold?)
 }
 
 /// A frame of a server starting again after a chronobreak: every player level 1, no gold
@@ -441,6 +481,8 @@ pub struct Skill {
     pub participant_id: i16,
     pub skill: String,
     pub game_time_s: i64,
+    #[serde(skip)]
+    pub game_ms: i64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -492,10 +534,9 @@ impl Chunk {
         self.wall_time.len()
     }
 
-    /// `next` after `self`, as if built in one go
-    /// A chronobreak: only the first `keep` points stay, markers after `after_s` are marked as
+    /// A chronobreak: only the first `keep` points stay, markers after `snap_ms` are marked as
     /// undone by `pause` (kept), skills after it are dropped
-    fn rewind(&mut self, keep: usize, after_s: i64, pause: i16) {
+    fn rewind(&mut self, keep: usize, snap_ms: i64, pause: i16) {
         self.wall_time.truncate(keep);
         for t in &mut self.teams {
             for v in [
@@ -544,11 +585,11 @@ impl Chunk {
             p.item_counts.truncate(keep);
         }
         for m in &mut self.markers {
-            if m.game_time_s > after_s && m.undone_by_pause.is_none() {
+            if m.game_ms > snap_ms && m.undone_by_pause.is_none() {
                 m.undone_by_pause = Some(pause);
             }
         }
-        self.skills.retain(|s| s.game_time_s <= after_s);
+        self.skills.retain(|s| s.game_ms <= snap_ms);
     }
 
     /// A pause, replacing the one with its number (it started in an earlier frame)
@@ -559,6 +600,7 @@ impl Chunk {
         }
     }
 
+    /// `next` after `self`, as if built in one go
     pub fn append(&mut self, next: Chunk) {
         self.wall_time.extend(next.wall_time);
         for (a, b) in self.teams.iter_mut().zip(next.teams) {
@@ -741,12 +783,22 @@ impl LiveState {
     }
 }
 
+/// What coming back from a chronobreak changed
+struct Restart {
+    /// The frame the counts go on from (the snapshot), `None` live
+    values_from: Option<WindowFrame>,
+    /// Game seconds gone back and what was taken back, only after the game
+    back: Option<(i64, Undone)>,
+    /// The feed started its counts again
+    reset: bool,
+}
+
 pub struct Builder {
     state: LiveState,
     /// After the game only: every window frame with its game time (ms), and the details, to
     /// find where a chronobreak went back to
-    history: Option<Vec<(i64, WindowFrame)>>,
-    details_history: Vec<DetailsFrame>,
+    history: Option<VecDeque<(i64, WindowFrame)>>,
+    details_history: VecDeque<DetailsFrame>,
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(f: &RawFrame, what: &str) -> Result<T> {
@@ -775,7 +827,7 @@ impl Builder {
                 items_unknown: false,
             },
             history: None,
-            details_history: vec![],
+            details_history: VecDeque::new(),
         }
     }
 
@@ -792,14 +844,14 @@ impl Builder {
         Ok(Self {
             state,
             history: None,
-            details_history: vec![],
+            details_history: VecDeque::new(),
         })
     }
 
     /// A whole game: keeps the frames, so a chronobreak goes back to where the game did
     pub fn for_archive(step_s: i32) -> Self {
         let mut b = Self::new(step_s);
-        b.history = Some(vec![]);
+        b.history = Some(VecDeque::new());
         b
     }
 
@@ -890,7 +942,7 @@ impl Builder {
                 (w.rfc460_timestamp - first).num_hours()
             ));
         }
-        if self.state.game_ms > 60_000 && zero_window(&w) {
+        if self.state.game_ms > RESTART_AFTER_MS && zero_window(&w) {
             self.warn_once(
                 "zero_frames",
                 format!(
@@ -913,23 +965,20 @@ impl Builder {
             self.take_details(w.rfc460_timestamp, 0, chunk)?;
             self.pause_edges(None, &w, 0, chunk);
             self.after_frame(&w);
-            if let Some(h) = &mut self.history {
-                h.push((0, w.clone()));
-            }
+            self.remember(0, &w);
             self.state.last_window = Some(w);
             return Ok(());
         };
         let mut w = w;
         // a chronobreak: back from a pause with less gold than before it
-        let restart = prev.game_state.as_deref() == Some("paused")
+        let restart = (prev.game_state.as_deref() == Some("paused")
             && w.game_state.as_deref() != Some("paused")
-            && gold_sum(&w) < gold_sum(&prev);
-        let mut values_from = prev.clone();
-        let mut back: Option<(i64, Undone)> = None;
-        let mut reset = false;
-        if restart {
-            self.rewind(&prev, &w, chunk, &mut values_from, &mut back, &mut reset);
-        }
+            && matches!((gold_sum(&w), gold_sum(&prev)), (Some(a), Some(b)) if a < b))
+        .then(|| self.restart(&prev, &w, chunk));
+        let values_from = restart
+            .as_ref()
+            .and_then(|r| r.values_from.clone())
+            .unwrap_or_else(|| prev.clone());
         self.state.offsets.window(&mut w);
         let wall_gap = w.rfc460_timestamp - prev.rfc460_timestamp;
         let counts = match prev.game_state.as_deref() {
@@ -976,18 +1025,18 @@ impl Builder {
         }
         self.markers(&values_from, &w, g1, chunk);
         self.pause_edges(Some(&prev), &w, g1, chunk);
-        if restart && let Some(p) = self.state.pauses.last_mut() {
-            p.counters_reset = reset;
-            if let Some((s, u)) = back {
+        if let Some(r) = restart
+            && let Some(p) = self.state.pauses.last_mut()
+        {
+            p.counters_reset = r.reset;
+            if let Some((s, u)) = r.back {
                 p.rollback_s = Some(s);
                 p.undone = Some(u);
             }
             let p = p.clone();
             chunk.push_pause(p);
         }
-        if let Some(h) = &mut self.history {
-            h.push((g1, w.clone()));
-        }
+        self.remember(g1, &w);
         self.state.game_ms = g1;
         self.take_details(w.rfc460_timestamp, g1, chunk)?;
         self.after_frame(&w);
@@ -995,23 +1044,39 @@ impl Builder {
         Ok(())
     }
 
+    /// The archive build keeps the frames of the last `MAX_ROLLBACK_MS` of game time
+    fn remember(&mut self, game_ms: i64, w: &WindowFrame) {
+        let Some(h) = &mut self.history else {
+            return;
+        };
+        h.push_back((game_ms, w.clone()));
+        while h
+            .front()
+            .is_some_and(|(ms, _)| *ms < game_ms - MAX_ROLLBACK_MS)
+        {
+            h.pop_front();
+        }
+        let oldest = h.front().map(|(_, f)| f.rfc460_timestamp);
+        // keep one details frame at or before the oldest window frame
+        while self.details_history.len() > 1
+            && self.details_history[1].rfc460_timestamp
+                <= oldest.unwrap_or(DateTime::<Utc>::MAX_UTC)
+        {
+            self.details_history.pop_front();
+        }
+    }
+
     /// Back from a chronobreak: counts the feed started again become offsets. After the game
     /// (frames kept) the game goes back to the last frame with no more gold than `w`: points
     /// after it go, markers after it are marked undone, and what was taken back is kept
-    fn rewind(
-        &mut self,
-        prev: &WindowFrame,
-        w: &WindowFrame,
-        chunk: &mut Chunk,
-        values_from: &mut WindowFrame,
-        back: &mut Option<(i64, Undone)>,
-        reset: &mut bool,
-    ) {
+    fn restart(&mut self, prev: &WindowFrame, w: &WindowFrame, chunk: &mut Chunk) -> Restart {
+        let number = i16::try_from(self.state.pauses.len()).unwrap_or(i16::MAX);
         let snap = self.history.as_ref().and_then(|h| {
             h.iter()
                 .rev()
                 .find(|(_, f)| {
-                    f.rfc460_timestamp <= prev.rfc460_timestamp && gold_sum(f) <= gold_sum(w)
+                    f.rfc460_timestamp <= prev.rfc460_timestamp
+                        && gold_sum(f).zip(gold_sum(w)).is_some_and(|(f, w)| f <= w)
                 })
                 .cloned()
         });
@@ -1023,29 +1088,47 @@ impl Builder {
             .find(|d| d.rfc460_timestamp <= snap_w.rfc460_timestamp)
             .cloned()
             .or_else(|| self.state.last_details.clone());
-        *reset = self.state.offsets.restart(&snap_w, snap_d.as_ref(), w);
-        if *reset {
+        // the details frame closest to `w`, as the feed sent it
+        let raw_d = self
+            .state
+            .pending_details
+            .iter()
+            .filter(|d| !zero_details(d))
+            .min_by_key(|d| (d.rfc460_timestamp - w.rfc460_timestamp).abs())
+            .cloned();
+        let reset = self
+            .state
+            .offsets
+            .restart(&snap_w, snap_d.as_ref(), w, raw_d.as_ref());
+        if reset {
             self.state.items_unknown = true;
         }
-        let number = i16::try_from(self.state.pauses.len()).unwrap_or(i16::MAX);
         let Some((snap_ms, snap_w)) = snap else {
-            return;
+            // live: no frames kept, the counts go on from the pause
+            if reset {
+                chunk.warnings.push(format!(
+                    "back from pause {number} at {}: the feed started its counts again, counted on from the pause",
+                    w.rfc460_timestamp
+                ));
+            }
+            return Restart {
+                values_from: None,
+                back: None,
+                reset,
+            };
         };
-        if i64::try_from(chunk.points()).unwrap_or(-1) != self.state.next_point {
-            chunk.warnings.push(format!(
-                "chronobreak at {} in a partial build, not rewound",
-                w.rfc460_timestamp
-            ));
-            return;
-        }
+        // `history` is only kept by `build`, which pushes the whole game at once
+        debug_assert_eq!(
+            i64::try_from(chunk.points()).ok(),
+            Some(self.state.next_point)
+        );
         let keep = (snap_ms / self.step_ms() + 1).min(self.state.next_point);
-        chunk.rewind(usize::try_from(keep).unwrap_or(0), snap_ms / 1000, number);
-        *back = Some(((self.state.game_ms - snap_ms) / 1000, undone(prev, &snap_w)));
+        chunk.rewind(usize::try_from(keep).unwrap_or(0), snap_ms, number);
+        let back_s = (self.state.game_ms - snap_ms) / 1000;
         chunk.warnings.push(format!(
-            "chronobreak after pause {number}: back {} s to game time {}{}",
-            (self.state.game_ms - snap_ms) / 1000,
+            "chronobreak after pause {number}: back {back_s} s to game time {}{}",
             fmt_game_time(snap_ms),
-            if *reset {
+            if reset {
                 ", the feed started its counts again"
             } else {
                 ""
@@ -1071,7 +1154,11 @@ impl Builder {
             }
         }
         self.state.last_details = snap_d;
-        *values_from = snap_w;
+        Restart {
+            back: Some((back_s, undone(prev, &snap_w))),
+            values_from: Some(snap_w),
+            reset,
+        }
     }
 
     /// A `paused` frame after one in play opens a pause, a frame in play after a `paused` one
@@ -1124,7 +1211,7 @@ impl Builder {
             .count();
         let taken: Vec<DetailsFrame> = self.state.pending_details.drain(..n).collect();
         for mut d in taken {
-            if game_ms > 60_000 && zero_details(&d) {
+            if game_ms > RESTART_AFTER_MS && zero_details(&d) {
                 continue;
             }
             self.state.offsets.details(&mut d);
@@ -1152,6 +1239,7 @@ impl Builder {
                             participant_id: pid,
                             skill: s.clone(),
                             game_time_s: game_ms / 1000,
+                            game_ms,
                         });
                     }
                     self.state.skills_seen[i] = p.abilities.len();
@@ -1198,7 +1286,7 @@ impl Builder {
                 }
             }
             if self.history.is_some() {
-                self.details_history.push(d.clone());
+                self.details_history.push_back(d.clone());
             }
             self.state.last_details = Some(d);
         }
@@ -1243,6 +1331,7 @@ impl Builder {
                     };
                     chunk.markers.push(Marker {
                         game_time_s: t,
+                        game_ms,
                         kind,
                         side,
                         detail,
@@ -1607,7 +1696,7 @@ mod tests {
     fn a_frame_hours_away_is_refused() {
         let w = vec![
             hand::window_frame(at(0), "in_game", 0),
-            hand::window_frame(at(13 * 3600), "in_game", 0),
+            hand::window_frame(at(7 * 3600), "in_game", 0),
         ];
         let e = build(&raws(&w), &[], 10).unwrap_err();
         assert!(e.to_string().contains("h from the first one"), "{e}");
@@ -1615,11 +1704,11 @@ mod tests {
         let mut b = Builder::new(10);
         b.push(&raws(&w[..1]), &[]).unwrap();
         assert!(b.push(&raws(&w[1..]), &[]).is_err());
-        // a 6 h pause (DK-DRX 2024-02-25, a DDoS) is still a game
+        // 5 h of pauses is still a game (the longest seen, DK-DRX 2024-02-25 game 2: 2:58)
         let w = paused_game(&[
             (0, 10, "in_game"),
             (11, 11, "paused"),
-            (6 * 3600, 6 * 3600 + 10, "in_game"),
+            (5 * 3600, 5 * 3600 + 10, "in_game"),
         ]);
         let t = build(&raws(&w), &[], 10).unwrap();
         assert_eq!(t.duration_s, 21);
@@ -2013,6 +2102,14 @@ mod tests {
         let p = &chunk.pauses[0];
         assert_eq!(p.rollback_s, None);
         assert!(p.counters_reset);
+        assert!(
+            chunk
+                .warnings
+                .iter()
+                .any(|w| w.contains("counted on from the pause")),
+            "{:?}",
+            chunk.warnings
+        );
         let kills: Vec<i64> = chunk.teams[0].kills.iter().flatten().copied().collect();
         assert!(kills.windows(2).all(|k| k[1] >= k[0]), "{kills:?}");
         assert!(chunk.teams[0].gold.iter().skip(1).flatten().all(|g| *g > 0));
@@ -2051,6 +2148,114 @@ mod tests {
         assert_eq!(towers, vec![(201, Some(1)), (216, None)]);
         // the series: 1 tower at the end (the undone one doesn't count)
         assert_eq!(t.chunk.teams[0].towers.last(), Some(&Some(1)));
+    }
+
+    /// A frame after a pause without one team's gold isn't a chronobreak (no gold to compare)
+    #[test]
+    fn a_frame_without_gold_after_a_pause_is_no_chronobreak() {
+        let mut w = paused_game(&[(0, 100, "in_game"), (101, 110, "paused")]);
+        let mut odd = hand::window_frame(at(111), "in_game", 111);
+        odd["redTeam"].as_object_mut().unwrap().remove("totalGold");
+        w.push(odd);
+        w.extend(paused_game(&[(112, 130, "in_game")]));
+        let t = build(&raws(&w), &[], 10).unwrap();
+        assert_eq!(t.chunk.pauses[0].rollback_s, None);
+        assert!(!t.chunk.pauses[0].counters_reset);
+        assert_eq!(t.duration_s, 120);
+    }
+
+    /// A chronobreak before any kill or objective: only the details show the restart (wards
+    /// back to 0, no skills). Wards and skills go on from the snapshot, items are unknown
+    #[test]
+    fn a_chronobreak_before_first_blood() {
+        let mut w: Vec<Value> = (0..=200)
+            .map(|s| hand::window_frame(at(s), "in_game", 1000 + s * 10))
+            .collect();
+        w.push(hand::window_frame(at(201), "paused", 1000 + 201 * 10));
+        // back at the gold of 190 s
+        w.extend((300..=330).map(|s| hand::window_frame(at(s), "in_game", 1000 + (s - 110) * 10)));
+        let details = |s: i64, abilities: &[&str], wards: i64| {
+            let mut f = df(s, abilities, None, json!([1055, 2003]));
+            for p in f["participants"].as_array_mut().unwrap() {
+                p["wardsPlaced"] = json!(wards);
+            }
+            f
+        };
+        let mut d: Vec<Value> = (0..=200)
+            .step_by(10)
+            .map(|s| details(s, &["Q", "W"], 3))
+            .collect();
+        d.extend((300..=320).step_by(10).map(|s| details(s, &[], 0)));
+        d.push(details(330, &["E"], 1));
+        let t = build(&raws(&w), &raws(&d), 10).unwrap();
+        let p = &t.chunk.pauses[0];
+        assert!(p.counters_reset, "{:?}", t.chunk.warnings);
+        assert_eq!(p.rollback_s, Some(11));
+        let p1 = &t.chunk.players[0];
+        let n = p1.wards_placed.len();
+        assert_eq!(p1.wards_placed[n - 1], Some(4));
+        assert_eq!(p1.item_counts[n - 1], None);
+        let skills: Vec<&str> = t
+            .chunk
+            .skills
+            .iter()
+            .filter(|s| s.participant_id == 1)
+            .map(|s| s.skill.as_str())
+            .collect();
+        assert_eq!(skills, vec!["Q", "W", "E"]);
+    }
+
+    /// A marker taken after the snapshot but in the same second is undone too
+    #[test]
+    fn undone_in_the_snapshots_second() {
+        let frame = |ms: i64, state: &str, gold: i64, towers: i64| {
+            let mut f = hand::window_frame(at(0) + TimeDelta::milliseconds(ms), state, gold);
+            f["blueTeam"]["towers"] = json!(towers);
+            f
+        };
+        // gold 1000 + 1 every 100 ms, a tower at 200.5 s, paused at 201.1 s
+        let mut w: Vec<Value> = (0..=2010)
+            .map(|i| frame(i * 100, "in_game", 1000 + i, i64::from(i >= 2005)))
+            .collect();
+        w.push(frame(201_100, "paused", 3011, 1));
+        // back at gold 3000: the snapshot is 200.0 s, the tower's second
+        w.extend((0..50).map(|i| frame(300_000 + i * 100, "in_game", 3000 + i / 10, 0)));
+        let t = build(&raws(&w), &[], 10).unwrap();
+        let towers: Vec<_> = t
+            .chunk
+            .markers
+            .iter()
+            .filter(|m| m.kind == "tower")
+            .map(|m| (m.game_time_s, m.undone_by_pause))
+            .collect();
+        assert_eq!(towers, vec![(200, Some(1))]);
+    }
+
+    /// `Chunk::rewind` cuts every column: a new column left out of it would be caught here
+    #[test]
+    fn rewind_cuts_every_column() {
+        let (w, d) = game(95);
+        let mut c = build(&w, &d, 10).unwrap().chunk;
+        c.rewind(4, 35_000, 1);
+        assert_eq!(c.wall_time.len(), 4);
+        let cols = c
+            .teams
+            .iter()
+            .map(|t| serde_json::to_value(t).unwrap())
+            .chain(c.players.iter().map(|p| serde_json::to_value(p).unwrap()));
+        for v in cols {
+            for (k, a) in v.as_object().unwrap() {
+                if k != "items"
+                    && let Some(a) = a.as_array()
+                {
+                    assert_eq!(a.len(), 4, "{k}");
+                }
+            }
+        }
+        for p in &c.players {
+            let n: i64 = p.item_counts.iter().flatten().sum();
+            assert_eq!(p.items.len() as i64, n);
+        }
     }
 
     /// A real pause (Worlds, 2026-10-29): 20 s in game, 7 min paused with frames minutes

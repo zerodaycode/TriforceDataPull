@@ -219,7 +219,7 @@ pub fn series_doc(
     let wall_time: Vec<String> = chunk
         .wall_time
         .iter()
-        .map(|t| t.format("%Y-%m-%dT%H:%M:%S%.3f").to_string())
+        .map(|t| t.format(TS).to_string())
         .collect();
     let mut doc = json!({
         "teams": teams,
@@ -233,14 +233,17 @@ pub fn series_doc(
     });
     if let Some(h) = tl_head {
         doc["step_s"] = json!(h.step_s);
-        doc["first_frame"] = json!(h.first_frame.format("%Y-%m-%dT%H:%M:%S%.3f").to_string());
+        doc["first_frame"] = json!(h.first_frame.format(TS).to_string());
         doc["duration_s"] = json!(h.duration_s);
     }
     Ok(doc)
 }
 
+/// Timestamps in the documents, read back with `::timestamp`
+const TS: &str = "%Y-%m-%dT%H:%M:%S%.3f";
+
 fn wall(t: DateTime<Utc>) -> String {
-    t.naive_utc().format("%Y-%m-%dT%H:%M:%S%.3f").to_string()
+    t.naive_utc().format(TS).to_string()
 }
 
 #[derive(Debug, Clone)]
@@ -289,10 +292,10 @@ const REAL_COLS: &[&str] = &[
 ];
 const TEAM_COLS: &[&str] = &["gold", "kills", "towers", "inhibitors", "barons", "dragons"];
 
-/// The CTEs that write a whole build ($1 = game ext id, $2 = the document): timeline, series
-/// and markers replaced. `g` must be defined before. A missing team, player or marker row makes
-/// the game `incomplete`, which the `v2_game_frames_state` CHECK refuses: the whole statement,
-/// archive included, is rolled back. `extra_check` adds conditions to that count (the archive)
+/// The CTEs that write a whole build ($1 = game ext id, $2 = the document): timeline, series,
+/// markers, pauses and rollbacks replaced. `g` must be defined before. A missing team, player,
+/// marker, pause or rollback row makes the game `incomplete`, which the `v2_game_frames_state`
+/// CHECK refuses: the whole statement, archive included, is rolled back. `extra_check` adds conditions to that count (the archive)
 fn replace_series_sql(extra_check: &str) -> String {
     let team_cols = TEAM_COLS.join(", ");
     let team_vals = TEAM_COLS
