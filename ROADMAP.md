@@ -30,6 +30,7 @@ See [ADR 0004](docs/decisions/0004-schema-v2-reference-tables.md) and [ADR 0005]
 
 ## Reliability
 - [ ] [Medium] v2: API corrections that lower a result are skipped today (an answer with a lower state, score or outcome is taken as an old copy). Design how to accept a real one ([live match state](docs/investigations/2026-10-16-live-match-state-design.md) rule 8)
+- [ ] [High] v2 game details after a chronobreak: the end time and the final stats are the frame before the pause (G2-MKOI 2025-09-14 game 3 stored 17:30:56 and kills 5-6, the game went on to 17:51:50). After the restore the feed's counters (kills, towers, dragons, KDA, wards, skills) start again at 0 and the items list only has new buys
 - [ ] [Low] v2 game details: if the feed goes away for good each game burns its 5 tries (~14 h). Notice it and stop the loop (`TRIFORCE_V2_DETAILS=off` does it by hand)
 - [ ] [Low] v2: a Postgres deadlock between the sweep results and a game details write fails one of them. Retry it without counting a try
 - [ ] [Low] v2: `vod_sql` writes `v2_game_team` before it updates `v2_game`, the live writer locks `v2_game` first. Lock `v2_game` first in `vod_sql` too (a deadlock costs one try)
