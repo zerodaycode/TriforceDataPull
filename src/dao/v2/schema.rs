@@ -63,7 +63,7 @@ mod tests {
                 "ALTER TABLE t\n  ADD CONSTRAINT c CHECK (x > 0);"
             ]
         );
-        assert_eq!(statements(SQL).len(), 76);
+        assert_eq!(statements(SQL).len(), 78);
     }
 
     #[test]
@@ -217,7 +217,8 @@ mod tests {
         v2_event_team.event_id>v2_event,v2_event_team.team_id>v2_team,v2_game.event_id>v2_event,\
         v2_game_frames.game_id>v2_game,v2_game_marker.game_id>v2_game,v2_game_marker.team_id>v2_team,v2_game_pause.game_id>v2_game,\
         v2_game_player.game_id>v2_game,v2_game_player.player_id>v2_player,\
-        v2_game_player.team_id>v2_team,v2_game_player_series.game_id>v2_game,\
+        v2_game_player.team_id>v2_team,v2_game_player_series.game_id>v2_game,v2_game_rollback_player.game_id>v2_game_pause,\
+        v2_game_rollback_team.game_id>v2_game_pause,v2_game_rollback_team.team_id>v2_team,\
         v2_game_team.game_id>v2_game,v2_game_team.team_id>v2_team,\
         v2_game_team_series.game_id>v2_game,v2_game_team_series.team_id>v2_team,\
         v2_game_timeline.game_id>v2_game,\

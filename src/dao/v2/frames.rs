@@ -184,7 +184,7 @@ pub fn series_doc(
     let markers: Vec<Value> = chunk
         .markers
         .iter()
-        .map(|m| json!({"game_time_s": m.game_time_s, "kind": m.kind, "side": side(m.side), "detail": m.detail}))
+        .map(|m| json!({"game_time_s": m.game_time_s, "kind": m.kind, "side": side(m.side), "detail": m.detail, "undone_by_pause": m.undone_by_pause}))
         .collect();
     let pauses: Vec<Value> = chunk
         .pauses
@@ -195,9 +195,27 @@ pub fn series_doc(
                 "game_time_s": p.game_time_s,
                 "started_at": wall(p.started_at),
                 "ended_at": p.ended_at.map(wall),
+                "rollback_s": p.rollback_s,
+                "counters_reset": p.counters_reset,
             })
         })
         .collect();
+    let mut rollback_teams: Vec<Value> = vec![];
+    let mut rollback_players: Vec<Value> = vec![];
+    for p in &chunk.pauses {
+        let Some(u) = &p.undone else { continue };
+        for (t, s) in u.teams.iter().zip([Side::Blue, Side::Red]) {
+            let mut v = serde_json::to_value(t).wrap_err("undone team")?;
+            v["number"] = json!(p.number);
+            v["side"] = json!(side(s));
+            rollback_teams.push(v);
+        }
+        for pl in &u.players {
+            let mut v = serde_json::to_value(pl).wrap_err("undone player")?;
+            v["number"] = json!(p.number);
+            rollback_players.push(v);
+        }
+    }
     let wall_time: Vec<String> = chunk
         .wall_time
         .iter()
@@ -208,6 +226,8 @@ pub fn series_doc(
         "players": players,
         "markers": markers,
         "pauses": pauses,
+        "rollback_teams": rollback_teams,
+        "rollback_players": rollback_players,
         "wall_time": wall_time,
         "points": chunk.points(),
     });
@@ -325,14 +345,30 @@ fn replace_series_sql(extra_check: &str) -> String {
            FROM g, d, jsonb_array_elements(d.j->'players') x \
            ON CONFLICT (game_id, participant_id) DO UPDATE SET {player_set} RETURNING participant_id), \
          mk_old AS (DELETE FROM v2_game_marker WHERE game_id = (SELECT id FROM g)), \
-         pz_old AS (DELETE FROM v2_game_pause WHERE game_id = (SELECT id FROM g)), \
-         pz AS (INSERT INTO v2_game_pause (game_id, number, game_time_s, started_at, ended_at) \
-           SELECT g.id, (x->>'number')::smallint, (x->>'game_time_s')::int, (x->>'started_at')::timestamp, (x->>'ended_at')::timestamp FROM g, d, jsonb_array_elements(d.j->'pauses') x RETURNING 1), \
-         mk AS (INSERT INTO v2_game_marker (game_id, game_time_s, kind, team_id, detail) \
-           SELECT g.id, (x->>'game_time_s')::int, x->>'kind', teams.team_id, x->>'detail' FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' RETURNING 1) \
+         pz_old AS (DELETE FROM v2_game_pause WHERE game_id = (SELECT id FROM g) AND number > jsonb_array_length((SELECT j FROM d)->'pauses')), \
+         pz AS (INSERT INTO v2_game_pause (game_id, number, game_time_s, started_at, ended_at, rollback_s, counters_reset) \
+           SELECT g.id, (x->>'number')::smallint, (x->>'game_time_s')::int, (x->>'started_at')::timestamp, (x->>'ended_at')::timestamp, (x->>'rollback_s')::int, (x->>'counters_reset')::boolean \
+           FROM g, d, jsonb_array_elements(d.j->'pauses') x \
+           ON CONFLICT (game_id, number) DO UPDATE SET game_time_s = EXCLUDED.game_time_s, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at, \
+             rollback_s = EXCLUDED.rollback_s, counters_reset = EXCLUDED.counters_reset RETURNING 1), \
+         rbt_new AS (SELECT (x->>'number')::smallint AS number, teams.team_id, x FROM d, jsonb_array_elements(d.j->'rollback_teams') x JOIN teams ON teams.side = x->>'side'), \
+         rbt_old AS (DELETE FROM v2_game_rollback_team WHERE game_id = (SELECT id FROM g) AND (number, team_id) NOT IN (SELECT number, team_id FROM rbt_new)), \
+         rbt AS (INSERT INTO v2_game_rollback_team (game_id, number, team_id, kills, gold, towers, inhibitors, barons, dragons) \
+           SELECT g.id, r.number, r.team_id, (r.x->>'kills')::int, (r.x->>'gold')::int, (r.x->>'towers')::int, (r.x->>'inhibitors')::int, (r.x->>'barons')::int, (r.x->>'dragons')::int FROM g, rbt_new r \
+           ON CONFLICT (game_id, number, team_id) DO UPDATE SET kills = EXCLUDED.kills, gold = EXCLUDED.gold, towers = EXCLUDED.towers, inhibitors = EXCLUDED.inhibitors, \
+             barons = EXCLUDED.barons, dragons = EXCLUDED.dragons RETURNING 1), \
+         rbp_new AS (SELECT (x->>'number')::smallint AS number, (x->>'participant_id')::smallint AS participant_id, x FROM d, jsonb_array_elements(d.j->'rollback_players') x), \
+         rbp_old AS (DELETE FROM v2_game_rollback_player WHERE game_id = (SELECT id FROM g) AND (number, participant_id) NOT IN (SELECT number, participant_id FROM rbp_new)), \
+         rbp AS (INSERT INTO v2_game_rollback_player (game_id, number, participant_id, kills, deaths, assists, gold, cs) \
+           SELECT g.id, r.number, r.participant_id, (r.x->>'kills')::int, (r.x->>'deaths')::int, (r.x->>'assists')::int, (r.x->>'gold')::int, (r.x->>'cs')::int FROM g, rbp_new r \
+           ON CONFLICT (game_id, number, participant_id) DO UPDATE SET kills = EXCLUDED.kills, deaths = EXCLUDED.deaths, assists = EXCLUDED.assists, gold = EXCLUDED.gold, cs = EXCLUDED.cs RETURNING 1), \
+         mk AS (INSERT INTO v2_game_marker (game_id, game_time_s, kind, team_id, detail, undone_by_pause) \
+           SELECT g.id, (x->>'game_time_s')::int, x->>'kind', teams.team_id, x->>'detail', (x->>'undone_by_pause')::smallint FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' RETURNING 1) \
          UPDATE v2_game SET frames = CASE WHEN {extra_check}(SELECT count(*) FROM tl) = 1 AND (SELECT count(*) FROM ts) = 2 AND (SELECT count(*) FROM ps) = 10 \
            AND (SELECT count(*) FROM mk) = jsonb_array_length((SELECT j FROM d)->'markers') \
-           AND (SELECT count(*) FROM pz) = jsonb_array_length((SELECT j FROM d)->'pauses') THEN 'done' ELSE 'incomplete' END \
+           AND (SELECT count(*) FROM pz) = jsonb_array_length((SELECT j FROM d)->'pauses') \
+           AND (SELECT count(*) FROM rbt) = jsonb_array_length((SELECT j FROM d)->'rollback_teams') \
+           AND (SELECT count(*) FROM rbp) = jsonb_array_length((SELECT j FROM d)->'rollback_players') THEN 'done' ELSE 'incomplete' END \
          WHERE id = (SELECT id FROM g) RETURNING frames"
     )
 }
@@ -540,10 +576,10 @@ fn live_sql() -> String {
          mk AS (INSERT INTO v2_game_marker (game_id, game_time_s, kind, team_id, detail) \
            SELECT g.id, (x->>'game_time_s')::int, x->>'kind', teams.team_id, x->>'detail' FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' \
            WHERE EXISTS (SELECT 1 FROM tl) RETURNING 1), \
-         pz AS (INSERT INTO v2_game_pause (game_id, number, game_time_s, started_at, ended_at) \
-           SELECT g.id, (x->>'number')::smallint, (x->>'game_time_s')::int, (x->>'started_at')::timestamp, (x->>'ended_at')::timestamp FROM g, d, jsonb_array_elements(d.j->'pauses') x \
-           WHERE EXISTS (SELECT 1 FROM tl) \
-           ON CONFLICT (game_id, number) DO UPDATE SET ended_at = EXCLUDED.ended_at RETURNING 1) \
+         pz AS (INSERT INTO v2_game_pause (game_id, number, game_time_s, started_at, ended_at, rollback_s, counters_reset) \
+           SELECT g.id, (x->>'number')::smallint, (x->>'game_time_s')::int, (x->>'started_at')::timestamp, (x->>'ended_at')::timestamp, (x->>'rollback_s')::int, (x->>'counters_reset')::boolean \
+           FROM g, d, jsonb_array_elements(d.j->'pauses') x WHERE EXISTS (SELECT 1 FROM tl) \
+           ON CONFLICT (game_id, number) DO UPDATE SET ended_at = EXCLUDED.ended_at, counters_reset = EXCLUDED.counters_reset RETURNING 1) \
          UPDATE v2_game SET frames = CASE WHEN (SELECT count(*) FROM tl) = 0 THEN frames \
            WHEN (SELECT count(*) FROM ts) = 2 AND (SELECT count(*) FROM ps) = 10 AND (SELECT count(*) FROM mk) = jsonb_array_length((SELECT j FROM d)->'markers') \
              AND (SELECT count(*) FROM pz) = jsonb_array_length((SELECT j FROM d)->'pauses') THEN 'live' ELSE 'incomplete' END \
@@ -870,6 +906,61 @@ pub(crate) mod tests {
         crate::dao::v2::test_cleanup().await;
     }
 
+    /// The real chronobreak (G2-MKOI 2025-09-14 game 3): live writes its pause first, then the
+    /// archive writes the pause again with the rollback, then a rebuild writes it all a third
+    /// time. Pauses and rollback rows are updated in place, never twice
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn pauses_and_a_chronobreak_written_again() {
+        let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
+        setup().await;
+        let (meta, w) =
+            crate::frames::parse_frames(fixture!("feed/frames/chronobreak_window.json")).unwrap();
+        let (_, d) =
+            crate::frames::parse_frames(fixture!("feed/frames/chronobreak_details.json")).unwrap();
+        // live: everything up to a minute after the restart, one push
+        let mut b = Builder::new(STEP_S);
+        let chunk = b.push(&w, &d).unwrap();
+        assert_eq!(
+            write_live(-423, -402, -403, &chunk, b.state())
+                .await
+                .unwrap(),
+            1
+        );
+        let pause = "SELECT p.number || ' ' || p.game_time_s || ' ' || coalesce(p.rollback_s::text, '-') || ' ' || p.counters_reset || ' ' || (p.ended_at IS NOT NULL) FROM v2_game_pause p JOIN v2_game g ON g.id = p.game_id WHERE g.ext_id = -423";
+        assert_eq!(one(pause).await, "1 1587 - true true");
+        "".execute(
+            "UPDATE v2_game SET state = 'completed' WHERE ext_id = -423",
+            &[],
+        )
+        .await
+        .unwrap();
+        let meta = meta.unwrap();
+        let pw = pack(Some(&meta), &w).unwrap();
+        let pd = pack(None, &d).unwrap();
+        let tl = build(&w, &d, STEP_S).unwrap();
+        for _ in 0..2 {
+            write_final(-423, &pw, &pd, -402, -403, &tl).await.unwrap();
+            assert_eq!(
+                one("SELECT frames FROM v2_game WHERE ext_id = -423").await,
+                "done"
+            );
+            assert_eq!(one(pause).await, "1 1587 8 true true");
+            assert_eq!(count("SELECT count(*) FROM v2_game_pause p JOIN v2_game g ON g.id = p.game_id WHERE g.ext_id = -423").await, 1);
+            assert_eq!(one("SELECT kills || ' ' || gold FROM v2_game_rollback_team r JOIN v2_game g ON g.id = r.game_id JOIN v2_team t ON t.id = r.team_id WHERE g.ext_id = -423 AND t.ext_id = -402").await, "1 805");
+            assert_eq!(count("SELECT count(*) FROM v2_game_rollback_player r JOIN v2_game g ON g.id = r.game_id WHERE g.ext_id = -423").await, 10);
+        }
+        // a rebuild without the pause (a fix in how pauses are found) takes its rows away
+        let mut no_pause = tl.clone();
+        no_pause.chunk.pauses.clear();
+        write_final(-423, &pw, &pd, -402, -403, &no_pause)
+            .await
+            .unwrap();
+        assert_eq!(count("SELECT count(*) FROM v2_game_pause p JOIN v2_game g ON g.id = p.game_id WHERE g.ext_id = -423").await, 0);
+        assert_eq!(count("SELECT count(*) FROM v2_game_rollback_team r JOIN v2_game g ON g.id = r.game_id WHERE g.ext_id = -423").await, 0);
+        crate::dao::v2::test_cleanup().await;
+    }
+
     #[canyon_sql::macros::canyon_tokio_test]
     #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
     fn live_points_then_the_archive() {
@@ -1036,7 +1127,7 @@ pub(crate) mod tests {
             .skip(1)
             .map(|b| b.split("```").next().unwrap())
             .collect();
-        assert_eq!(examples.len(), 6);
+        assert_eq!(examples.len(), 7);
         for sql in examples {
             // inside FROM only a query runs: a write in the doc fails instead of running
             let wrapped = format!(

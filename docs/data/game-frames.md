@@ -5,7 +5,7 @@ Every frame the live feed sends for a game, about 4 a second, and what's built f
 Two layers:
 
 - **Archive** (`v2_game_frames`): the frames as the feed sent them, compressed. Kept so anything can be built again later, even if the feed goes away.
-- **Series** (`v2_game_timeline`, `v2_game_team_series`, `v2_game_player_series`, `v2_game_marker`, `v2_game_pause`): typed values per point, objectives and pauses, built from the archive (or from the live feed while a game is played).
+- **Series** (`v2_game_timeline`, `v2_game_team_series`, `v2_game_player_series`, `v2_game_marker`, `v2_game_pause`, `v2_game_rollback_team`, `v2_game_rollback_player`): typed values per point, objectives, pauses and chronobreaks, built from the archive (or from the live feed while a game is played).
 
 ## Tables
 
@@ -83,6 +83,7 @@ Objectives, one row each, index on `(game_id, game_time_s)`.
 | `kind` | text | `dragon`, `baron`, `tower`, `inhibitor` |
 | `team_id` | → `v2_team` | the team that took it |
 | `detail` | text, NULL | dragon type (`infernal`, `ocean`, `elder`, …) |
+| `undone_by_pause` | smallint, NULL | the objective was taken back by the chronobreak at the end of this pause (`v2_game_pause.number`). It stays here, but the series don't count it. Taken again after, it's a new row |
 
 ### `v2_game_pause`
 
@@ -95,6 +96,12 @@ Pauses of the game, one row each, primary key `(game_id, number)`. No rows: the 
 | `game_time_s` | int | game time when it paused, s |
 | `started_at` | timestamp | wall time of the first `paused` frame |
 | `ended_at` | timestamp, NULL | wall time of the first frame in play after it (or the `finished` one). NULL while the game is still paused, or when the feed ends paused |
+| `rollback_s` | int, NULL | chronobreak: game seconds the game went back when it came back from this pause. NULL: a normal pause (or live, see below) |
+| `counters_reset` | boolean | the feed started its counts again at 0 after this pause (seen with every chronobreak so far) |
+
+### `v2_game_rollback_team`, `v2_game_rollback_player`
+
+What a chronobreak took back, one row per team (`team_id`) or player (`participant_id`), primary key `(game_id, number, …)` with `number` → the pause in `v2_game_pause`. Values are what was there at the pause minus what the game went back to: `kills`, `gold`, `towers`, `inhibitors`, `barons`, `dragons` for teams; `kills`, `deaths`, `assists`, `gold`, `cs` for players. Only for pauses with `rollback_s`.
 
 The feed sends very few frames during a pause, often one and then nothing for minutes (24 min seen). Seen: 3 pauses of 11, 16 and 38 min in one game (DK-DRX 2024-02-25).
 
@@ -107,6 +114,24 @@ The feed sends very few frames during a pause, often one and then nothing for mi
 - A frame without a dragon list gives a NULL point, not 0.
 - A frame more than 12 h from the first one is a feed error: the game fails that try (a DDoS paused one game for ~6 h).
 - A NULL value in an array: no data for that point.
+
+## Chronobreaks
+
+Riot can take a game back to an earlier moment (a chronobreak). Seen twice (G2-MKOI 2025-09-14 game 3, FUR-GAM 2025-06-28 game 5), both the same way in the feed:
+
+1. The game pauses. Minutes without frames.
+2. Frames with every player at level 1 and no gold (a server starting again): skipped, no points, no game time.
+3. The game comes back from a moment a few seconds before the pause (5 and 8 s seen): gold, level and CS restored.
+4. The feed's counts start again at 0: team kills, towers, inhibitors, barons, dragons, player kills/deaths/assists, wards, skills. The item lists only have what was bought after.
+
+What's stored:
+
+- The series show the game as it went on: game time goes back to the snapshot (the last frame before the pause with no more gold than after), the points after it are the ones played after the restart. Counts the feed started again get what they had at the snapshot added, so they keep adding up.
+- Items after a restart are NULL (`item_counts` NULL): the feed's list isn't the inventory any more.
+- The pause gets `rollback_s` and `counters_reset`, what was taken back goes to `v2_game_rollback_team` / `v2_game_rollback_player`, objectives taken back stay in `v2_game_marker` with `undone_by_pause`.
+- The archive keeps every frame, the seconds taken back included.
+- Live can't find the snapshot (it doesn't keep the frames): it skips the zero frames and keeps the counts adding up from the pause, with `rollback_s` NULL. The after-game write puts the rollback in.
+- The final stats in `v2_game_team` / `v2_game_player` aren't fixed for a chronobreak yet (ROADMAP).
 
 ## How it's filled
 
@@ -194,6 +219,18 @@ SELECT p.number, p.game_time_s / 60 AS game_min, p.started_at, p.ended_at, round
 FROM v2_game g
 JOIN v2_game_pause p ON p.game_id = g.id
 WHERE g.ext_id = 111561337007305538
+ORDER BY p.number;
+```
+
+Pauses and chronobreaks of a game, with what each chronobreak took back:
+
+```sql
+SELECT p.number, p.game_time_s, round(extract(epoch FROM p.ended_at - p.started_at) / 60) AS minutes, p.rollback_s, p.counters_reset,
+  (SELECT string_agg(t.code || ' ' || r.kills || ' kills, ' || r.towers || ' towers, ' || r.dragons || ' dragons', '; ') FROM v2_game_rollback_team r JOIN v2_team t ON t.id = r.team_id WHERE r.game_id = p.game_id AND r.number = p.number) AS taken_back,
+  (SELECT count(*) FROM v2_game_marker m WHERE m.game_id = p.game_id AND m.undone_by_pause = p.number) AS objectives_undone
+FROM v2_game g
+JOIN v2_game_pause p ON p.game_id = g.id
+WHERE g.ext_id = 113487569888189690
 ORDER BY p.number;
 ```
 

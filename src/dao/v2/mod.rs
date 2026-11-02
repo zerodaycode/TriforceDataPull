@@ -19,6 +19,8 @@ pub(crate) async fn test_cleanup() {
     const GAMES: &str = "(SELECT id FROM v2_game WHERE event_id IN (SELECT id FROM v2_event WHERE ext_id < 0) OR ext_id < 0)";
     for sql in [
         format!("DELETE FROM v2_game_marker WHERE game_id IN {GAMES} OR team_id IN (SELECT id FROM v2_team WHERE ext_id < 0)"),
+        format!("DELETE FROM v2_game_rollback_team WHERE game_id IN {GAMES} OR team_id IN (SELECT id FROM v2_team WHERE ext_id < 0)"),
+        format!("DELETE FROM v2_game_rollback_player WHERE game_id IN {GAMES}"),
         format!("DELETE FROM v2_game_pause WHERE game_id IN {GAMES}"),
         format!("DELETE FROM v2_game_team_series WHERE game_id IN {GAMES} OR team_id IN (SELECT id FROM v2_team WHERE ext_id < 0)"),
         format!("DELETE FROM v2_game_player_series WHERE game_id IN {GAMES}"),
