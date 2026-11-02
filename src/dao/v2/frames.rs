@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use canyon_sql::{connection::DbConnection, date_time::NaiveDateTime, query::QueryParameter};
+use chrono::{DateTime, Utc};
 use color_eyre::{
     Result,
     eyre::{WrapErr, eyre},
@@ -167,7 +168,7 @@ pub fn series_doc(
                 .filter(|s| s.participant_id == p.participant_id)
                 .collect();
             v["skill_order"] = json!(skills.iter().map(|s| &s.skill).collect::<Vec<_>>());
-            v["skill_time"] = json!(skills.iter().map(|s| s.t).collect::<Vec<_>>());
+            v["skill_time"] = json!(skills.iter().map(|s| s.game_time_s).collect::<Vec<_>>());
             if let Some(r) = chunk
                 .runes
                 .iter()
@@ -183,7 +184,19 @@ pub fn series_doc(
     let markers: Vec<Value> = chunk
         .markers
         .iter()
-        .map(|m| json!({"t": m.t, "kind": m.kind, "side": side(m.side), "detail": m.detail}))
+        .map(|m| json!({"game_time_s": m.game_time_s, "kind": m.kind, "side": side(m.side), "detail": m.detail}))
+        .collect();
+    let pauses: Vec<Value> = chunk
+        .pauses
+        .iter()
+        .map(|p| {
+            json!({
+                "number": p.number,
+                "game_time_s": p.game_time_s,
+                "started_at": wall(p.started_at),
+                "ended_at": p.ended_at.map(wall),
+            })
+        })
         .collect();
     let wall_time: Vec<String> = chunk
         .wall_time
@@ -194,6 +207,7 @@ pub fn series_doc(
         "teams": teams,
         "players": players,
         "markers": markers,
+        "pauses": pauses,
         "wall_time": wall_time,
         "points": chunk.points(),
     });
@@ -203,6 +217,10 @@ pub fn series_doc(
         doc["duration_s"] = json!(h.duration_s);
     }
     Ok(doc)
+}
+
+fn wall(t: DateTime<Utc>) -> String {
+    t.naive_utc().format("%Y-%m-%dT%H:%M:%S%.3f").to_string()
 }
 
 #[derive(Debug, Clone)]
@@ -241,6 +259,7 @@ const INT_COLS: &[&str] = &[
     "armor",
     "magic_resist",
     "items",
+    "item_counts",
 ];
 const REAL_COLS: &[&str] = &[
     "kill_participation",
@@ -306,10 +325,14 @@ fn replace_series_sql(extra_check: &str) -> String {
            FROM g, d, jsonb_array_elements(d.j->'players') x \
            ON CONFLICT (game_id, participant_id) DO UPDATE SET {player_set} RETURNING participant_id), \
          mk_old AS (DELETE FROM v2_game_marker WHERE game_id = (SELECT id FROM g)), \
-         mk AS (INSERT INTO v2_game_marker (game_id, t, kind, team_id, detail) \
-           SELECT g.id, (x->>'t')::int, x->>'kind', teams.team_id, x->>'detail' FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' RETURNING 1) \
+         pz_old AS (DELETE FROM v2_game_pause WHERE game_id = (SELECT id FROM g)), \
+         pz AS (INSERT INTO v2_game_pause (game_id, number, game_time_s, started_at, ended_at) \
+           SELECT g.id, (x->>'number')::smallint, (x->>'game_time_s')::int, (x->>'started_at')::timestamp, (x->>'ended_at')::timestamp FROM g, d, jsonb_array_elements(d.j->'pauses') x RETURNING 1), \
+         mk AS (INSERT INTO v2_game_marker (game_id, game_time_s, kind, team_id, detail) \
+           SELECT g.id, (x->>'game_time_s')::int, x->>'kind', teams.team_id, x->>'detail' FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' RETURNING 1) \
          UPDATE v2_game SET frames = CASE WHEN {extra_check}(SELECT count(*) FROM tl) = 1 AND (SELECT count(*) FROM ts) = 2 AND (SELECT count(*) FROM ps) = 10 \
-           AND (SELECT count(*) FROM mk) = jsonb_array_length((SELECT j FROM d)->'markers') THEN 'done' ELSE 'incomplete' END \
+           AND (SELECT count(*) FROM mk) = jsonb_array_length((SELECT j FROM d)->'markers') \
+           AND (SELECT count(*) FROM pz) = jsonb_array_length((SELECT j FROM d)->'pauses') THEN 'done' ELSE 'incomplete' END \
          WHERE id = (SELECT id FROM g) RETURNING frames"
     )
 }
@@ -514,11 +537,16 @@ fn live_sql() -> String {
            SELECT g.id, (x->>'participant_id')::smallint, {player_vals}, (x->>'rune_style')::int, (x->>'rune_sub_style')::int, CASE WHEN x ? 'runes' THEN v2_jsonb_ints(x->'runes') END, v2_jsonb_texts(x->'skill_order'), v2_jsonb_ints(x->'skill_time') \
            FROM g, d, jsonb_array_elements(d.j->'players') x WHERE EXISTS (SELECT 1 FROM tl) \
            ON CONFLICT (game_id, participant_id) DO UPDATE SET {player_add} RETURNING participant_id), \
-         mk AS (INSERT INTO v2_game_marker (game_id, t, kind, team_id, detail) \
-           SELECT g.id, (x->>'t')::int, x->>'kind', teams.team_id, x->>'detail' FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' \
-           WHERE EXISTS (SELECT 1 FROM tl) RETURNING 1) \
+         mk AS (INSERT INTO v2_game_marker (game_id, game_time_s, kind, team_id, detail) \
+           SELECT g.id, (x->>'game_time_s')::int, x->>'kind', teams.team_id, x->>'detail' FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' \
+           WHERE EXISTS (SELECT 1 FROM tl) RETURNING 1), \
+         pz AS (INSERT INTO v2_game_pause (game_id, number, game_time_s, started_at, ended_at) \
+           SELECT g.id, (x->>'number')::smallint, (x->>'game_time_s')::int, (x->>'started_at')::timestamp, (x->>'ended_at')::timestamp FROM g, d, jsonb_array_elements(d.j->'pauses') x \
+           WHERE EXISTS (SELECT 1 FROM tl) \
+           ON CONFLICT (game_id, number) DO UPDATE SET ended_at = EXCLUDED.ended_at RETURNING 1) \
          UPDATE v2_game SET frames = CASE WHEN (SELECT count(*) FROM tl) = 0 THEN frames \
-           WHEN (SELECT count(*) FROM ts) = 2 AND (SELECT count(*) FROM ps) = 10 AND (SELECT count(*) FROM mk) = jsonb_array_length((SELECT j FROM d)->'markers') THEN 'live' ELSE 'incomplete' END \
+           WHEN (SELECT count(*) FROM ts) = 2 AND (SELECT count(*) FROM ps) = 10 AND (SELECT count(*) FROM mk) = jsonb_array_length((SELECT j FROM d)->'markers') \
+             AND (SELECT count(*) FROM pz) = jsonb_array_length((SELECT j FROM d)->'pauses') THEN 'live' ELSE 'incomplete' END \
          WHERE id = (SELECT id FROM g) RETURNING (SELECT count(*) FROM tl)"
     )
 }
@@ -758,9 +786,10 @@ pub(crate) mod tests {
         assert_eq!(one("SELECT source || ' ' || points || ' ' || duration_s FROM v2_game_timeline t JOIN v2_game g ON g.id = t.game_id WHERE g.ext_id = -420").await, format!("archive {} 95", tl.points));
         // the arrays keep their values, nulls and the flat items
         assert_eq!(one("SELECT (gold[1])::text || ',' || (gold[11])::text FROM v2_game_team_series s JOIN v2_game g ON g.id = s.game_id WHERE g.ext_id = -420 AND s.side = 'blue'").await, "2500,3450");
-        assert_eq!(count("SELECT array_length(items, 1) FROM v2_game_player_series s JOIN v2_game g ON g.id = s.game_id WHERE g.ext_id = -420 AND participant_id = 1").await, tl.points * 10);
+        assert_eq!(count("SELECT array_length(item_counts, 1) FROM v2_game_player_series s JOIN v2_game g ON g.id = s.game_id WHERE g.ext_id = -420 AND participant_id = 1").await, tl.points);
+        assert_eq!(count("SELECT array_length(items, 1) FROM v2_game_player_series s JOIN v2_game g ON g.id = s.game_id WHERE g.ext_id = -420 AND participant_id = 1").await, count("SELECT sum(c) FROM v2_game_player_series s JOIN v2_game g ON g.id = s.game_id, unnest(s.item_counts) c WHERE g.ext_id = -420 AND participant_id = 1").await);
         assert_eq!(one("SELECT array_to_string(runes, ',') || ' ' || rune_style FROM v2_game_player_series s JOIN v2_game g ON g.id = s.game_id WHERE g.ext_id = -420 AND participant_id = 7").await, "8005,9111 8000");
-        assert_eq!(one("SELECT kind || ' ' || detail || ' ' || t FROM v2_game_marker m JOIN v2_game g ON g.id = m.game_id JOIN v2_team tm ON tm.id = m.team_id WHERE g.ext_id = -420 AND tm.ext_id = -403").await, "dragon ocean 31");
+        assert_eq!(one("SELECT kind || ' ' || detail || ' ' || game_time_s FROM v2_game_marker m JOIN v2_game g ON g.id = m.game_id JOIN v2_team tm ON tm.id = m.team_id WHERE g.ext_id = -420 AND tm.ext_id = -403").await, "dragon ocean 31");
         // the archive reads back to the same frames
         let arch = read_archive(-420).await.unwrap();
         assert_eq!(arch.len(), 2);
@@ -1007,7 +1036,7 @@ pub(crate) mod tests {
             .skip(1)
             .map(|b| b.split("```").next().unwrap())
             .collect();
-        assert_eq!(examples.len(), 5);
+        assert_eq!(examples.len(), 6);
         for sql in examples {
             // inside FROM only a query runs: a write in the doc fails instead of running
             let wrapped = format!(

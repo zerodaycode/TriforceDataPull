@@ -63,7 +63,7 @@ mod tests {
                 "ALTER TABLE t\n  ADD CONSTRAINT c CHECK (x > 0);"
             ]
         );
-        assert_eq!(statements(SQL).len(), 73);
+        assert_eq!(statements(SQL).len(), 76);
     }
 
     #[test]
@@ -121,7 +121,7 @@ mod tests {
                 &[],
             )
             .await?;
-        assert_eq!(c, 25);
+        assert_eq!(c, 26);
         // the SQL ranks are the Rust ones
         for st in ["unstarted", "inProgress", "completed", "unneeded", "other"] {
             let db: i32 = ""
@@ -180,11 +180,15 @@ mod tests {
             ),
             (
                 "participant",
-                "INSERT INTO v2_game_player_series (game_id, participant_id, gold, level, kills, deaths, assists, cs, hp, max_hp, gold_earned, kill_participation, damage_share, wards_placed, wards_destroyed, attack_damage, ability_power, crit_chance, attack_speed, life_steal, armor, magic_resist, tenacity, items, skill_order, skill_time) SELECT min(id), 11, '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}' FROM v2_game",
+                "INSERT INTO v2_game_player_series (game_id, participant_id, gold, level, kills, deaths, assists, cs, hp, max_hp, gold_earned, kill_participation, damage_share, wards_placed, wards_destroyed, attack_damage, ability_power, crit_chance, attack_speed, life_steal, armor, magic_resist, tenacity, items, item_counts, skill_order, skill_time) SELECT min(id), 11, '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}' FROM v2_game",
             ),
             (
                 "marker",
                 "INSERT INTO v2_game_marker SELECT (SELECT min(id) FROM v2_game), 0, 'herald', (SELECT min(id) FROM v2_team), NULL",
+            ),
+            (
+                "pause order",
+                "INSERT INTO v2_game_pause SELECT min(id), 1, 0, now(), now() - interval '1 s' FROM v2_game",
             ),
             (
                 "source",
@@ -211,7 +215,7 @@ mod tests {
         team_player.team_id>team,tournament.league>league,v2_event.league_id>v2_league,\
         v2_event.tournament_id>v2_tournament,v2_event_i18n.event_id>v2_event,\
         v2_event_team.event_id>v2_event,v2_event_team.team_id>v2_team,v2_game.event_id>v2_event,\
-        v2_game_frames.game_id>v2_game,v2_game_marker.game_id>v2_game,v2_game_marker.team_id>v2_team,\
+        v2_game_frames.game_id>v2_game,v2_game_marker.game_id>v2_game,v2_game_marker.team_id>v2_team,v2_game_pause.game_id>v2_game,\
         v2_game_player.game_id>v2_game,v2_game_player.player_id>v2_player,\
         v2_game_player.team_id>v2_team,v2_game_player_series.game_id>v2_game,\
         v2_game_team.game_id>v2_game,v2_game_team.team_id>v2_team,\

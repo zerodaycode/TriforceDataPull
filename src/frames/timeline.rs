@@ -19,14 +19,11 @@ use super::RawFrame;
 pub const STEP_S: i32 = 10;
 /// Longer gaps between frames give empty points instead of the last value
 const MAX_CARRY: TimeDelta = TimeDelta::seconds(30);
-/// No game is this long in wall time, pauses included: a frame further from the first one is a
-/// feed error (and would make millions of points)
-const MAX_WALL: TimeDelta = TimeDelta::hours(4);
+/// No game is this long in wall time, pauses included (a DDoS paused one ~6 h): a frame further
+/// from the first one is a feed error (and would make millions of points)
+const MAX_WALL: TimeDelta = TimeDelta::hours(12);
 /// More objectives of one kind between two frames is a feed error, no markers for it
 const MAX_JUMP: i64 = 11;
-/// Items a player holds (the feed lists them, trinket included: up to 8 seen), padded with
-/// empty values to a fixed width: point k is `items[k × ITEM_SLOTS ..]`
-pub const ITEM_SLOTS: usize = 10;
 
 // The feed's frames, only what the series use. Everything optional: a field missing in one
 // frame is an empty value, not a failed game
@@ -148,8 +145,10 @@ pub struct PlayerCols {
     pub armor: Vec<Option<i64>>,
     pub magic_resist: Vec<Option<i64>>,
     pub tenacity: Vec<Option<f64>>,
-    /// `ITEM_SLOTS` per point
+    /// The items of every point one after the other, as many as the feed lists (one per unit
+    /// of a stack: 11 seen). `item_counts` says how many belong to each point
     pub items: Vec<Option<i64>>,
+    pub item_counts: Vec<Option<i64>>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -161,19 +160,28 @@ pub enum Side {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Marker {
-    /// Game time, s
-    pub t: i64,
+    pub game_time_s: i64,
     pub kind: &'static str,
     pub side: Side,
     pub detail: Option<String>,
+}
+
+/// A pause of the game: from the first `paused` frame to the next frame in play
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Pause {
+    /// 1, 2, … in the order of the game
+    pub number: i16,
+    pub game_time_s: i64,
+    pub started_at: DateTime<Utc>,
+    /// `None` while the game is still paused
+    pub ended_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Skill {
     pub participant_id: i16,
     pub skill: String,
-    /// Game time, s
-    pub t: i64,
+    pub game_time_s: i64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -192,6 +200,8 @@ pub struct Chunk {
     /// participants 1 to 10
     pub players: Vec<PlayerCols>,
     pub markers: Vec<Marker>,
+    /// A pause shows up once when it starts and again when it ends, the last one counts
+    pub pauses: Vec<Pause>,
     pub skills: Vec<Skill>,
     pub runes: Vec<Runes>,
     #[serde(skip)]
@@ -210,6 +220,7 @@ impl Default for Chunk {
                 })
                 .collect(),
             markers: vec![],
+            pauses: vec![],
             skills: vec![],
             runes: vec![],
             warnings: vec![],
@@ -223,6 +234,14 @@ impl Chunk {
     }
 
     /// `next` after `self`, as if built in one go
+    /// A pause, replacing the one with its number (it started in an earlier frame)
+    fn push_pause(&mut self, p: Pause) {
+        match self.pauses.iter_mut().find(|q| q.number == p.number) {
+            Some(q) => *q = p,
+            None => self.pauses.push(p),
+        }
+    }
+
     pub fn append(&mut self, next: Chunk) {
         self.wall_time.extend(next.wall_time);
         for (a, b) in self.teams.iter_mut().zip(next.teams) {
@@ -256,8 +275,12 @@ impl Chunk {
             a.magic_resist.extend(b.magic_resist);
             a.tenacity.extend(b.tenacity);
             a.items.extend(b.items);
+            a.item_counts.extend(b.item_counts);
         }
         self.markers.extend(next.markers);
+        for p in next.pauses {
+            self.push_pause(p);
+        }
         self.skills.extend(next.skills);
         self.runes.extend(next.runes);
         self.warnings.extend(next.warnings);
@@ -322,18 +345,11 @@ impl Chunk {
             cols.tenacity.push(dp.and_then(|p| finite(p.tenacity)));
             match dp {
                 Some(p) => {
-                    if p.items.len() > ITEM_SLOTS {
-                        self.warnings.push(format!(
-                            "participant {id}: {} items, the first {ITEM_SLOTS} kept",
-                            p.items.len()
-                        ));
-                    }
-                    let kept = p.items.len().min(ITEM_SLOTS);
-                    cols.items.extend(p.items[..kept].iter().map(|i| Some(*i)));
-                    cols.items
-                        .extend(std::iter::repeat_n(None, ITEM_SLOTS - kept));
+                    cols.items.extend(p.items.iter().map(|i| Some(*i)));
+                    cols.item_counts
+                        .push(Some(i64::try_from(p.items.len()).unwrap_or(i64::MAX)));
                 }
-                None => cols.items.extend(std::iter::repeat_n(None, ITEM_SLOTS)),
+                None => cols.item_counts.push(None),
             }
         }
         Ok(())
@@ -369,6 +385,9 @@ pub struct LiveState {
     /// drops and comes back makes no new markers
     #[serde(default)]
     max_seen: [[i64; 4]; 2],
+    /// Pauses so far, the last one still open while the game is paused
+    #[serde(default)]
+    pauses: Vec<Pause>,
 }
 
 impl LiveState {
@@ -424,6 +443,7 @@ impl Builder {
                 warned: vec![],
                 cursor: None,
                 max_seen: [[0; 4]; 2],
+                pauses: vec![],
             },
         }
     }
@@ -538,6 +558,7 @@ impl Builder {
                 }
             }
             self.take_details(w.rfc460_timestamp, 0, chunk)?;
+            self.pause_edges(None, &w, 0, chunk);
             self.after_frame(&w);
             self.state.last_window = Some(w);
             return Ok(());
@@ -586,11 +607,45 @@ impl Builder {
             self.state.next_point += 1;
         }
         self.markers(&prev, &w, g1, chunk);
+        self.pause_edges(Some(&prev), &w, g1, chunk);
         self.state.game_ms = g1;
         self.take_details(w.rfc460_timestamp, g1, chunk)?;
         self.after_frame(&w);
         self.state.last_window = Some(w);
         Ok(())
+    }
+
+    /// A `paused` frame after one in play opens a pause, a frame in play after a `paused` one
+    /// closes it
+    fn pause_edges(
+        &mut self,
+        prev: Option<&WindowFrame>,
+        w: &WindowFrame,
+        game_ms: i64,
+        chunk: &mut Chunk,
+    ) {
+        let paused = |f: &WindowFrame| f.game_state.as_deref() == Some("paused");
+        let was = prev.is_some_and(paused);
+        let pause = if paused(w) && !was {
+            let number = i16::try_from(self.state.pauses.len() + 1).unwrap_or(i16::MAX);
+            let p = Pause {
+                number,
+                game_time_s: game_ms / 1000,
+                started_at: w.rfc460_timestamp,
+                ended_at: None,
+            };
+            self.state.pauses.push(p.clone());
+            p
+        } else if was && !paused(w) {
+            let Some(p) = self.state.pauses.last_mut() else {
+                return;
+            };
+            p.ended_at = Some(w.rfc460_timestamp);
+            p.clone()
+        } else {
+            return;
+        };
+        chunk.push_pause(pause);
     }
 
     fn after_frame(&mut self, w: &WindowFrame) {
@@ -627,7 +682,7 @@ impl Builder {
                         chunk.skills.push(Skill {
                             participant_id: pid,
                             skill: s.clone(),
-                            t: game_ms / 1000,
+                            game_time_s: game_ms / 1000,
                         });
                     }
                     self.state.skills_seen[i] = p.abilities.len();
@@ -715,7 +770,7 @@ impl Builder {
                         None
                     };
                     chunk.markers.push(Marker {
-                        t,
+                        game_time_s: t,
                         kind,
                         side,
                         detail,
@@ -846,16 +901,16 @@ mod tests {
         assert_eq!(t.chunk.wall_time[10], at(95).naive_utc());
         for p in &t.chunk.players {
             assert_eq!(p.gold.len(), 11);
-            assert_eq!(p.items.len(), 11 * ITEM_SLOTS);
+            assert_eq!(p.item_counts.len(), 11);
             assert_eq!(p.damage_share[0], Some(0.1));
         }
-        // two items then empty slots
-        assert_eq!(&t.chunk.players[0].items[..2], &[Some(1055), Some(2003)]);
-        assert!(
-            t.chunk.players[0].items[2..ITEM_SLOTS]
-                .iter()
-                .all(Option::is_none)
+        // two items a point, nothing padded
+        assert_eq!(
+            &t.chunk.players[0].items[..3],
+            &[Some(1055), Some(2003), Some(1055)]
         );
+        assert_eq!(t.chunk.players[0].items.len(), 11 * 2);
+        assert_eq!(t.chunk.players[0].item_counts[0], Some(2));
         assert!(t.chunk.warnings.is_empty(), "{:?}", t.chunk.warnings);
     }
 
@@ -953,11 +1008,9 @@ mod tests {
         assert!(gold[1..=6].iter().all(Option::is_none), "{gold:?}");
         assert_eq!(gold[7], Some(70));
         assert_eq!(t.chunk.wall_time[3], at(30).naive_utc());
-        assert!(
-            t.chunk.players[0].items[ITEM_SLOTS..2 * ITEM_SLOTS]
-                .iter()
-                .all(Option::is_none)
-        );
+        // no details at all: no items, every count empty
+        assert!(t.chunk.players[0].items.is_empty());
+        assert!(t.chunk.players[0].item_counts.iter().all(Option::is_none));
         assert_eq!(t.chunk.warnings, vec!["feed gap of 60 s at game time 0:05"]);
     }
 
@@ -1006,7 +1059,7 @@ mod tests {
             .chunk
             .markers
             .iter()
-            .map(|m| (m.t, m.kind, m.detail.as_deref()))
+            .map(|m| (m.game_time_s, m.kind, m.detail.as_deref()))
             .collect();
         assert_eq!(
             m,
@@ -1081,7 +1134,7 @@ mod tests {
     fn a_frame_hours_away_is_refused() {
         let w = vec![
             hand::window_frame(at(0), "in_game", 0),
-            hand::window_frame(at(5 * 3600), "in_game", 0),
+            hand::window_frame(at(13 * 3600), "in_game", 0),
         ];
         let e = build(&raws(&w), &[], 10).unwrap_err();
         assert!(e.to_string().contains("h from the first one"), "{e}");
@@ -1089,6 +1142,14 @@ mod tests {
         let mut b = Builder::new(10);
         b.push(&raws(&w[..1]), &[]).unwrap();
         assert!(b.push(&raws(&w[1..]), &[]).is_err());
+        // a 6 h pause (DK-DRX 2024-02-25, a DDoS) is still a game
+        let w = paused_game(&[
+            (0, 10, "in_game"),
+            (11, 11, "paused"),
+            (6 * 3600, 6 * 3600 + 10, "in_game"),
+        ]);
+        let t = build(&raws(&w), &[], 10).unwrap();
+        assert_eq!(t.duration_s, 21);
     }
 
     #[test]
@@ -1148,7 +1209,7 @@ mod tests {
             .skills
             .iter()
             .filter(|s| s.participant_id == 1)
-            .map(|s| (s.skill.as_str(), s.t))
+            .map(|s| (s.skill.as_str(), s.game_time_s))
             .collect();
         assert_eq!(p1, [("Q", 0), ("W", 10), ("E", 10)]);
         // the list shrinking is logged once per player, nothing removed
@@ -1175,24 +1236,99 @@ mod tests {
         assert!(t.chunk.warnings[0].contains("runes changed"));
     }
 
+    fn paused_game(states: &[(i64, i64, &str)]) -> Vec<Value> {
+        states
+            .iter()
+            .flat_map(|&(from, to, state)| {
+                (from..=to).map(move |s| hand::window_frame(at(s), state, s))
+            })
+            .collect()
+    }
+
     #[test]
-    fn items_padded_and_too_many_cut() {
+    fn pauses_with_their_game_and_wall_times() {
+        // in play 0-100, paused 101-200, in play 201-300, paused 301-310, finished at 311
+        let mut w = paused_game(&[
+            (0, 100, "in_game"),
+            (101, 200, "paused"),
+            (201, 300, "in_game"),
+            (301, 310, "paused"),
+        ]);
+        w.push(hand::window_frame(at(311), "finished", 311));
+        let t = build(&raws(&w), &[], 10).unwrap();
+        assert_eq!(
+            t.chunk.pauses,
+            vec![
+                Pause {
+                    number: 1,
+                    game_time_s: 101,
+                    started_at: at(101),
+                    ended_at: Some(at(201))
+                },
+                Pause {
+                    number: 2,
+                    game_time_s: 201,
+                    started_at: at(301),
+                    ended_at: Some(at(311))
+                },
+            ]
+        );
+        assert_eq!(t.duration_s, 201);
+    }
+
+    #[test]
+    fn a_pause_still_open_and_closed_in_a_later_push() {
+        let w = paused_game(&[(0, 50, "in_game"), (51, 80, "paused")]);
+        let mut b = Builder::new(10);
+        let first = b.push(&raws(&w), &[]).unwrap();
+        assert_eq!(first.pauses.len(), 1);
+        assert_eq!(first.pauses[0].ended_at, None);
+        // live: the state goes through JSON between ticks
+        let state: LiveState =
+            serde_json::from_str(&serde_json::to_string(b.state()).unwrap()).unwrap();
+        let mut b = Builder::resume(state).unwrap();
+        let w = paused_game(&[(81, 90, "paused"), (91, 120, "in_game")]);
+        let second = b.push(&raws(&w), &[]).unwrap();
+        assert_eq!(
+            second.pauses,
+            vec![Pause {
+                number: 1,
+                game_time_s: 51,
+                started_at: at(51),
+                ended_at: Some(at(91))
+            }]
+        );
+        let mut whole = first;
+        whole.append(second);
+        assert_eq!(whole.pauses.len(), 1);
+        assert_eq!(whole.pauses[0].ended_at, Some(at(91)));
+    }
+
+    #[test]
+    fn a_game_that_starts_paused() {
+        let w = paused_game(&[(0, 20, "paused"), (21, 60, "in_game")]);
+        let t = build(&raws(&w), &[], 10).unwrap();
+        assert_eq!(t.chunk.pauses[0].game_time_s, 0);
+        assert_eq!(t.chunk.pauses[0].ended_at, Some(at(21)));
+    }
+
+    #[test]
+    fn items_as_many_as_the_feed_lists() {
         let w: Vec<Value> = (0..=10)
             .map(|s| hand::window_frame(at(s), "in_game", 0))
             .collect();
-        // 8 items, as the feed sends with a role quest item
-        let d = vec![df(0, &[], None, json!([1, 2, 3, 4, 5, 6, 7, 8]))];
+        // 11 items (seen once, 2024-2026), then 2 control wards as two entries
+        let d = vec![
+            df(0, &[], None, json!([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])),
+            df(10, &[], None, json!([3364, 2055, 2055])),
+        ];
         let t = build(&raws(&w), &raws(&d), 10).unwrap();
-        assert_eq!(t.chunk.players[0].items[7], Some(8));
-        assert_eq!(t.chunk.players[0].items[8], None);
+        let p = &t.chunk.players[0];
+        assert_eq!(p.item_counts, vec![Some(11), Some(3)]);
+        assert_eq!(p.items.len(), 14);
+        assert_eq!(p.items[10], Some(11));
+        assert_eq!(&p.items[11..], &[Some(3364), Some(2055), Some(2055)]);
         assert!(t.chunk.warnings.is_empty());
-        let d = vec![df(0, &[], None, json!([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]))];
-        let t = build(&raws(&w), &raws(&d), 10).unwrap();
-        let point0: Vec<Option<i64>> = (1..=10).map(Some).collect();
-        assert_eq!(t.chunk.players[0].items[..ITEM_SLOTS], point0);
-        // the next point starts right after: the 11th item is gone
-        assert_eq!(t.chunk.players[0].items[ITEM_SLOTS], Some(1));
-        assert!(t.chunk.warnings[0].contains("11 items, the first 10 kept"));
     }
 
     #[test]

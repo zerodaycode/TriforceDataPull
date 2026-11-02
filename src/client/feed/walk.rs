@@ -61,10 +61,11 @@ pub struct WalkConfig {
     /// Calls in a row without a newer `window` frame before the walk stops (games without a
     /// `finished` frame)
     pub stall_calls: u32,
-    /// Feed time from the first frame after which the walk gives up
+    /// Feed time from the first frame after which the walk gives up (DK-DRX 2024-02-25 was
+    /// paused ~6 h by a DDoS)
     pub guard: TimeDelta,
-    /// Feed time without a new frame after which the walk gives up (a game stuck `paused`).
-    /// The longest pause seen without frames was 12 min
+    /// Feed time without a new frame after which the walk gives up (a game stuck `paused`),
+    /// unless the game's known end is still ahead. The longest seen without frames was 24 min
     pub max_gap: TimeDelta,
 }
 
@@ -79,7 +80,7 @@ impl Default for WalkConfig {
                 Duration::from_secs(16),
             ],
             stall_calls: 3,
-            guard: TimeDelta::hours(3),
+            guard: TimeDelta::hours(12),
             max_gap: TimeDelta::minutes(30),
         }
     }
@@ -230,6 +231,7 @@ pub async fn walk_game(
     loop {
         if let Some(last) = window.values().next_back()
             && at - last.ts > cfg.max_gap
+            && !known_end.is_some_and(|end| last.ts.naive_utc() < end - END_SLACK)
         {
             return Err(eyre!(
                 "no frame for {} min after {}, walk stopped",
@@ -556,8 +558,41 @@ mod tests {
         };
         let e = walk_game(&f, 1, None, &cfg).await.unwrap_err();
         assert!(e.to_string().contains("no frame for 2 min"), "{e}");
-        // about 2 min of 10 s steps, not the 3 h guard
+        // about 2 min of 10 s steps, not the 12 h guard
         assert!(f.calls() < 40, "{}", f.calls());
+    }
+
+    /// A pause longer than `max_gap` without frames (DK-DRX 2024-02-25 went 24 min): with
+    /// the end known and still ahead, the walk waits it out
+    #[tokio::test]
+    async fn a_known_end_outlasts_max_gap() {
+        let (mut w, d) = hand::game(900, true);
+        for f in &mut w[100..=700] {
+            f["gameState"] = serde_json::json!("paused");
+        }
+        let start = hand::start();
+        let keep = |f: &serde_json::Value| {
+            let t = f["rfc460Timestamp"]
+                .as_str()
+                .unwrap()
+                .parse::<DateTime<Utc>>()
+                .unwrap();
+            t <= start + TimeDelta::seconds(100) || t > start + TimeDelta::seconds(700)
+        };
+        let f = MockFeed::game(
+            hand::metadata(),
+            w.into_iter().filter(keep).collect(),
+            d.into_iter().filter(keep).collect(),
+        );
+        let cfg = WalkConfig {
+            max_gap: TimeDelta::minutes(2),
+            ..fast()
+        };
+        let e = walk_game(&f, 1, None, &cfg).await.unwrap_err();
+        assert!(e.to_string().contains("no frame for 2 min"), "{e}");
+        let end = (start + TimeDelta::seconds(900)).naive_utc();
+        let walked = walk_game(&f, 1, Some(end), &cfg).await.unwrap();
+        assert_eq!(walked.window.len(), 101 + 200);
     }
 
     #[tokio::test]
