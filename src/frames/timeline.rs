@@ -883,24 +883,37 @@ impl Builder {
             .filter(|f| last_ts.is_none_or(|l| f.ts > l))
             .map(|f| parse(f, "window"))
             .collect::<Result<_>>()?;
+        // two frames with the same time (in game, then paused): the last one the feed sent
         ws.sort_by_key(|w| w.rfc460_timestamp);
-        ws.dedup_by_key(|w| w.rfc460_timestamp);
+        let ws = ws.into_iter().fold(Vec::<WindowFrame>::new(), |mut v, w| {
+            match v.last_mut() {
+                Some(l) if l.rfc460_timestamp == w.rfc460_timestamp => *l = w,
+                _ => v.push(w),
+            }
+            v
+        });
         let seen_details = self.state.last_details.as_ref().map(|d| d.rfc460_timestamp);
         for f in details {
-            if seen_details.is_some_and(|l| f.ts <= l)
-                || self
-                    .state
-                    .pending_details
-                    .iter()
-                    .any(|d| d.rfc460_timestamp == f.ts)
-            {
+            if seen_details.is_some_and(|l| f.ts <= l) {
                 continue;
             }
             self.state.pending_details.push(parse(f, "details")?);
         }
+        // stable: of two frames with the same time the last one sent stays
         self.state
             .pending_details
             .sort_by_key(|d| d.rfc460_timestamp);
+        let pending = std::mem::take(&mut self.state.pending_details);
+        self.state.pending_details =
+            pending
+                .into_iter()
+                .fold(vec![], |mut v: Vec<DetailsFrame>, d| {
+                    match v.last_mut() {
+                        Some(l) if l.rfc460_timestamp == d.rfc460_timestamp => *l = d,
+                        _ => v.push(d),
+                    }
+                    v
+                });
         for w in ws {
             for p in w
                 .blue_team
@@ -2256,6 +2269,19 @@ mod tests {
             let n: i64 = p.item_counts.iter().flatten().sum();
             assert_eq!(p.items.len() as i64, n);
         }
+    }
+
+    /// The feed sends two frames with the same time, in game then paused (FUR-GAM 2025-06-28
+    /// game 5): the last one counts, the pause is seen
+    #[test]
+    fn same_time_in_game_then_paused() {
+        let mut w = paused_game(&[(0, 100, "in_game")]);
+        w.push(hand::window_frame(at(100), "paused", 100));
+        w.extend(paused_game(&[(160, 200, "in_game")]));
+        let t = build(&raws(&w), &[], 10).unwrap();
+        assert_eq!(t.chunk.pauses.len(), 1);
+        assert_eq!(t.chunk.pauses[0].started_at, at(100));
+        assert_eq!(t.duration_s, 140);
     }
 
     /// A real pause (Worlds, 2026-10-29): 20 s in game, 7 min paused with frames minutes

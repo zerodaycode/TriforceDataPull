@@ -218,8 +218,10 @@ pub async fn walk_game(
 
     let mut window: BTreeMap<DateTime<Utc>, RawFrame> = BTreeMap::new();
     let mut details: BTreeMap<DateTime<Utc>, RawFrame> = BTreeMap::new();
+    // the feed can send two frames with the same time (in game, then paused at 1 ms from the
+    // play): the last one it sent is kept
     for f in first_frames {
-        window.entry(f.ts).or_insert(f);
+        window.insert(f.ts, f);
     }
     let first_ts = *window
         .keys()
@@ -257,7 +259,7 @@ pub async fn walk_game(
             .await?
             .ok_or_else(|| eyre!("window at {t}: 204 in the middle of the game"))?;
         for f in parse_frames(&body)?.1 {
-            window.entry(f.ts).or_insert(f);
+            window.insert(f.ts, f);
         }
         tokio::time::sleep(cfg.pace).await;
         let body = caller
@@ -265,7 +267,7 @@ pub async fn walk_game(
             .await?
             .ok_or_else(|| eyre!("details at {t}: 204 in the middle of the game"))?;
         for f in parse_frames(&body)?.1 {
-            details.entry(f.ts).or_insert(f);
+            details.insert(f.ts, f);
         }
         if window
             .values()
@@ -545,6 +547,35 @@ mod tests {
             Some("finished")
         );
         assert_eq!(walked.window.len(), 101 + 200);
+    }
+
+    /// Two frames with the same time, in game then paused, and minutes without frames: the
+    /// walk sees the pause and goes on (FUR-GAM 2025-06-28 game 5 stopped at the pause before)
+    #[tokio::test]
+    async fn same_time_in_game_then_paused_walks_on() {
+        let (mut w, d) = hand::game(900, true);
+        let mut dup = w[100].clone();
+        dup["gameState"] = serde_json::json!("paused");
+        let start = hand::start();
+        let keep = |f: &serde_json::Value| {
+            let t = f["rfc460Timestamp"]
+                .as_str()
+                .unwrap()
+                .parse::<DateTime<Utc>>()
+                .unwrap();
+            t <= start + TimeDelta::seconds(100) || t > start + TimeDelta::seconds(700)
+        };
+        w.insert(101, dup);
+        let f = MockFeed::game(
+            hand::metadata(),
+            w.into_iter().filter(keep).collect(),
+            d.into_iter().filter(keep).collect(),
+        );
+        let walked = walk_game(&f, 1, None, &fast()).await.unwrap();
+        assert_eq!(
+            walked.window.last().unwrap().state.as_deref(),
+            Some("finished")
+        );
     }
 
     #[tokio::test]

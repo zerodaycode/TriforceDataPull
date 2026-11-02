@@ -22,7 +22,7 @@ Two rows per game, `window` and `details`, primary key `(game_id, endpoint)`.
 | `first_frame`, `last_frame` | timestamp | wall time of the first and last frame |
 | `raw_bytes` | int | JSON size before compression |
 | `fetched_at` | timestamp | when the walk ran |
-| `data` | bytea | format 1: zstd of `{"gameMetadata": …, "frames": [ … ]}`. Frames are the feed's JSON byte for byte, oldest first, one per timestamp. `gameMetadata` (teams, players, champions, patch) only in the `window` row, `null` in `details` |
+| `data` | bytea | format 1: zstd of `{"gameMetadata": …, "frames": [ … ]}`. Frames are the feed's JSON byte for byte, oldest first, one per timestamp (when the feed sends two with the same time, in game then paused, the last one). `gameMetadata` (teams, players, champions, patch) only in the `window` row, `null` in `details` |
 
 `data` is stored as is (`STORAGE EXTERNAL`): it's already compressed. A query that doesn't name `data` doesn't read it.
 
