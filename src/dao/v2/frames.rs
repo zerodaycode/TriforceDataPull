@@ -418,7 +418,7 @@ fn replace_series_sql(extra_check: &str) -> String {
            AND (SELECT count(*) FROM rbp) = jsonb_array_length((SELECT j FROM d)->'rollback_players') \
            AND (NOT (SELECT on_ FROM box_on) \
              OR ((SELECT count(*) FROM bt) = 2 \
-               AND (SELECT count(*) FROM bp) = (SELECT count(*) FROM v2_game_player WHERE game_id = (SELECT id FROM g)))) \
+               AND (SELECT count(*) FROM bp) = jsonb_array_length((SELECT j FROM d)->'box'->'players'))) \
            THEN 'done' ELSE 'incomplete' END \
          WHERE id = (SELECT id FROM g) RETURNING frames"
     )
@@ -956,25 +956,36 @@ pub(crate) mod tests {
         assert!(!box_score_waiting(100).await.unwrap().contains(&-420));
     }
 
-    /// A stored team row missing for the timeline's: the whole write rolls back
+    /// A stored team or player row missing for the timeline's: the whole write rolls back
     #[canyon_sql::macros::canyon_tokio_test]
     #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
-    fn box_score_missing_a_team_rolls_back() {
+    fn box_score_missing_a_row_rolls_back() {
         use crate::dao::v2::details::{DetailsState, write_details};
         let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
         setup().await;
-        write_details(&lineups(-421).without_numbers(), DetailsState::WaitFrames)
-            .await
-            .unwrap();
-        "".execute("DELETE FROM v2_game_team WHERE side = 'red' AND game_id = (SELECT id FROM v2_game WHERE ext_id = -421)", &[]).await.unwrap();
         let (w, d) = walked(95);
         let meta = serde_json::value::RawValue::from_string(hand::metadata().to_string()).unwrap();
         let pw = pack(Some(&meta), &w).unwrap();
         let pd = pack(None, &d).unwrap();
         let tl = build(&w, &d, STEP_S).unwrap();
-        assert!(write_final(-421, &pw, &pd, -402, -403, &tl).await.is_err());
-        assert_eq!(count("SELECT count(*) FROM v2_game_frames f JOIN v2_game g ON g.id = f.game_id WHERE g.ext_id = -421").await, 0);
-        assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -421 AND frames IS NULL AND details = 'wait_frames'").await, 1);
+        for (game, table, cond) in [
+            (-421, "v2_game_team", "side = 'red'"),
+            (-422, "v2_game_player", "participant_id = 3"),
+        ] {
+            write_details(&lineups(game).without_numbers(), DetailsState::WaitFrames)
+                .await
+                .unwrap();
+            let del = format!(
+                "DELETE FROM {table} WHERE {cond} AND game_id = (SELECT id FROM v2_game WHERE ext_id = {game})"
+            );
+            "".execute(&del, &[]).await.unwrap();
+            assert!(
+                write_final(game, &pw, &pd, -402, -403, &tl).await.is_err(),
+                "{game}"
+            );
+            assert_eq!(count(&format!("SELECT count(*) FROM v2_game_frames f JOIN v2_game g ON g.id = f.game_id WHERE g.ext_id = {game}")).await, 0);
+            assert_eq!(count(&format!("SELECT count(*) FROM v2_game WHERE ext_id = {game} AND frames IS NULL AND details = 'wait_frames'")).await, 1);
+        }
         crate::dao::v2::test_cleanup().await;
     }
 
