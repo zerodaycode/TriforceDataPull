@@ -166,6 +166,9 @@ pub const GAME_STATES: &[&str] = &["unstarted", "inProgress", "completed", "unne
 /// `v2_game.frames`, checked against schema.sql
 #[cfg(test)]
 pub const FRAMES_STATES: &[&str] = &["live", "done", "no_feed"];
+/// `v2_game.details`, checked against schema.sql
+#[cfg(test)]
+pub const DETAILS_STATES: &[&str] = &["done", "no_feed", "wait_frames"];
 pub const STRATEGIES: &[&str] = &["bestOf", "playAll"];
 pub const MATCH_TYPES: &[&str] = &["normal", "tiebreaker"];
 /// `tie`: a `playAll 2` ending 1-1

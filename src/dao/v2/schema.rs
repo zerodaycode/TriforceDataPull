@@ -76,6 +76,7 @@ mod tests {
             ("v2_event_match_type", MATCH_TYPES),
             ("v2_event_team_outcome", OUTCOMES),
             ("v2_game_frames_state", FRAMES_STATES),
+            ("v2_game_details", DETAILS_STATES),
         ] {
             let line = SQL
                 .lines()

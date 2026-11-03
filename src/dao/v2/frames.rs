@@ -758,6 +758,23 @@ pub(crate) mod tests {
             keys(serde_json::to_value(TeamCols::default()).unwrap(), ""),
             sorted(TEAM_COLS.to_vec())
         );
+        // the box score's keys are the details columns it sets
+        use crate::{
+            dao::v2::details,
+            frames::box_score::{BoxPlayer, BoxTeam},
+        };
+        let names = |c: &[(&'static str, &str)]| sorted(c.iter().map(|(n, _)| *n).collect());
+        assert_eq!(
+            keys(serde_json::to_value(BoxTeam::default()).unwrap(), "side"),
+            names(&details::TEAM_COLS[2..])
+        );
+        assert_eq!(
+            keys(
+                serde_json::to_value(BoxPlayer::default()).unwrap(),
+                "participant_id"
+            ),
+            names(&details::PLAYER_COLS[6..])
+        );
     }
 
     /// Any one-number query, read as `bigint`
@@ -868,6 +885,14 @@ pub(crate) mod tests {
         tl
     }
 
+    /// The end of the hand-made game `write_game` writes
+    fn hand_end() -> NaiveDateTime {
+        let (w, d) = walked(95);
+        crate::frames::box_score::box_score(&build(&w, &d, STEP_S).unwrap())
+            .unwrap()
+            .end_time
+    }
+
     pub(crate) fn lineups(game: i64) -> crate::dao::v2::rows::GameDetailsRow {
         use crate::dao::v2::rows::*;
         let team = |ext, side| GameTeamRow {
@@ -946,10 +971,10 @@ pub(crate) mod tests {
         assert_eq!(count("SELECT gold FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -420 AND gt.side = 'blue'").await, b.teams[0].gold.unwrap());
         assert_eq!(one("SELECT dragons FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -420 AND gt.side = 'red'").await, "ocean");
         assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -420 AND gp.level IS NOT NULL AND gp.champion = 'Volibear'").await, 10);
-        // done details, no chronobreak: left alone
-        write_details(&lineups(-421), DetailsState::Done)
-            .await
-            .unwrap();
+        // done details ending with the frames (within a minute), no chronobreak: left alone
+        let mut ends_with = lineups(-421);
+        ends_with.end_time = Some(hand_end() - TimeDelta::seconds(30));
+        write_details(&ends_with, DetailsState::Done).await.unwrap();
         write_game(-421, 95).await;
         assert_eq!(count("SELECT kills FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -421 AND gt.side = 'blue'").await, 99);
         // details not written yet: frames done, nothing else touched
@@ -961,6 +986,64 @@ pub(crate) mod tests {
             .unwrap();
         assert!(box_score_waiting(100).await.unwrap().contains(&-422));
         assert!(!box_score_waiting(100).await.unwrap().contains(&-420));
+        // a failed box score waits like the details, and leaves after the last try
+        crate::dao::v2::details::bump_tries(-422).await.unwrap();
+        assert!(!box_score_waiting(100).await.unwrap().contains(&-422));
+        "".execute("UPDATE v2_game SET details_next_try = now() AT TIME ZONE 'UTC' - interval '1 minute' WHERE ext_id = -422", &[]).await.unwrap();
+        assert!(box_score_waiting(100).await.unwrap().contains(&-422));
+        "".execute(
+            "UPDATE v2_game SET details_tries = 5, details_next_try = NULL WHERE ext_id = -422",
+            &[],
+        )
+        .await
+        .unwrap();
+        assert!(!box_score_waiting(100).await.unwrap().contains(&-422));
+        crate::dao::v2::test_cleanup().await;
+    }
+
+    /// Details already `done`: the frames write the box score after a chronobreak, or when the
+    /// stored end is a pause well before the frames' end (a long pause, the game went on)
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn box_score_for_done_games_after_a_pause() {
+        use crate::dao::v2::details::{DetailsState, write_details};
+        let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
+        setup().await;
+        // the stored end is 5 min before the frames' end
+        let mut paused = lineups(-420);
+        paused.end_time = Some(hand_end() - TimeDelta::minutes(5));
+        write_details(&paused, DetailsState::Done).await.unwrap();
+        let tl = write_game(-420, 95).await;
+        let b = crate::frames::box_score::box_score(&tl).unwrap();
+        assert!(!b.chronobreak);
+        assert_eq!(
+            one("SELECT details || ' ' || end_time::text FROM v2_game WHERE ext_id = -420").await,
+            format!("done {}", b.end_time)
+        );
+        assert_eq!(count("SELECT kills FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -420 AND gt.side = 'blue'").await, b.teams[0].kills.unwrap());
+        // the real chronobreak (G2-MKOI 2025-09-14 game 3)
+        let (meta, w) =
+            crate::frames::parse_frames(fixture!("feed/frames/chronobreak_window.json")).unwrap();
+        let (_, d) =
+            crate::frames::parse_frames(fixture!("feed/frames/chronobreak_details.json")).unwrap();
+        write_details(&lineups(-422), DetailsState::Done)
+            .await
+            .unwrap();
+        let tl = build(&w, &d, STEP_S).unwrap();
+        let pw = pack(meta.as_deref(), &w).unwrap();
+        let pd = pack(None, &d).unwrap();
+        write_final(-422, &pw, &pd, -402, -403, &tl).await.unwrap();
+        let b = crate::frames::box_score::box_score(&tl).unwrap();
+        assert!(b.chronobreak);
+        assert_eq!(
+            one("SELECT details || ' ' || frames FROM v2_game WHERE ext_id = -422").await,
+            "done done"
+        );
+        for (side, t) in [("blue", &b.teams[0]), ("red", &b.teams[1])] {
+            assert_eq!(count(&format!("SELECT kills FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -422 AND gt.side = '{side}'")).await, t.kills.unwrap(), "{side}");
+        }
+        assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -422 AND gp.items IS NULL AND gp.kills IS NOT NULL").await, 10);
+        crate::dao::v2::test_cleanup().await;
     }
 
     /// A stored team or player row missing for the timeline's: the whole write rolls back
