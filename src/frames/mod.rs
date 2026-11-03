@@ -1,6 +1,7 @@
 //! Game frames from the live feed: every frame as the feed sent it (the archive), and the
 //! series built from them (one point every 10 s of game time)
 
+pub mod box_score;
 pub mod pack;
 pub mod timeline;
 
