@@ -45,7 +45,7 @@ v2_job_run (internal: when long jobs last ran)
 | stage names | GraphQL `GetSeasonTournament` (100 tournaments a call) | same |
 | events, event teams, games | GraphQL `scheduleEvents` | `v2 matches`, every 30 min at :05 and :35 (last 3 days + next year), full history once a day |
 | live score, sides, streams, live game totals | GraphQL `watchLiveQuery` + live feed | `v2 live`, every minute at :30 s |
-| box score of finished games | live feed (`window`, `details`), `watchVodQuery` when there's no feed | `v2 details`, a queue, ~1 game a second |
+| box score of finished games | live feed (`window`, `details`), `watchVodQuery` when there's no feed. After a chronobreak or a feed that ends paused (`wait_frames`), the game's frames, and the live totals are cleared until then | `v2 details`, a queue, ~1 game a second; `v2 frames` for those games |
 | frames archive and series | live feed (`window`, `details`) | `v2 frames` (a queue) and `v2 frames live` (every 10 s) |
 
 Schedules change with `TRIFORCE_CRON_<LOOP>`. Every loop can be turned off (`TRIFORCE_V2`, `TRIFORCE_V2_DETAILS`, `TRIFORCE_V2_LIVE`, `TRIFORCE_V2_FRAMES`, `TRIFORCE_V2_FRAMES_LIVE`). The jobs that go through the history have a backfill switch: `TRIFORCE_BACKFILL_MATCHES` (on), `TRIFORCE_BACKFILL_DETAILS` (on), `TRIFORCE_BACKFILL_FRAMES` (off). Off means only the last 3 days. See `env/example.env`.
