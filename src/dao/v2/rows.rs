@@ -232,20 +232,49 @@ pub struct GameDetailsRow {
 
 impl GameDetailsRow {
     /// Sides and lineups only: the numbers of a feed that ended paused aren't the box score
-    /// (the frames write it)
+    /// (the frames write it). Full struct literals: a new number field has to be added here
     pub fn without_numbers(mut self) -> Self {
         self.end_time = None;
-        for t in &mut self.teams {
-            (t.gold, t.kills, t.towers, t.inhibitors, t.barons, t.dragons) =
-                (None, None, None, None, None, None);
-        }
-        for p in &mut self.players {
-            (p.level, p.kills, p.deaths, p.assists, p.cs) = (None, None, None, None, None);
-            (p.wards_placed, p.wards_destroyed, p.damage_share_bp) = (None, None, None);
-            p.gold = None;
-            (p.items, p.runes, p.skill_order) = (None, None, None);
-            (p.rune_style, p.rune_sub_style) = (None, None);
-        }
+        self.teams = self
+            .teams
+            .into_iter()
+            .map(|t| GameTeamRow {
+                team_ext_id: t.team_ext_id,
+                side: t.side,
+                gold: None,
+                kills: None,
+                towers: None,
+                inhibitors: None,
+                barons: None,
+                dragons: None,
+            })
+            .collect();
+        self.players = self
+            .players
+            .into_iter()
+            .map(|p| GamePlayerRow {
+                team_ext_id: p.team_ext_id,
+                player_ext_id: p.player_ext_id,
+                summoner_name: p.summoner_name,
+                participant_id: p.participant_id,
+                role: p.role,
+                champion: p.champion,
+                level: None,
+                kills: None,
+                deaths: None,
+                assists: None,
+                gold: None,
+                cs: None,
+                wards_placed: None,
+                wards_destroyed: None,
+                damage_share_bp: None,
+                items: None,
+                rune_style: None,
+                rune_sub_style: None,
+                runes: None,
+                skill_order: None,
+            })
+            .collect();
         self
     }
 }

@@ -125,7 +125,7 @@ async fn one_game(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
     let row = from_feed(g.game_ext_id, &g.teams, &first, &last, &details)?;
     let (row, state) = if ends_paused(&last) {
         log(format!(
-            "v2 details: game {}: chronobreak after pause: box score from the frames",
+            "v2 details: game {}: feed ends paused, box score from the frames",
             g.game_ext_id
         ));
         (row.without_numbers(), DetailsState::WaitFrames)

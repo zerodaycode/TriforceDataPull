@@ -205,12 +205,23 @@ impl DetailsState {
 
 /// Teams, players and the game in one statement. When a team or a player is missing the game
 /// gets `incomplete`, which the `v2_game_details` CHECK refuses: the whole statement, rows of
-/// the CTEs included, is rolled back. A player the feed has no id for goes in with `player_id` NULL
+/// the CTEs included, is rolled back. A player the feed has no id for goes in with `player_id` NULL.
+/// A `done` write is `wait_frames` when the game already has a chronobreak in `v2_game_pause`
+/// (the frames came first). A `wait_frames` write stores no numbers, keeps the stored end (from
+/// `v2 live`) and starts the tries again for the box score from the archive
 fn details_sql(players: usize, state: DetailsState) -> String {
     // $1 game, $2 patch, $3 start, $4 end
     let mut n = 4;
     let teams = values(2, &TEAM_COLS, &mut n);
     let people = values(players, &PLAYER_COLS, &mut n);
+    // the numbers (the box score) are the columns after the champion / the side
+    let number = |c: &str, first: usize, cols: &[(&str, &str)]| {
+        if cols[first..].iter().any(|(n, _)| *n == c) {
+            format!("CASE WHEN (SELECT on_ FROM w) THEN NULL ELSE v.{c} END")
+        } else {
+            format!("v.{c}")
+        }
+    };
     let team_cols: Vec<&str> = TEAM_COLS[1..].iter().map(|(c, _)| *c).collect();
     let team_set: Vec<String> = team_cols
         .iter()
@@ -225,6 +236,8 @@ fn details_sql(players: usize, state: DetailsState) -> String {
         .collect();
     format!(
         "WITH g AS (SELECT id FROM v2_game WHERE ext_id = $1::bigint FOR UPDATE), \
+         w AS (SELECT {wait} OR EXISTS (SELECT 1 FROM v2_game_pause p, g WHERE p.game_id = g.id \
+           AND (p.rollback_s IS NOT NULL OR p.counters_reset)) AS on_), \
          gt AS (INSERT INTO v2_game_team (game_id, team_id, side_source, {tcols}) \
            SELECT g.id, t.id, 'feed', {tvcols} \
            FROM g, (VALUES {teams}) AS v ({}) JOIN v2_team t ON t.ext_id = v.team_ext \
@@ -235,24 +248,29 @@ fn details_sql(players: usize, state: DetailsState) -> String {
            LEFT JOIN v2_player p ON p.ext_id = v.player_ext \
            WHERE v.player_ext IS NULL OR p.id IS NOT NULL \
            ON CONFLICT (game_id, participant_id) DO UPDATE SET {pset} RETURNING 1) \
-         UPDATE v2_game SET patch = $2::text, start_time = $3::timestamp, end_time = $4::timestamp, \
+         UPDATE v2_game SET patch = $2::text, start_time = $3::timestamp, \
+           end_time = CASE WHEN (SELECT on_ FROM w) THEN v2_game.end_time ELSE $4::timestamp END, \
+           details_tries = CASE WHEN (SELECT on_ FROM w) THEN NULL ELSE v2_game.details_tries END, \
+           details_next_try = CASE WHEN (SELECT on_ FROM w) THEN NULL ELSE v2_game.details_next_try END, \
            details = CASE WHEN (SELECT count(*) FROM gt) = 2 AND (SELECT count(*) FROM gp) = {players} \
-             THEN '{state}' ELSE 'incomplete' END \
+             THEN CASE WHEN (SELECT on_ FROM w) THEN '{waiting}' ELSE '{done}' END ELSE 'incomplete' END \
          FROM g WHERE v2_game.id = g.id",
         names(&TEAM_COLS),
         names(&PLAYER_COLS),
-        state = state.as_str(),
+        wait = state == DetailsState::WaitFrames,
+        waiting = DetailsState::WaitFrames.as_str(),
+        done = DetailsState::Done.as_str(),
         pcols = player_cols.join(", "),
         vcols = player_cols
             .iter()
-            .map(|c| format!("v.{c}"))
+            .map(|c| number(c, 6, &PLAYER_COLS))
             .collect::<Vec<_>>()
             .join(", "),
         pset = player_set.join(", "),
         tcols = team_cols.join(", "),
         tvcols = team_cols
             .iter()
-            .map(|c| format!("v.{c}"))
+            .map(|c| number(c, 2, &TEAM_COLS))
             .collect::<Vec<_>>()
             .join(", "),
         tset = team_set.join(", "),
@@ -532,11 +550,16 @@ mod tests {
         assert!(sql.contains("(VALUES ($21::bigint, $22::bigint, $23::text, $24::int"));
         assert!(sql.contains("$60::text)"));
         assert!(!sql.contains("$61"));
-        assert!(sql.contains("(SELECT count(*) FROM gp) = 2 THEN 'done' ELSE 'incomplete' END"));
-        assert!(
-            details_sql(2, DetailsState::WaitFrames)
-                .contains("THEN 'wait_frames' ELSE 'incomplete' END")
-        );
+        assert!(sql.contains(
+            "(SELECT count(*) FROM gp) = 2 \
+             THEN CASE WHEN (SELECT on_ FROM w) THEN 'wait_frames' ELSE 'done' END ELSE 'incomplete' END"
+        ));
+        assert!(sql.contains("w AS (SELECT false OR EXISTS"));
+        assert!(details_sql(2, DetailsState::WaitFrames).contains("w AS (SELECT true OR EXISTS"));
+        // numbers wait with the game, names and champions don't
+        assert!(sql.contains("CASE WHEN (SELECT on_ FROM w) THEN NULL ELSE v.gold END"));
+        assert!(sql.contains("CASE WHEN (SELECT on_ FROM w) THEN NULL ELSE v.skill_order END"));
+        assert!(sql.contains("v.side, CASE") && sql.contains("v.champion, CASE"));
         assert!(
             sql.contains("INSERT INTO v2_game_team (game_id, team_id, side_source, side, gold")
         );
@@ -743,7 +766,8 @@ mod tests {
         write_details(&live_teams, DetailsState::Done)
             .await
             .unwrap();
-        "".execute("UPDATE v2_game SET details = NULL WHERE ext_id = -321", &[])
+        // the end `v2 live` stored stays, the tries start again
+        "".execute("UPDATE v2_game SET details = NULL, end_time = '2026-01-01 10:30:00', details_tries = 2, details_next_try = now() WHERE ext_id = -321", &[])
             .await
             .unwrap();
         write_details(
@@ -752,7 +776,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -321 AND details = 'wait_frames' AND end_time IS NULL").await, 1);
+        assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -321 AND details = 'wait_frames' AND end_time = '2026-01-01 10:30:00' AND details_tries IS NULL AND details_next_try IS NULL").await, 1);
         assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -321 AND gt.kills IS NULL AND gt.gold IS NULL").await, 2);
         assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -321 AND gp.champion = 'Volibear' AND gp.kills IS NULL").await, 10);
         assert!(
@@ -762,6 +786,20 @@ mod tests {
                 .iter()
                 .any(|g| g.game_ext_id == -321)
         );
+        // the frames came first and saw a chronobreak: a `done` write waits too, without numbers
+        "".execute("UPDATE v2_game SET details = NULL WHERE ext_id = -321", &[])
+            .await
+            .unwrap();
+        "".execute("INSERT INTO v2_game_pause (game_id, number, game_time_s, started_at, ended_at, rollback_s, counters_reset) SELECT id, 1, 1587, '2026-01-01 10:00:00', '2026-01-01 10:20:00', 8, true FROM v2_game WHERE ext_id = -321", &[]).await.unwrap();
+        let mut feed_end = details(-321, 10);
+        feed_end.end_time = Some(
+            NaiveDateTime::parse_from_str("2026-01-01 10:40:00", "%Y-%m-%d %H:%M:%S").unwrap(),
+        );
+        write_details(&feed_end, DetailsState::Done).await.unwrap();
+        assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -321 AND details = 'wait_frames' AND end_time = '2026-01-01 10:30:00'").await, 1);
+        assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -321 AND gt.kills IS NULL AND gt.dragons IS NULL").await, 2);
+        assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -321 AND gp.champion = 'Volibear' AND gp.kills IS NULL AND gp.items IS NULL").await, 10);
+        "".execute("DELETE FROM v2_game_pause WHERE game_id = (SELECT id FROM v2_game WHERE ext_id = -321)", &[]).await.unwrap();
         // back to the queue for the vod sides below
         "".execute("UPDATE v2_game SET details = NULL WHERE ext_id = -321", &[])
             .await
