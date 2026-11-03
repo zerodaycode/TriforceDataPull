@@ -22,8 +22,8 @@ use crate::{
         log,
     },
     dao::v2::frames::{
-        FramesGame, MAX_TRIES, archived_games, bump_tries, event_teams, mark_no_feed, next_games,
-        read_archive, write_final, write_rebuild,
+        FramesGame, MAX_TRIES, archived_games, box_score_waiting, bump_tries, event_teams,
+        mark_no_feed, next_games, read_archive, write_final, write_rebuild,
     },
     env::Rebuild,
     frames::{
@@ -119,12 +119,14 @@ async fn one_game(src: &impl FeedSource, g: &FramesGame, cfg: &WalkConfig) -> Re
         Err(WalkError::Failed(e)) => return Err(e),
     };
     // without a finished frame or the end the details saw, the walk may have stopped in a feed
-    // hole: try again later (the details job fills the end), keep it on the last try
+    // hole: try again later (the details job fills the end), keep it on the last try. Details
+    // waiting for the frames won't fill it: the walk's end is the end
+    let waiting = g.details.as_deref() == Some("wait_frames");
     let finished = walked
         .window
         .last()
         .is_some_and(|f| f.state.as_deref() == Some("finished"));
-    if !finished && g.end_time.is_none() && g.tries + 1 < MAX_TRIES {
+    if !finished && g.end_time.is_none() && !waiting && g.tries + 1 < MAX_TRIES {
         return Err(eyre!(
             "no finished frame and no known end yet, {} frames, tried again later",
             walked.window.len()
@@ -153,6 +155,19 @@ pub async fn frames_loop(backfill: bool) {
     let (mut done, mut no_feed, mut failed) = (0usize, 0usize, 0usize);
     let mut fails_in_a_row = 0;
     loop {
+        match box_score_waiting(BATCH).await {
+            Ok(ids) => {
+                for id in ids {
+                    match rebuild_one(id).await {
+                        Ok(_) => log(format!("v2 frames: game {id}: box score from the archive")),
+                        Err(e) => log(format!(
+                            "v2 frames: game {id}: box score not written: {e:#}"
+                        )),
+                    }
+                }
+            }
+            Err(e) => log(format!("v2 frames: box scores waiting not read: {e:#}")),
+        }
         let games = match next_games(BATCH, backfill).await {
             Ok(g) => g,
             Err(e) => {
@@ -325,6 +340,7 @@ mod tests {
             frames: None,
             tries,
             end_time: None,
+            details: None,
             event_teams: vec![-402, -403],
         }
     }
@@ -373,6 +389,20 @@ mod tests {
         assert!(e.to_string().contains("no known end yet"), "{e}");
     }
 
+    /// A game whose details wait for the frames: no details end will come, the walk's end is it
+    #[tokio::test]
+    async fn waiting_details_dont_wait_for_an_end() {
+        let (w, d) = hand::game(40, false);
+        let f = MockFeed::game(hand::metadata(), w, d);
+        let g = FramesGame {
+            details: Some("wait_frames".into()),
+            ..game(0)
+        };
+        let e = one_game(&f, &g, &fast()).await;
+        // past the end check: it fails later at the DB write (no DB in unit tests) or succeeds
+        assert!(e.is_ok() || !format!("{:#}", e.unwrap_err()).contains("no known end yet"));
+    }
+
     /// The feed's team isn't the match's (LIT 2026): the archive and series go under the
     /// match's team, like the game details. Then `rebuild-timeline` from the archive
     #[canyon_sql::macros::canyon_tokio_test]
@@ -400,6 +430,15 @@ mod tests {
         rebuild(&Rebuild::Games(vec![-420])).await.unwrap();
         assert_eq!(one("SELECT tm.ext_id::text FROM v2_game_team_series s JOIN v2_game g ON g.id = s.game_id JOIN v2_team tm ON tm.id = s.team_id WHERE g.ext_id = -420 AND s.side = 'blue'").await, "-402");
         assert_eq!(count("SELECT points FROM v2_game_timeline t JOIN v2_game g ON g.id = t.game_id WHERE g.ext_id = -420").await, 7);
+        // a rebuild fills a waiting box score
+        crate::dao::v2::details::write_details(
+            &crate::dao::v2::frames::tests::lineups(-420).without_numbers(),
+            crate::dao::v2::details::DetailsState::WaitFrames,
+        )
+        .await
+        .unwrap();
+        rebuild_one(-420).await.unwrap();
+        assert!(!box_score_waiting(100).await.unwrap().contains(&-420));
         // a game without an archive isn't rebuilt
         assert!(rebuild(&Rebuild::Games(vec![-421])).await.is_err());
         crate::dao::v2::test_cleanup().await;

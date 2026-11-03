@@ -41,19 +41,22 @@ pub struct FramesGame {
     pub tries: i32,
     /// Last feed frame, when the game details have it
     pub end_time: Option<NaiveDateTime>,
+    /// `wait_frames`: the details saw a pause at the end and wait for the frames' box score
+    pub details: Option<String>,
     /// The match's teams (ext ids): a feed team not in them is mapped like the details do
     pub event_teams: Vec<i64>,
 }
 
 /// Games watched live first (their series are provisional), then untried, then newest.
-/// `backfill` off: only matches of the last `RECENT_DAYS` (or without a start), and live ones
+/// `backfill` off: only matches of the last `RECENT_DAYS` (or without a start), live ones
+/// and games whose details wait for the frames
 pub async fn next_games(limit: i64, backfill: bool) -> Result<Vec<FramesGame>> {
     let recent_days = crate::backfill::RECENT_DAYS;
     let found = rows(
-        "SELECT g.ext_id, g.frames, COALESCE(g.frames_tries, 0), g.end_time FROM v2_game g JOIN v2_event e ON e.id = g.event_id \
+        "SELECT g.ext_id, g.frames, COALESCE(g.frames_tries, 0), g.end_time, g.details FROM v2_game g JOIN v2_event e ON e.id = g.event_id \
          WHERE g.state = 'completed' AND (g.frames IS NULL OR g.frames = 'live') AND COALESCE(g.frames_tries, 0) < $1::int \
            AND (g.frames_next_try IS NULL OR g.frames_next_try <= now() AT TIME ZONE 'UTC') \
-           AND ($3::bool OR g.frames = 'live' OR e.start_time IS NULL OR e.start_time >= (now() AT TIME ZONE 'UTC') - make_interval(days => $4::int)) \
+           AND ($3::bool OR g.frames = 'live' OR g.details = 'wait_frames' OR e.start_time IS NULL OR e.start_time >= (now() AT TIME ZONE 'UTC') - make_interval(days => $4::int)) \
            AND (g.end_time IS NULL OR g.end_time <= (now() AT TIME ZONE 'UTC') - interval '2 minutes') \
          ORDER BY CASE WHEN g.frames = 'live' THEN 0 ELSE 1 END, COALESCE(g.frames_tries, 0), e.start_time DESC NULLS LAST, g.ext_id \
          LIMIT $2::bigint",
@@ -71,6 +74,7 @@ pub async fn next_games(limit: i64, backfill: bool) -> Result<Vec<FramesGame>> {
                 frames: r.try_get(1).wrap_err("v2_game.frames")?,
                 tries: r.try_get(2).wrap_err("v2_game.frames_tries")?,
                 end_time: r.try_get(3).wrap_err("v2_game.end_time")?,
+                details: r.try_get(4).wrap_err("v2_game.details")?,
                 event_teams: vec![],
             })
         })
@@ -81,6 +85,23 @@ pub async fn next_games(limit: i64, backfill: bool) -> Result<Vec<FramesGame>> {
         g.event_teams = teams.get(&g.game_ext_id).cloned().unwrap_or_default();
     }
     Ok(games)
+}
+
+/// Games whose details wait for a box score but whose frames were done before (the details
+/// came later): the box score comes from the archive, no feed calls
+pub async fn box_score_waiting(limit: i64) -> Result<Vec<i64>> {
+    let r = rows(
+        "SELECT g.ext_id FROM v2_game g WHERE g.details = 'wait_frames' AND g.frames = 'done' \
+           AND EXISTS (SELECT 1 FROM v2_game_frames f WHERE f.game_id = g.id) ORDER BY g.ext_id LIMIT $1::bigint",
+        &[&limit],
+        "v2_game box scores waiting",
+    )
+    .await?;
+    r.get_postgres_rows()
+        .map_err(|e| eyre!(e))?
+        .iter()
+        .map(|row| row.try_get(0).wrap_err("v2_game.ext_id"))
+        .collect()
 }
 
 /// The match's teams of each game (ext ids, TBD slots left out), by game ext id
@@ -897,6 +918,14 @@ pub(crate) mod tests {
         write_details(&lineups(-420).without_numbers(), DetailsState::WaitFrames)
             .await
             .unwrap();
+        // backfill off and an old match: a waiting game is still picked
+        "".execute("UPDATE v2_event SET start_time = (now() AT TIME ZONE 'UTC') - interval '10 days' WHERE ext_id = -410", &[]).await.unwrap();
+        let q = next_games(100_000, false).await.unwrap();
+        assert!(
+            q.iter()
+                .any(|g| g.game_ext_id == -420 && g.details.as_deref() == Some("wait_frames"))
+        );
+        assert!(!q.iter().any(|g| g.game_ext_id == -421));
         let tl = write_game(-420, 95).await;
         let b = crate::frames::box_score::box_score(&tl).unwrap();
         assert_eq!(
@@ -919,6 +948,34 @@ pub(crate) mod tests {
         // details not written yet: frames done, nothing else touched
         write_game(-422, 95).await;
         assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -422 AND details IS NULL AND frames = 'done'").await, 1);
+        // details set to wait after the frames were done: listed for a box score from the archive
+        write_details(&lineups(-422).without_numbers(), DetailsState::WaitFrames)
+            .await
+            .unwrap();
+        assert!(box_score_waiting(100).await.unwrap().contains(&-422));
+        assert!(!box_score_waiting(100).await.unwrap().contains(&-420));
+    }
+
+    /// A stored team row missing for the timeline's: the whole write rolls back
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn box_score_missing_a_team_rolls_back() {
+        use crate::dao::v2::details::{DetailsState, write_details};
+        let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
+        setup().await;
+        write_details(&lineups(-421).without_numbers(), DetailsState::WaitFrames)
+            .await
+            .unwrap();
+        "".execute("DELETE FROM v2_game_team WHERE side = 'red' AND game_id = (SELECT id FROM v2_game WHERE ext_id = -421)", &[]).await.unwrap();
+        let (w, d) = walked(95);
+        let meta = serde_json::value::RawValue::from_string(hand::metadata().to_string()).unwrap();
+        let pw = pack(Some(&meta), &w).unwrap();
+        let pd = pack(None, &d).unwrap();
+        let tl = build(&w, &d, STEP_S).unwrap();
+        assert!(write_final(-421, &pw, &pd, -402, -403, &tl).await.is_err());
+        assert_eq!(count("SELECT count(*) FROM v2_game_frames f JOIN v2_game g ON g.id = f.game_id WHERE g.ext_id = -421").await, 0);
+        assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -421 AND frames IS NULL AND details = 'wait_frames'").await, 1);
+        crate::dao::v2::test_cleanup().await;
     }
 
     const SERIES: &str = "(SELECT array_length(gold, 1) FROM v2_game_team_series s JOIN v2_game g ON g.id = s.game_id WHERE g.ext_id = -420 AND s.side = 'blue')";
