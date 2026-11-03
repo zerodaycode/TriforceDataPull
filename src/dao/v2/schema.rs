@@ -193,6 +193,10 @@ mod tests {
                 "UPDATE v2_game SET frames = 'x' WHERE id = (SELECT min(id) FROM v2_game)",
             ),
             (
+                "details value",
+                "UPDATE v2_game SET details = 'waiting' WHERE id = (SELECT min(id) FROM v2_game)",
+            ),
+            (
                 "endpoint",
                 "INSERT INTO v2_game_frames SELECT min(id), 'other', 1, 0, now(), now(), 0, now(), '\\x00' FROM v2_game",
             ),

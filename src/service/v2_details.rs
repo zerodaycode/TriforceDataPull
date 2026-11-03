@@ -13,7 +13,7 @@ use tokio::time::{Instant, sleep};
 use crate::{
     client::{
         adapters::v2::{
-            details::{from_feed, from_vod, short_sides},
+            details::{ends_paused, from_feed, from_vod, short_sides},
             remap_sides,
         },
         feed,
@@ -24,8 +24,8 @@ use crate::{
         log,
     },
     dao::v2::details::{
-        MAX_TRIES, QueueGame, bump_tries, next_games, write_details, write_player_stubs,
-        write_vod_sides,
+        DetailsState, MAX_TRIES, QueueGame, bump_tries, next_games, write_details,
+        write_player_stubs, write_vod_sides,
     },
 };
 
@@ -123,8 +123,17 @@ async fn one_game(gql: &Gql, g: &QueueGame) -> Result<Outcome> {
         .await?
         .ok_or_else(|| eyre!("game {}: details empty", g.game_ext_id))?;
     let row = from_feed(g.game_ext_id, &g.teams, &first, &last, &details)?;
+    let (row, state) = if ends_paused(&last) {
+        log(format!(
+            "v2 details: game {}: chronobreak after pause: box score from the frames",
+            g.game_ext_id
+        ));
+        (row.without_numbers(), DetailsState::WaitFrames)
+    } else {
+        (row, DetailsState::Done)
+    };
     write_player_stubs(&row.player_stubs).await?;
-    write_details(&row).await?;
+    write_details(&row, state).await?;
     if let Some((feed, event)) = row.remapped {
         log(format!(
             "v2 details: game {}: feed team {feed} is not in the match, stored as {event}",

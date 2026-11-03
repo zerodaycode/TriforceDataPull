@@ -68,6 +68,13 @@ pub fn short_sides(game: i64, first: &Window, last: &Window) -> Result<Option<[u
     Ok((sides != [PLAYERS_A_SIDE; 2]).then_some(sides))
 }
 
+/// The feed's last frame is a pause (a chronobreak, a remake): its numbers aren't the box score
+pub fn ends_paused(last: &Window) -> bool {
+    last.frames
+        .last()
+        .is_some_and(|f| f.game_state.as_deref() == Some("paused"))
+}
+
 /// The match's team for blue and red, and (team in the answer, match team) when one was taken
 pub(crate) type Matched = ([i64; 2], Option<(i64, i64)>);
 
@@ -482,6 +489,37 @@ mod tests {
         assert_eq!(handle_any("Faker"), "Faker");
         assert_eq!(handle_any("Lee Sang"), "Lee Sang");
         assert_eq!(handle_any("T1 "), "T1 ");
+    }
+
+    #[test]
+    fn a_paused_last_frame_is_not_a_box_score() {
+        assert!(!ends_paused(&feed().1));
+        let mut paused = feed().1;
+        paused.frames.last_mut().unwrap().game_state = Some("paused".into());
+        assert!(ends_paused(&paused));
+    }
+
+    #[test]
+    fn without_numbers_keeps_the_lineups() {
+        let (first, last, details) = feed();
+        let row = from_feed(GAME, &teams(), &first, &last, &details).unwrap();
+        let empty = row.clone().without_numbers();
+        assert_eq!(empty.end_time, None);
+        assert_eq!(empty.start_time, row.start_time);
+        assert!(
+            empty
+                .teams
+                .iter()
+                .all(|t| t.gold.is_none() && t.kills.is_none() && t.dragons.is_none())
+        );
+        assert!(
+            empty
+                .players
+                .iter()
+                .all(|p| p.kills.is_none() && p.items.is_none() && p.skill_order.is_none())
+        );
+        assert_eq!(empty.players[0].champion, row.players[0].champion);
+        assert_eq!(empty.player_stubs, row.player_stubs);
     }
 
     #[test]

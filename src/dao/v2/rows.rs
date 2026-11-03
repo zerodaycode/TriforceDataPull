@@ -230,6 +230,26 @@ pub struct GameDetailsRow {
     pub remapped: Option<(i64, i64)>,
 }
 
+impl GameDetailsRow {
+    /// Sides and lineups only: the numbers of a feed that ended paused aren't the box score
+    /// (the frames write it)
+    pub fn without_numbers(mut self) -> Self {
+        self.end_time = None;
+        for t in &mut self.teams {
+            (t.gold, t.kills, t.towers, t.inhibitors, t.barons, t.dragons) =
+                (None, None, None, None, None, None);
+        }
+        for p in &mut self.players {
+            (p.level, p.kills, p.deaths, p.assists, p.cs) = (None, None, None, None, None);
+            (p.wards_placed, p.wards_destroyed, p.damage_share_bp) = (None, None, None);
+            p.gold = None;
+            (p.items, p.runes, p.skill_order) = (None, None, None);
+            (p.rune_style, p.rune_sub_style) = (None, None);
+        }
+        self
+    }
+}
+
 /// A game being played, from the live feed
 #[derive(Debug, Clone, PartialEq)]
 pub struct LiveGameRow {

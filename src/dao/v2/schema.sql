@@ -49,7 +49,7 @@ CREATE INDEX IF NOT EXISTS v2_game_team_team ON v2_game_team (team_id);
 CREATE INDEX IF NOT EXISTS v2_game_player_player ON v2_game_player (player_id);
 CREATE INDEX IF NOT EXISTS v2_game_player_team ON v2_game_player (team_id);
 CREATE INDEX IF NOT EXISTS v2_game_queue ON v2_game (event_id) WHERE details IS NULL AND state = 'completed';
-ALTER TABLE v2_game DROP CONSTRAINT IF EXISTS v2_game_details, ADD CONSTRAINT v2_game_details CHECK (details IN ('done', 'no_feed'));
+ALTER TABLE v2_game DROP CONSTRAINT IF EXISTS v2_game_details, ADD CONSTRAINT v2_game_details CHECK (details IN ('done', 'no_feed', 'wait_frames'));
 ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_side, ADD CONSTRAINT v2_game_team_side CHECK (side IN ('blue', 'red'));
 ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_source, ADD CONSTRAINT v2_game_team_source CHECK (side_source IN ('api', 'feed'));
 ALTER TABLE v2_game_team DROP CONSTRAINT IF EXISTS v2_game_team_result, ADD CONSTRAINT v2_game_team_result CHECK (result IN ('win', 'loss'));

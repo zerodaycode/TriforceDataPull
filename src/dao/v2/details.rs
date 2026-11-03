@@ -131,7 +131,7 @@ pub async fn write_player_stubs(stubs: &[PlayerStub]) -> Result<()> {
     .map(|_| ())
 }
 
-const TEAM_COLS: [(&str, &str); 8] = [
+pub(crate) const TEAM_COLS: [(&str, &str); 8] = [
     ("team_ext", "bigint"),
     ("side", "text"),
     ("gold", "bigint"),
@@ -141,7 +141,7 @@ const TEAM_COLS: [(&str, &str); 8] = [
     ("barons", "int"),
     ("dragons", "text"),
 ];
-const PLAYER_COLS: [(&str, &str); 20] = [
+pub(crate) const PLAYER_COLS: [(&str, &str); 20] = [
     ("team_ext", "bigint"),
     ("player_ext", "bigint"),
     ("summoner_name", "text"),
@@ -185,10 +185,28 @@ fn names(cols: &[(&str, &str)]) -> String {
     cols.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ")
 }
 
+/// What a details write marks the game
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetailsState {
+    /// Box score from the feed's last frame
+    Done,
+    /// Sides and lineups only, the frames job writes the box score
+    WaitFrames,
+}
+
+impl DetailsState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DetailsState::Done => "done",
+            DetailsState::WaitFrames => "wait_frames",
+        }
+    }
+}
+
 /// Teams, players and the game in one statement. When a team or a player is missing the game
 /// gets `incomplete`, which the `v2_game_details` CHECK refuses: the whole statement, rows of
 /// the CTEs included, is rolled back. A player the feed has no id for goes in with `player_id` NULL
-fn details_sql(players: usize) -> String {
+fn details_sql(players: usize, state: DetailsState) -> String {
     // $1 game, $2 patch, $3 start, $4 end
     let mut n = 4;
     let teams = values(2, &TEAM_COLS, &mut n);
@@ -219,10 +237,11 @@ fn details_sql(players: usize) -> String {
            ON CONFLICT (game_id, participant_id) DO UPDATE SET {pset} RETURNING 1) \
          UPDATE v2_game SET patch = $2::text, start_time = $3::timestamp, end_time = $4::timestamp, \
            details = CASE WHEN (SELECT count(*) FROM gt) = 2 AND (SELECT count(*) FROM gp) = {players} \
-             THEN 'done' ELSE 'incomplete' END \
+             THEN '{state}' ELSE 'incomplete' END \
          FROM g WHERE v2_game.id = g.id",
         names(&TEAM_COLS),
         names(&PLAYER_COLS),
+        state = state.as_str(),
         pcols = player_cols.join(", "),
         vcols = player_cols
             .iter()
@@ -240,8 +259,8 @@ fn details_sql(players: usize) -> String {
     )
 }
 
-/// One game, all or nothing (one statement). `Err` when the game wasn't marked done
-pub async fn write_details(row: &GameDetailsRow) -> Result<()> {
+/// One game, all or nothing (one statement). `Err` when the game wasn't marked `state`
+pub async fn write_details(row: &GameDetailsRow, state: DetailsState) -> Result<()> {
     if row.teams.len() != 2 || row.players.is_empty() {
         return Err(eyre!(
             "game {}: {} teams, {} players",
@@ -293,7 +312,9 @@ pub async fn write_details(row: &GameDetailsRow) -> Result<()> {
         ]);
     }
     let params: Vec<&dyn QueryParameter> = vals.iter().map(Val::param).collect();
-    let done = "".execute(&details_sql(row.players.len()), &params).await;
+    let done = ""
+        .execute(&details_sql(row.players.len(), state), &params)
+        .await;
     match done {
         Ok(1) => Ok(()),
         Ok(_) => Err(eyre!("game {}: not stored", row.game_ext_id)),
@@ -504,7 +525,7 @@ mod tests {
 
     #[test]
     fn details_sql_numbering() {
-        let sql = details_sql(2);
+        let sql = details_sql(2, DetailsState::Done);
         // 4 game params, 2 × 8 team params, then 2 × 20 player params
         assert!(sql.contains("(VALUES ($5::bigint, $6::text"));
         assert!(sql.contains("($13::bigint, $14::text"));
@@ -512,6 +533,10 @@ mod tests {
         assert!(sql.contains("$60::text)"));
         assert!(!sql.contains("$61"));
         assert!(sql.contains("(SELECT count(*) FROM gp) = 2 THEN 'done' ELSE 'incomplete' END"));
+        assert!(
+            details_sql(2, DetailsState::WaitFrames)
+                .contains("THEN 'wait_frames' ELSE 'incomplete' END")
+        );
         assert!(
             sql.contains("INSERT INTO v2_game_team (game_id, team_id, side_source, side, gold")
         );
@@ -682,7 +707,7 @@ mod tests {
         );
         // a player we don't have: nothing is marked done
         let row = details(-320, 10);
-        let err = write_details(&row).await.unwrap_err();
+        let err = write_details(&row, DetailsState::Done).await.unwrap_err();
         assert!(format!("{err:#}").contains("nothing written"), "{err:#}");
         // nothing of it stays: the whole statement rolled back
         assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -320").await, 0);
@@ -692,16 +717,52 @@ mod tests {
         );
         // with the stubs it goes in, twice without doubling
         write_player_stubs(&row.player_stubs).await.unwrap();
-        write_details(&row).await.unwrap();
-        write_details(&row).await.unwrap();
+        write_details(&row, DetailsState::Done).await.unwrap();
+        write_details(&row, DetailsState::Done).await.unwrap();
         assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -320 AND gt.side_source = 'feed'").await, 2);
         assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -320").await, 10);
         assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -320 AND details = 'done' AND patch = '16.20'").await, 1);
         // a player the feed has no id for: the slot is stored without a player
         let mut no_id = details(-321, 10);
         no_id.players[9].player_ext_id = None;
-        write_details(&no_id).await.unwrap();
+        write_details(&no_id, DetailsState::Done).await.unwrap();
         assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -321 AND gp.player_id IS NULL AND gp.summoner_name = 'BT p9'").await, 1);
+        "".execute("UPDATE v2_game SET details = NULL WHERE ext_id = -321", &[])
+            .await
+            .unwrap();
+        "".execute("DELETE FROM v2_game_player WHERE game_id = (SELECT id FROM v2_game WHERE ext_id = -321)", &[]).await.unwrap();
+        "".execute(
+            "DELETE FROM v2_game_team WHERE game_id = (SELECT id FROM v2_game WHERE ext_id = -321)",
+            &[],
+        )
+        .await
+        .unwrap();
+        // the feed ended paused: lineups without numbers, `wait_frames`, out of the queue
+        let mut live_teams = details(-321, 10);
+        live_teams.teams.iter_mut().for_each(|t| t.kills = Some(3));
+        write_details(&live_teams, DetailsState::Done)
+            .await
+            .unwrap();
+        "".execute("UPDATE v2_game SET details = NULL WHERE ext_id = -321", &[])
+            .await
+            .unwrap();
+        write_details(
+            &details(-321, 10).without_numbers(),
+            DetailsState::WaitFrames,
+        )
+        .await
+        .unwrap();
+        assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -321 AND details = 'wait_frames' AND end_time IS NULL").await, 1);
+        assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -321 AND gt.kills IS NULL AND gt.gold IS NULL").await, 2);
+        assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -321 AND gp.champion = 'Volibear' AND gp.kills IS NULL").await, 10);
+        assert!(
+            !next_games(100_000, true)
+                .await
+                .unwrap()
+                .iter()
+                .any(|g| g.game_ext_id == -321)
+        );
+        // back to the queue for the vod sides below
         "".execute("UPDATE v2_game SET details = NULL WHERE ext_id = -321", &[])
             .await
             .unwrap();
