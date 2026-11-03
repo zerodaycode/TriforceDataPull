@@ -13,6 +13,7 @@ use color_eyre::{
 use serde_json::{Value, json};
 
 use crate::frames::{
+    box_score::{BoxScore, box_score},
     pack::{Packed, to_hex},
     timeline::{Chunk, LiveState, Side, Timeline},
 };
@@ -293,10 +294,20 @@ const REAL_COLS: &[&str] = &[
 const TEAM_COLS: &[&str] = &["gold", "kills", "towers", "inhibitors", "barons", "dragons"];
 
 /// The CTEs that write a whole build ($1 = game ext id, $2 = the document): timeline, series,
-/// markers, pauses and rollbacks replaced. `g` must be defined before. A missing team, player,
-/// marker, pause or rollback row makes the game `incomplete`, which the `v2_game_frames_state`
-/// CHECK refuses: the whole statement, archive included, is rolled back. `extra_check` adds conditions to that count (the archive)
+/// markers, pauses and rollbacks replaced, and the box score (`box`) when the game waits for it
+/// (`details = 'wait_frames'`) or had a chronobreak. `g` must be defined before. A missing team,
+/// player, marker, pause or rollback row, or a team or player row the box score misses, makes the
+/// game `incomplete`, which the `v2_game_frames_state` CHECK refuses: the whole statement,
+/// archive included, is rolled back. `extra_check` adds conditions to that count (the archive)
 fn replace_series_sql(extra_check: &str) -> String {
+    let box_set = |cols: &[(&str, &str)]| {
+        cols.iter()
+            .map(|(c, ty)| format!("{c} = (x->>'{c}')::{ty}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let box_team_set = box_set(&crate::dao::v2::details::TEAM_COLS[2..]);
+    let box_player_set = box_set(&crate::dao::v2::details::PLAYER_COLS[6..]);
     let team_cols = TEAM_COLS.join(", ");
     let team_vals = TEAM_COLS
         .iter()
@@ -366,14 +377,40 @@ fn replace_series_sql(extra_check: &str) -> String {
            SELECT g.id, r.number, r.participant_id, (r.x->>'kills')::int, (r.x->>'deaths')::int, (r.x->>'assists')::int, (r.x->>'gold')::int, (r.x->>'cs')::int FROM g, rbp_new r \
            ON CONFLICT (game_id, number, participant_id) DO UPDATE SET kills = EXCLUDED.kills, deaths = EXCLUDED.deaths, assists = EXCLUDED.assists, gold = EXCLUDED.gold, cs = EXCLUDED.cs RETURNING 1), \
          mk AS (INSERT INTO v2_game_marker (game_id, game_time_s, kind, team_id, detail, undone_by_pause) \
-           SELECT g.id, (x->>'game_time_s')::int, x->>'kind', teams.team_id, x->>'detail', (x->>'undone_by_pause')::smallint FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' RETURNING 1) \
-         UPDATE v2_game SET frames = CASE WHEN {extra_check}(SELECT count(*) FROM tl) = 1 AND (SELECT count(*) FROM ts) = 2 AND (SELECT count(*) FROM ps) = 10 \
+           SELECT g.id, (x->>'game_time_s')::int, x->>'kind', teams.team_id, x->>'detail', (x->>'undone_by_pause')::smallint FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' RETURNING 1), \
+         box_on AS (SELECT COALESCE((d.j ? 'box') AND v2_game.details IN ('wait_frames', 'done') \
+             AND (v2_game.details = 'wait_frames' OR (d.j->'box'->>'chronobreak')::boolean), false) AS on_ \
+           FROM d, g JOIN v2_game ON v2_game.id = g.id), \
+         bt AS (UPDATE v2_game_team gt SET {box_team_set} \
+           FROM d, jsonb_array_elements(d.j->'box'->'teams') x \
+           WHERE (SELECT on_ FROM box_on) AND gt.game_id = (SELECT id FROM g) AND gt.side = x->>'side' RETURNING 1), \
+         bp AS (UPDATE v2_game_player gp SET {box_player_set} \
+           FROM d, jsonb_array_elements(d.j->'box'->'players') x \
+           WHERE (SELECT on_ FROM box_on) AND gp.game_id = (SELECT id FROM g) AND gp.participant_id = (x->>'participant_id')::int RETURNING 1) \
+         UPDATE v2_game SET \
+           end_time = CASE WHEN (SELECT on_ FROM box_on) THEN ((SELECT j FROM d)->'box'->>'end_time')::timestamp ELSE end_time END, \
+           details = CASE WHEN (SELECT on_ FROM box_on) THEN 'done' ELSE details END, \
+           frames = CASE WHEN {extra_check}(SELECT count(*) FROM tl) = 1 AND (SELECT count(*) FROM ts) = 2 AND (SELECT count(*) FROM ps) = 10 \
            AND (SELECT count(*) FROM mk) = jsonb_array_length((SELECT j FROM d)->'markers') \
            AND (SELECT count(*) FROM pz) = jsonb_array_length((SELECT j FROM d)->'pauses') \
            AND (SELECT count(*) FROM rbt) = jsonb_array_length((SELECT j FROM d)->'rollback_teams') \
-           AND (SELECT count(*) FROM rbp) = jsonb_array_length((SELECT j FROM d)->'rollback_players') THEN 'done' ELSE 'incomplete' END \
+           AND (SELECT count(*) FROM rbp) = jsonb_array_length((SELECT j FROM d)->'rollback_players') \
+           AND (NOT (SELECT on_ FROM box_on) \
+             OR ((SELECT count(*) FROM bt) = 2 \
+               AND (SELECT count(*) FROM bp) = (SELECT count(*) FROM v2_game_player WHERE game_id = (SELECT id FROM g)))) \
+           THEN 'done' ELSE 'incomplete' END \
          WHERE id = (SELECT id FROM g) RETURNING frames"
     )
+}
+
+/// The box score in the series document: `box_on` in the SQL decides if it is written
+fn box_doc(b: &BoxScore) -> Result<Value> {
+    Ok(json!({
+        "end_time": b.end_time.format(TS).to_string(),
+        "chronobreak": b.chronobreak,
+        "teams": serde_json::to_value(&b.teams).wrap_err("box teams")?,
+        "players": serde_json::to_value(&b.players).wrap_err("box players")?,
+    }))
 }
 
 fn final_sql() -> String {
@@ -422,7 +459,9 @@ pub async fn write_final(
     red: i64,
     tl: &Timeline,
 ) -> Result<()> {
-    let doc = series_doc(blue, red, Some(&tl.into()), &tl.chunk)?.to_string();
+    let mut doc = series_doc(blue, red, Some(&tl.into()), &tl.chunk)?;
+    doc["box"] = box_doc(&box_score(tl)?)?;
+    let doc = doc.to_string();
     let hex = [to_hex(&window.data), to_hex(&details.data)];
     let firsts = [window.first.naive_utc(), details.first.naive_utc()];
     let lasts = [window.last.naive_utc(), details.last.naive_utc()];
@@ -453,7 +492,9 @@ pub async fn write_final(
 
 /// The series again from the archive (another step, a new field): no feed calls
 pub async fn write_rebuild(game_ext_id: i64, blue: i64, red: i64, tl: &Timeline) -> Result<()> {
-    let doc = series_doc(blue, red, Some(&tl.into()), &tl.chunk)?.to_string();
+    let mut doc = series_doc(blue, red, Some(&tl.into()), &tl.chunk)?;
+    doc["box"] = box_doc(&box_score(tl)?)?;
+    let doc = doc.to_string();
     let r = rows(
         &rebuild_sql(),
         &[&game_ext_id, &doc],
@@ -797,6 +838,87 @@ pub(crate) mod tests {
         let tl = build(&w, &d, STEP_S).unwrap();
         write_final(game, &pw, &pd, -402, -403, &tl).await.unwrap();
         tl
+    }
+
+    pub(crate) fn lineups(game: i64) -> crate::dao::v2::rows::GameDetailsRow {
+        use crate::dao::v2::rows::*;
+        let team = |ext, side| GameTeamRow {
+            team_ext_id: ext,
+            side,
+            gold: Some(1),
+            kills: Some(99),
+            towers: None,
+            inhibitors: None,
+            barons: None,
+            dragons: None,
+        };
+        GameDetailsRow {
+            game_ext_id: game,
+            patch: Some("16.20".into()),
+            start_time: None,
+            end_time: None,
+            teams: vec![team(-402, "blue"), team(-403, "red")],
+            players: (0..10)
+                .map(|i| GamePlayerRow {
+                    team_ext_id: if i < 5 { -402 } else { -403 },
+                    player_ext_id: None,
+                    summoner_name: format!("p{i}"),
+                    participant_id: i + 1,
+                    role: "top".into(),
+                    champion: "Volibear".into(),
+                    level: None,
+                    kills: Some(99),
+                    deaths: None,
+                    assists: None,
+                    gold: None,
+                    cs: None,
+                    wards_placed: None,
+                    wards_destroyed: None,
+                    damage_share_bp: None,
+                    items: None,
+                    rune_style: None,
+                    rune_sub_style: None,
+                    runes: None,
+                    skill_order: None,
+                })
+                .collect(),
+            player_stubs: vec![],
+            remapped: None,
+        }
+    }
+
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn box_score_for_waiting_and_chronobreak_games() {
+        use crate::dao::v2::details::{DetailsState, write_details};
+        let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
+        setup().await;
+        // waiting game: the frames write fills the numbers and marks the details done
+        write_details(&lineups(-420).without_numbers(), DetailsState::WaitFrames)
+            .await
+            .unwrap();
+        let tl = write_game(-420, 95).await;
+        let b = crate::frames::box_score::box_score(&tl).unwrap();
+        assert_eq!(
+            one("SELECT details FROM v2_game WHERE ext_id = -420").await,
+            "done"
+        );
+        assert_eq!(
+            one("SELECT end_time::text FROM v2_game WHERE ext_id = -420").await,
+            b.end_time.to_string()
+        );
+        assert_eq!(count("SELECT gold FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -420 AND gt.side = 'blue'").await, b.teams[0].gold.unwrap());
+        assert_eq!(one("SELECT dragons FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -420 AND gt.side = 'red'").await, "ocean");
+        assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -420 AND gp.level IS NOT NULL AND gp.champion = 'Volibear'").await, 10);
+        // done details, no chronobreak: left alone
+        write_details(&lineups(-421), DetailsState::Done)
+            .await
+            .unwrap();
+        write_game(-421, 95).await;
+        assert_eq!(count("SELECT kills FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -421 AND gt.side = 'blue'").await, 99);
+        // details not written yet: frames done, nothing else touched
+        write_game(-422, 95).await;
+        assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -422 AND details IS NULL AND frames = 'done'").await, 1);
     }
 
     const SERIES: &str = "(SELECT array_length(gold, 1) FROM v2_game_team_series s JOIN v2_game g ON g.id = s.game_id WHERE g.ext_id = -420 AND s.side = 'blue')";
