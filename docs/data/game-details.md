@@ -39,6 +39,8 @@ One row per player slot and game, unique `(game_id, participant_id)`.
 
 - The queue: completed games with `v2_game.details` NULL, untried and newest first, about one game a second. With `TRIFORCE_BACKFILL_DETAILS=off` only games of matches from the last 3 days.
 - One write per game: if a team or a player is missing, nothing of that game is written.
+- A game with a chronobreak gets its box score from its frames: after the restore the feed counts from 0 again, so its last frame isn't the box score. The frames job writes it (see [game-frames.md](game-frames.md)): dragons leave out the ones a chronobreak undid, the skill order joins the skills from before and after the pause. Items are NULL there, the feed's list only has what was bought after the restore.
+- A feed whose last frame is a pause (a chronobreak or a remake) is `wait_frames`: sides and lineups are stored, the numbers and `end_time` stay NULL and the live totals are cleared, until the frames job writes the box score.
 - While a game is played, `v2 live` writes the sides and team totals right now (`side_source = 'feed'`); the details replace them with the final numbers.
 
 ## `v2_game.details`
@@ -47,6 +49,7 @@ One row per player slot and game, unique `(game_id, participant_id)`.
 |---|---|
 | NULL | not done yet (or failed, waiting: `details_tries`, `details_next_try` 10 min, 40 min, 2 h 40, 10 h 40) |
 | `done` | sides, lineups and last-frame numbers stored |
+| `wait_frames` | the feed's last frame was a pause (a chronobreak or a remake): sides and lineups stored, numbers and `end_time` empty until the frames job writes the box score, then `done` |
 | `no_feed` | the feed has nothing (204) or not 5 players a side: sides from `watchVodQuery`, no lineups or numbers |
 
 After 5 failed tries a game leaves the queue with `details` still NULL (reset by hand, see the README).

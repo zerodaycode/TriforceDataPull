@@ -131,7 +131,7 @@ What's stored:
 - The pause gets `rollback_s` and `counters_reset`, what was taken back goes to `v2_game_rollback_team` / `v2_game_rollback_player`, objectives taken back stay in `v2_game_marker` with `undone_by_pause`.
 - The archive keeps every frame, the seconds taken back included.
 - Live can't find the snapshot (it doesn't keep the frames): it skips the zero frames and keeps the counts adding up from the pause, with `rollback_s` NULL. The after-game write puts the rollback in.
-- The final stats in `v2_game_team` / `v2_game_player` aren't fixed for a chronobreak yet (ROADMAP).
+- The final stats in `v2_game_team` / `v2_game_player` come from the series' last point (see "How it's filled"). Dragons leave out the ones a chronobreak undid, the skill order joins the skills from before and after the pause, items are NULL.
 
 ## How it's filled
 
@@ -143,6 +143,7 @@ What's stored:
 | Delay | points 60-90 s behind the game | a few minutes after the end, older games only with the backfill |
 
 - The after-game write is all or nothing: archive, timeline, 2 team rows, 10 player rows, the markers and the pauses, or none of it.
+- The after-game write also fills the box score (`v2_game_team`, `v2_game_player`, `v2_game.end_time`) in the same statement and sets `v2_game.details` to `done`. It does that for games with `details = 'wait_frames'` and for games whose timeline has a chronobreak (a pause with `rollback_s` or `counters_reset`). If a team or player row is missing, no box score is written. Games with `wait_frames` are taken by the queue even with `TRIFORCE_BACKFILL_FRAMES=off`. A `wait_frames` game whose frames are already `done` gets its box score from the archive in the frames loop, without feed calls.
 - Teams are the match's (`v2_event_team`): a feed team the match doesn't list takes the match's other team, like the game details (logged). So the series teams are always the ones in `v2_game_team`.
 - The walk goes on through pauses (the feed can go 80 min without a frame). It stops after 30 min without one only when the game's end isn't known or the walk is past it, and 6 h after the first frame at most. Without a `finished` frame and before the game details know the end, a walk counts as failed and is tried later (on the last try it's kept).
 - A feed or network outage (no answer, 5xx, 429 after 3 retries) pauses the job 5 min and counts no try.

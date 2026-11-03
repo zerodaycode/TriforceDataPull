@@ -47,6 +47,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Old API code moved to `src/client/legacy/` (`data_pull` and `utils` are gone).
 
 ### Fixed
+- v2 game details of a game with a chronobreak: the box score comes from the game's frames instead of the frame before the pause
 - The app stopped at start when a live match had a VOD without `firstFrameTime` (`null`) in the old `getLive`.
 - Cron schedules rejected by cron 0.17 (`*/120` and `*/90` minute steps). Leagues and tournaments now really run every 2 hours (before they ran every hour). Teams and players run every hour.
 - reqwest `query` feature enabled, it's opt-in since 0.13.
