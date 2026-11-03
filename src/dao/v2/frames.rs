@@ -88,12 +88,16 @@ pub async fn next_games(limit: i64, backfill: bool) -> Result<Vec<FramesGame>> {
 }
 
 /// Games whose details wait for a box score but whose frames were done before (the details
-/// came later): the box score comes from the archive, no feed calls
+/// came later): the box score comes from the archive, no feed calls. A failed one waits like
+/// the details (`details_tries`, `details_next_try`), after `details::MAX_TRIES` it stays waiting
 pub async fn box_score_waiting(limit: i64) -> Result<Vec<i64>> {
     let r = rows(
         "SELECT g.ext_id FROM v2_game g WHERE g.details = 'wait_frames' AND g.frames = 'done' \
-           AND EXISTS (SELECT 1 FROM v2_game_frames f WHERE f.game_id = g.id) ORDER BY g.ext_id LIMIT $1::bigint",
-        &[&limit],
+           AND COALESCE(g.details_tries, 0) < $2::int \
+           AND (g.details_next_try IS NULL OR g.details_next_try <= now() AT TIME ZONE 'UTC') \
+           AND EXISTS (SELECT 1 FROM v2_game_frames f WHERE f.game_id = g.id) \
+         ORDER BY COALESCE(g.details_tries, 0), g.ext_id LIMIT $1::bigint",
+        &[&limit, &crate::dao::v2::details::MAX_TRIES],
         "v2_game box scores waiting",
     )
     .await?;

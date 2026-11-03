@@ -21,9 +21,12 @@ use crate::{
         },
         log,
     },
-    dao::v2::frames::{
-        FramesGame, MAX_TRIES, archived_games, box_score_waiting, bump_tries, event_teams,
-        mark_no_feed, next_games, read_archive, write_final, write_rebuild,
+    dao::v2::{
+        details::{self, DetailsState},
+        frames::{
+            FramesGame, MAX_TRIES, archived_games, box_score_waiting, bump_tries, event_teams,
+            mark_no_feed, next_games, read_archive, write_final, write_rebuild,
+        },
     },
     env::Rebuild,
     frames::{
@@ -119,14 +122,12 @@ async fn one_game(src: &impl FeedSource, g: &FramesGame, cfg: &WalkConfig) -> Re
         Err(WalkError::Failed(e)) => return Err(e),
     };
     // without a finished frame or the end the details saw, the walk may have stopped in a feed
-    // hole: try again later (the details job fills the end), keep it on the last try. Details
-    // waiting for the frames won't fill it: the walk's end is the end
-    let waiting = g.details.as_deref() == Some("wait_frames");
+    // hole: try again later (the details job or live fills the end), keep it on the last try
     let finished = walked
         .window
         .last()
         .is_some_and(|f| f.state.as_deref() == Some("finished"));
-    if !finished && g.end_time.is_none() && !waiting && g.tries + 1 < MAX_TRIES {
+    if !finished && g.end_time.is_none() && g.tries + 1 < MAX_TRIES {
         return Err(eyre!(
             "no finished frame and no known end yet, {} frames, tried again later",
             walked.window.len()
@@ -149,25 +150,44 @@ async fn one_game(src: &impl FeedSource, g: &FramesGame, cfg: &WalkConfig) -> Re
     }))
 }
 
+/// Box scores of games whose details wait for them and whose frames were done before: from
+/// the archive, no feed calls. A failed one waits like the details (`details_tries`)
+async fn box_scores_from_the_archive() {
+    let ids = match box_score_waiting(BATCH).await {
+        Ok(ids) => ids,
+        Err(e) => {
+            log(format!("v2 frames: box scores waiting not read: {e:#}"));
+            return;
+        }
+    };
+    for id in ids {
+        let result = match tokio::spawn(rebuild_one(id)).await {
+            Ok(r) => r,
+            Err(e) => Err(eyre!("task stopped: {e}")),
+        };
+        let Err(e) = result else {
+            log(format!("v2 frames: game {id}: box score from the archive"));
+            continue;
+        };
+        match details::bump_tries(id).await {
+            Ok(n) => log(format!(
+                "v2 frames: game {id}: box score not written (try {n} of {}): {e:#}",
+                details::MAX_TRIES
+            )),
+            Err(b) => log(format!(
+                "v2 frames: game {id}: box score not written ({e:#}), try not counted: {b:#}"
+            )),
+        }
+    }
+}
+
 /// Never returns. Each game in its own task: a panic is one failed try, not the loop
 pub async fn frames_loop(backfill: bool) {
     let cfg = WalkConfig::default();
     let (mut done, mut no_feed, mut failed) = (0usize, 0usize, 0usize);
     let mut fails_in_a_row = 0;
     loop {
-        match box_score_waiting(BATCH).await {
-            Ok(ids) => {
-                for id in ids {
-                    match rebuild_one(id).await {
-                        Ok(_) => log(format!("v2 frames: game {id}: box score from the archive")),
-                        Err(e) => log(format!(
-                            "v2 frames: game {id}: box score not written: {e:#}"
-                        )),
-                    }
-                }
-            }
-            Err(e) => log(format!("v2 frames: box scores waiting not read: {e:#}")),
-        }
+        box_scores_from_the_archive().await;
         let games = match next_games(BATCH, backfill).await {
             Ok(g) => g,
             Err(e) => {
@@ -183,6 +203,11 @@ pub async fn frames_loop(backfill: bool) {
         'batch: for g in games {
             let started = Instant::now();
             let id = g.game_ext_id;
+            let waiting = if g.details.as_deref() == Some(DetailsState::WaitFrames.as_str()) {
+                ", its details wait for a box score: numbers stay NULL"
+            } else {
+                ""
+            };
             let task_cfg = cfg.clone();
             let result =
                 match tokio::spawn(async move { one_game(&HttpFeed, &g, &task_cfg).await }).await {
@@ -209,7 +234,7 @@ pub async fn frames_loop(backfill: bool) {
                     no_feed += 1;
                     fails_in_a_row = 0;
                     match mark_no_feed(id).await {
-                        Ok(()) => log(format!("v2 frames: game {id}: no feed ({why})")),
+                        Ok(()) => log(format!("v2 frames: game {id}: no feed ({why}){waiting}")),
                         Err(e) => log(format!(
                             "v2 frames: game {id}: no feed ({why}), not stored: {e:#}"
                         )),
@@ -232,7 +257,7 @@ pub async fn frames_loop(backfill: bool) {
                             "v2 frames: game {id} failed, but it was written meanwhile: {e:#}"
                         )),
                         Ok(n) if n >= MAX_TRIES => log(format!(
-                            "v2 frames: game {id} is no_feed after {n} tries: {e:#}"
+                            "v2 frames: game {id} is no_feed after {n} tries{waiting}: {e:#}"
                         )),
                         Ok(_) => log(format!(
                             "v2 frames: game {id} failed, tried again later: {e:#}"
@@ -389,18 +414,18 @@ mod tests {
         assert!(e.to_string().contains("no known end yet"), "{e}");
     }
 
-    /// A game whose details wait for the frames: no details end will come, the walk's end is it
+    /// A game whose details wait for the frames: a walk that may be cut is tried again too, it
+    /// would be its box score
     #[tokio::test]
-    async fn waiting_details_dont_wait_for_an_end() {
+    async fn waiting_details_wait_for_an_end_too() {
         let (w, d) = hand::game(40, false);
         let f = MockFeed::game(hand::metadata(), w, d);
         let g = FramesGame {
-            details: Some("wait_frames".into()),
+            details: Some(DetailsState::WaitFrames.as_str().into()),
             ..game(0)
         };
-        let e = one_game(&f, &g, &fast()).await;
-        // past the end check: it fails later at the DB write (no DB in unit tests) or succeeds
-        assert!(e.is_ok() || !format!("{:#}", e.unwrap_err()).contains("no known end yet"));
+        let e = one_game(&f, &g, &fast()).await.unwrap_err();
+        assert!(e.to_string().contains("no known end yet"), "{e}");
     }
 
     /// The feed's team isn't the match's (LIT 2026): the archive and series go under the
