@@ -113,7 +113,9 @@ pub fn box_score(tl: &Timeline) -> Result<BoxScore> {
                 wards_placed: last(&p.wards_placed),
                 wards_destroyed: last(&p.wards_destroyed),
                 // a share is 0-1: 0-10000 always fits
-                damage_share_bp: last(&p.damage_share).map(|d| (d * 10_000.0).round() as i64),
+                damage_share_bp: last(&p.damage_share)
+                    .filter(|d| d.is_finite())
+                    .map(|d| (d * 10_000.0).round() as i64),
                 items,
                 rune_style: runes.and_then(|r| r.style),
                 rune_sub_style: runes.and_then(|r| r.sub_style),

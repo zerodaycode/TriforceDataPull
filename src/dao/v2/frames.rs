@@ -320,7 +320,8 @@ const TEAM_COLS: &[&str] = &["gold", "kills", "towers", "inhibitors", "barons", 
 
 /// The CTEs that write a whole build ($1 = game ext id, $2 = the document): timeline, series,
 /// markers, pauses and rollbacks replaced, and the box score (`box`) when the game waits for it
-/// (`details = 'wait_frames'`) or had a chronobreak. `g` must be defined before. A missing team,
+/// (`details = 'wait_frames'`), had a chronobreak, or its stored end is more than a minute
+/// before the frames' end (the details took a pause frame). `g` must be defined before. A missing team,
 /// player, marker, pause or rollback row, or a team or player row the box score misses, makes the
 /// game `incomplete`, which the `v2_game_frames_state` CHECK refuses: the whole statement,
 /// archive included, is rolled back. `extra_check` adds conditions to that count (the archive)
@@ -404,11 +405,13 @@ fn replace_series_sql(extra_check: &str) -> String {
          mk AS (INSERT INTO v2_game_marker (game_id, game_time_s, kind, team_id, detail, undone_by_pause) \
            SELECT g.id, (x->>'game_time_s')::int, x->>'kind', teams.team_id, x->>'detail', (x->>'undone_by_pause')::smallint FROM g, d, jsonb_array_elements(d.j->'markers') x JOIN teams ON teams.side = x->>'side' RETURNING 1), \
          box_on AS (SELECT COALESCE((d.j ? 'box') AND v2_game.details IN ('wait_frames', 'done') \
-             AND (v2_game.details = 'wait_frames' OR (d.j->'box'->>'chronobreak')::boolean), false) AS on_ \
+             AND (v2_game.details = 'wait_frames' OR (d.j->'box'->>'chronobreak')::boolean \
+               OR v2_game.end_time < ((d.j->'box'->>'end_time')::timestamp - interval '1 minute')), false) AS on_ \
            FROM d, g JOIN v2_game ON v2_game.id = g.id), \
          bt AS (UPDATE v2_game_team gt SET {box_team_set} \
-           FROM d, jsonb_array_elements(d.j->'box'->'teams') x \
-           WHERE (SELECT on_ FROM box_on) AND gt.game_id = (SELECT id FROM g) AND gt.side = x->>'side' RETURNING 1), \
+           FROM d, jsonb_array_elements(d.j->'box'->'teams') x JOIN teams ON teams.side = x->>'side' \
+           WHERE (SELECT on_ FROM box_on) AND gt.game_id = (SELECT id FROM g) \
+             AND gt.team_id = teams.team_id AND gt.side = x->>'side' RETURNING 1), \
          bp AS (UPDATE v2_game_player gp SET {box_player_set} \
            FROM d, jsonb_array_elements(d.j->'box'->'players') x \
            WHERE (SELECT on_ FROM box_on) AND gp.game_id = (SELECT id FROM g) AND gp.participant_id = (x->>'participant_id')::int RETURNING 1) \
