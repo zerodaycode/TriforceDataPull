@@ -989,6 +989,26 @@ pub(crate) mod tests {
         crate::dao::v2::test_cleanup().await;
     }
 
+    /// A rebuild of a done game with a stored player row missing: nothing is written
+    #[canyon_sql::macros::canyon_tokio_test]
+    #[ignore = "writes to the DB in canyon.toml: cargo test -- --ignored, against the dev DB after the app ran once"]
+    fn rebuild_missing_a_box_score_row_writes_nothing() {
+        use crate::dao::v2::details::{DetailsState, write_details};
+        let _guard = crate::dao::v2::DB_TEST_LOCK.lock().await;
+        setup().await;
+        let tl = write_game(-420, 95).await;
+        write_details(&lineups(-420).without_numbers(), DetailsState::WaitFrames)
+            .await
+            .unwrap();
+        "".execute("DELETE FROM v2_game_player WHERE participant_id = 3 AND game_id = (SELECT id FROM v2_game WHERE ext_id = -420)", &[]).await.unwrap();
+        assert!(write_rebuild(-420, -402, -403, &tl).await.is_err());
+        assert_eq!(count("SELECT count(*) FROM v2_game WHERE ext_id = -420 AND frames = 'done' AND details = 'wait_frames'").await, 1);
+        assert_eq!(count("SELECT count(*) FROM v2_game_player gp JOIN v2_game g ON g.id = gp.game_id WHERE g.ext_id = -420 AND gp.level IS NOT NULL").await, 0);
+        assert_eq!(count("SELECT count(*) FROM v2_game_team gt JOIN v2_game g ON g.id = gt.game_id WHERE g.ext_id = -420 AND gt.gold IS NULL").await, 2);
+        assert!(box_score_waiting(100).await.unwrap().contains(&-420));
+        crate::dao::v2::test_cleanup().await;
+    }
+
     const SERIES: &str = "(SELECT array_length(gold, 1) FROM v2_game_team_series s JOIN v2_game g ON g.id = s.game_id WHERE g.ext_id = -420 AND s.side = 'blue')";
 
     #[canyon_sql::macros::canyon_tokio_test]
